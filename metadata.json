@@ -1,0 +1,6 @@
+{
+  "name": "AfiliaCopy",
+  "description": "Extração de dados de produtos e gerador de copy para afiliados de Mercado Livre, Shopee, Amazon, AliExpress e Shein.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
