@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ProductData, GeminiCopyVariation } from '../types';
-import { Link2, Sparkles, Loader2, Copy, Check, Share2, Save, ShoppingBag, Tag, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Wand2, Eye } from 'lucide-react';
+import { Link2, Sparkles, Loader2, Copy, Check, Share2, Save, ShoppingBag, Tag, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Wand2, Eye, TrendingDown } from 'lucide-react';
 import { getPlatformLabel } from '../utils/platformLabel';
+import { calculateDiscountPercent } from '../utils/copyHelper';
 
 interface NewProductTabProps {
   onSaveProduct: (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => void;
@@ -29,21 +30,36 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
     const couponLine = prod.coupon ? `\n🎟️ Cupom de Desconto: ${prod.coupon}` : '';
     const descLine = prod.description ? `\n\n📝 ${prod.description}` : '';
 
+    const discountNum = calculateDiscountPercent(prod.price_from, prod.price_to);
+    const discountBadge = discountNum ? ` (-${discountNum}% OFF)` : '';
+
+    const priceTextUrgency = prod.price_from && prod.price_from !== prod.price_to
+      ? ` De: ~R$ ${prod.price_from}~\n🔥 Por apenas: *R$ ${prod.price_to}*${discountBadge}`
+      : `💰 Por apenas: *R$ ${prod.price_to}*`;
+
+    const priceTextDirect = prod.price_from && prod.price_from !== prod.price_to
+      ? `❌ De: R$ ${prod.price_from}\n✅ Preço Promocional: *R$ ${prod.price_to}*${discountBadge}`
+      : `✅ Preço atual: *R$ ${prod.price_to}*`;
+
+    const priceTextReview = prod.price_from && prod.price_from !== prod.price_to
+      ? `Estava R$ ${prod.price_from} e caiu para apenas *R$ ${prod.price_to}*!${discountBadge}`
+      : `Muito bem avaliado e está saindo por apenas *R$ ${prod.price_to}*!`;
+
     return [
       {
         id: 'var_urgency_' + Date.now(),
         title: '⚡ 1. Urgência & Oferta Relâmpago',
-        copy: `🚨 *OFERTA RELÂMPAGO DO DIA!* 🚨\n\n*${prod.title}*${descLine}\n\n💰 por apenas *R$ ${prod.price_to}*${couponLine}\n\n⚠️ Preço baixou muito! Estoque limitado!\n\n🛍️ *Compre aqui antes que acabe:* \n${prod.original_link}\n\n*Promoção por tempo limitado!`,
+        copy: `🚨 *OFERTA RELÂMPAGO DO DIA!* 🚨\n\n*${prod.title}*${descLine}\n\n${priceTextUrgency}${couponLine}\n\n⚠️ Preço baixou muito! Estoque limitado!\n\n🛍️ *Compre aqui antes que acabe:* \n${prod.original_link}\n\n*Promoção por tempo limitado!`,
       },
       {
         id: 'var_direct_' + Date.now(),
         title: '🎯 2. Direta & Foco no Preço',
-        copy: `🔥 *MENOR PREÇO ENCONTRADO!*\n\n*${prod.title}*${descLine}\n\n✅ Preço atual: *R$ ${prod.price_to}*${couponLine}\n\n🛍️ *Link direto com desconto:*\n${prod.original_link}`,
+        copy: `🔥 *MENOR PREÇO ENCONTRADO!*\n\n*${prod.title}*${descLine}\n\n${priceTextDirect}${couponLine}\n\n🛍️ *Link direto com desconto:*\n${prod.original_link}`,
       },
       {
         id: 'var_review_' + Date.now(),
         title: '⭐ 3. Indicação & Review Sincero',
-        copy: `Gente, dá uma olhada nesse achado! ⭐⭐⭐⭐⭐\n\n*${prod.title}*${descLine}\n\nMuito bem avaliado e está saindo por apenas *R$ ${prod.price_to}*!${couponLine}\n\n📲 *Garanta o seu aqui:* \n${prod.original_link}`,
+        copy: `Gente, dá uma olhada nesse achado! ⭐⭐⭐⭐⭐\n\n*${prod.title}*${descLine}\n\n${priceTextReview}${couponLine}\n\n📲 *Garanta o seu aqui:* \n${prod.original_link}`,
       },
     ];
   };
@@ -76,13 +92,18 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
         title: data.title || 'Produto Extraído',
         description: data.description || '',
         image_url: data.image_url || null,
+        price_from: data.price_from ? String(data.price_from).trim() : null,
         price_to: data.price_to || 'Consulte no link',
         coupon: data.coupon ? String(data.coupon).trim() : null, // strictly only if present
         original_link: data.original_link || urlInput.trim(),
         extractedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        priceUncertain: !!data.price_uncertain,
       };
 
       setExtractedProduct(prod);
+      if (prod.priceUncertain) {
+        setErrorMsg('⚠️ Não consegui confirmar o preço com segurança nessa loja. Confira o valor manualmente antes de enviar a copy.');
+      }
 
       // Generate 3 variations
       const vars = generateVariationsForProduct(prod);
@@ -223,9 +244,29 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
               )}
 
               {/* Price extracted */}
-              <div className="pt-1 flex items-center justify-between bg-stone-950 p-3 rounded-xl border border-stone-800">
-                <span className="text-xs text-stone-400 font-medium">Preço Extraído:</span>
-                <span className="text-base font-extrabold text-emerald-400">R$ {extractedProduct.price_to}</span>
+              <div className="pt-1 bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-1.5">
+                {extractedProduct.price_from && extractedProduct.price_from !== extractedProduct.price_to ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-stone-500 line-through">De: R$ {extractedProduct.price_from}</span>
+                      {calculateDiscountPercent(extractedProduct.price_from, extractedProduct.price_to) && (
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full flex items-center gap-1">
+                          <TrendingDown className="w-3 h-3" />
+                          -{calculateDiscountPercent(extractedProduct.price_from, extractedProduct.price_to)}% OFF
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-stone-300 font-semibold">Por (Com Desconto):</span>
+                      <span className="text-lg font-black text-emerald-400">R$ {extractedProduct.price_to}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-stone-400 font-medium">Preço da Oferta:</span>
+                    <span className="text-base font-extrabold text-emerald-400">R$ {extractedProduct.price_to}</span>
+                  </div>
+                )}
               </div>
 
               {/* Coupon - Only rendered if present */}

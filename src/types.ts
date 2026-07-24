@@ -26,6 +26,7 @@ export interface ProductData {
   coupon: string | null; // Apenas se houver cupom real
   original_link: string;
   extractedAt?: string;
+  priceUncertain?: boolean; // true quando o backend não confiou no preço extraído
 }
 
 export type ScrapedProduct = ProductData;

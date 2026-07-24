@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { SavedHistoryItem } from '../types';
-import { ShoppingBag, Search, Trash2, ExternalLink, Share2, Copy, Check, Tag, PlusCircle, ArrowRight } from 'lucide-react';
+import { ShoppingBag, Search, Trash2, ExternalLink, Share2, Copy, Check, Tag, PlusCircle, ArrowRight, TrendingDown } from 'lucide-react';
 import { getPlatformLabel } from '../utils/platformLabel';
+import { calculateDiscountPercent } from '../utils/copyHelper';
 
 interface SavedProductsTabProps {
   items: SavedHistoryItem[];
@@ -180,14 +181,29 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
             </div>
 
             {/* Price & Coupon Details */}
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-stone-950 p-3 rounded-xl border border-stone-800 text-xs">
-              <div>
-                <span className="text-stone-400">Preço: </span>
-                <span className="font-extrabold text-emerald-400">R$ {currentItem.product.price_to}</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-950 p-3 rounded-xl border border-stone-800 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                {currentItem.product.price_from && currentItem.product.price_from !== currentItem.product.price_to ? (
+                  <>
+                    <span className="text-stone-500 line-through">De: R$ {currentItem.product.price_from}</span>
+                    <span className="font-extrabold text-emerald-400 text-sm">Por: R$ {currentItem.product.price_to}</span>
+                    {calculateDiscountPercent(currentItem.product.price_from, currentItem.product.price_to) && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full flex items-center gap-0.5">
+                        <TrendingDown className="w-3 h-3" />
+                        -{calculateDiscountPercent(currentItem.product.price_from, currentItem.product.price_to)}%
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <div>
+                    <span className="text-stone-400">Preço: </span>
+                    <span className="font-extrabold text-emerald-400 text-sm">R$ {currentItem.product.price_to}</span>
+                  </div>
+                )}
               </div>
 
               {currentItem.product.coupon && (
-                <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
+                <div className="flex items-center gap-1.5 text-amber-300 font-semibold bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
                   <Tag className="w-3.5 h-3.5" />
                   <span>Cupom: {currentItem.product.coupon}</span>
                 </div>

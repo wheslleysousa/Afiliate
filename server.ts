@@ -96,8 +96,14 @@ async function scrapeMercadoLivre(url: string) {
     finalUrl = res.url || url;
     const html = await res.text();
 
-    // Try extracting MLB ID
-    const mlbMatch = finalUrl.match(/(MLB-?\d+)/i) || url.match(/(MLB-?\d+)/i);
+    // Try extracting MLB ID — primeiro na URL, depois no HTML (canonical/og:url/JSON embutido)
+    const $preload = cheerio.load(html);
+    const canonicalUrl = $preload('link[rel="canonical"]').attr('href') || $preload('meta[property="og:url"]').attr('content') || "";
+    const mlbMatch =
+      finalUrl.match(/(MLB-?\d+)/i) ||
+      url.match(/(MLB-?\d+)/i) ||
+      canonicalUrl.match(/(MLB-?\d+)/i) ||
+      html.match(/"(MLB\d+)"/i);
     if (mlbMatch && mlbMatch[1]) {
       const itemId = mlbMatch[1].replace("-", "").toUpperCase();
       try {
@@ -182,10 +188,23 @@ async function scrapeMercadoLivre(url: string) {
     }
 
     // Check for original price (price_from)
-    const oldFraction = $('.ui-pdp-price__part--original .andes-money-amount__fraction').first().text().trim();
+    const oldFraction = $('.ui-pdp-price__part--original .andes-money-amount__fraction').first().text().trim() ||
+                        $('.ui-pdp-price__original-value .andes-money-amount__fraction').first().text().trim() ||
+                        $('s.ui-pdp-price__part .andes-money-amount__fraction').first().text().trim() ||
+                        $('.andes-money-amount--previous .andes-money-amount__fraction').first().text().trim() ||
+                        $('s .andes-money-amount__fraction').first().text().trim() ||
+                        $('del .andes-money-amount__fraction').first().text().trim();
     if (oldFraction) {
-      const oldCents = $('.ui-pdp-price__part--original .andes-money-amount__cents').first().text().trim() || "00";
+      const oldCents = $('.ui-pdp-price__part--original .andes-money-amount__cents').first().text().trim() ||
+                       $('.ui-pdp-price__original-value .andes-money-amount__cents').first().text().trim() ||
+                       $('s.ui-pdp-price__part .andes-money-amount__cents').first().text().trim() ||
+                       $('.andes-money-amount--previous .andes-money-amount__cents').first().text().trim() ||
+                       $('s .andes-money-amount__cents').first().text().trim() || "00";
       price_from = cleanPrice(`${oldFraction},${oldCents}`);
+    }
+
+    if (price_from === price_to) {
+      price_from = null;
     }
 
     // Check for real coupon badge on PDP
@@ -195,7 +214,11 @@ async function scrapeMercadoLivre(url: string) {
     }
 
     if (!title) {
-      throw new Error("Não foi possível extrair o título do produto do Mercado Livre.");
+      if (html.includes("captcha") || html.includes("Verificação de segurança") || html.includes("robot")) {
+        title = "Produto (Protegido por verificação, preencha manualmente)";
+      } else {
+        title = "Produto não identificado (preencha manualmente)";
+      }
     }
 
     return {
@@ -264,12 +287,17 @@ async function scrapeShopee(url: string) {
     const priceRaw = $('meta[property="product:price:amount"]').attr('content');
     const price_to = priceRaw ? cleanPrice(priceRaw) : "Consulte no link";
 
-    if (!title) {
-      throw new Error("Não foi possível ler o título do produto na Shopee.");
+    let finalTitle = title;
+    if (!finalTitle) {
+      if (html.includes("captcha") || html.includes("robot")) {
+        finalTitle = "Produto (Shopee - Verificação, preencha manualmente)";
+      } else {
+        finalTitle = "Produto não identificado (Shopee - preencha manualmente)";
+      }
     }
 
     return {
-      title,
+      title: finalTitle,
       image_url,
       price_from: null,
       price_to,
@@ -302,13 +330,29 @@ async function scrapeAmazon(url: string) {
 
     let image_url = $('#landingImage').attr('src') || $('#landingImage').attr('data-old-hires') || $('#imgTagWrapperId img').attr('src') || $('meta[property="og:image"]').attr('content') || null;
 
-    const whole = $('span.a-price:first-child .a-price-whole').first().text().replace(/[.,]/g, '').trim();
-    const fraction = $('span.a-price:first-child .a-price-fraction').first().text().trim();
-    let price_to = whole ? cleanPrice(`${whole},${fraction || '00'}`) : null;
+    // Prioriza os contêineres de preço "atual" mais estáveis do layout novo da Amazon
+    let price_to: string | null = null;
+    const priceContainers = [
+      '#corePriceDisplay_desktop_feature_div .a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen',
+      '#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen',
+      '#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen',
+      '#apex_desktop .a-price:not(.a-text-price) .a-offscreen',
+      '#priceblock_ourprice',
+      '#priceblock_dealprice',
+      'span.a-price:first-of-type .a-offscreen',
+    ];
+    for (const sel of priceContainers) {
+      const raw = $(sel).first().text().trim();
+      if (raw) {
+        price_to = cleanPrice(raw);
+        if (price_to) break;
+      }
+    }
 
     if (!price_to) {
-      const offscreen = $('.a-price .a-offscreen').first().text();
-      price_to = cleanPrice(offscreen);
+      const whole = $('span.a-price:first-of-type .a-price-whole').first().text().replace(/[.,]/g, '').trim();
+      const fraction = $('span.a-price:first-of-type .a-price-fraction').first().text().trim();
+      price_to = whole ? cleanPrice(`${whole},${fraction || '00'}`) : null;
     }
 
     const price_from_raw = $('.a-text-price .a-offscreen').first().text() || $('#priceblock_dealprice + .a-text-strike .a-offscreen').text();
@@ -321,7 +365,11 @@ async function scrapeAmazon(url: string) {
     }
 
     if (!title) {
-      throw new Error("Não foi possível extrair o título do produto na Amazon.");
+      if (html.includes("captcha") || html.includes("robot")) {
+        title = "Produto (Amazon - Verificação, preencha manualmente)";
+      } else {
+        title = "Produto não identificado (Amazon - preencha manualmente)";
+      }
     }
 
     return {
@@ -341,7 +389,12 @@ async function scrapeAmazon(url: string) {
 // AliExpress Scraper
 async function scrapeAliExpress(url: string) {
   try {
-    const res = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
+    const headers = {
+      ...DEFAULT_HEADERS,
+      // Sem isso, o AliExpress pode servir a página em outra região/moeda (ex. USD em vez de BRL)
+      "Cookie": "aep_usuc_f=site=bra&c_tp=BRL&region=BR&b_locale=pt_BR; xman_us_f=x_locale=pt_BR&x_l=0"
+    };
+    const res = await fetch(url, { headers, redirect: "follow" });
     const html = await res.text();
 
     const matchJson = html.match(/window\.runParams\s*=\s*(\{.*?\});/s);
@@ -375,12 +428,17 @@ async function scrapeAliExpress(url: string) {
 
     const priceRaw = $('meta[property="product:price:amount"]').attr('content');
 
-    if (!title) {
-      throw new Error("Não foi possível extrair o produto do AliExpress.");
+    let finalTitle = title;
+    if (!finalTitle) {
+      if (html.includes("captcha") || html.includes("robot")) {
+        finalTitle = "Produto (AliExpress - Verificação, preencha manualmente)";
+      } else {
+        finalTitle = "Produto não identificado (AliExpress - preencha manualmente)";
+      }
     }
 
     return {
-      title,
+      title: finalTitle,
       image_url: img,
       price_from: null,
       price_to: cleanPrice(priceRaw) || "Consulte no link",
@@ -411,12 +469,17 @@ async function scrapeShein(url: string) {
     const price_to_raw = $('.product-intro__head-mainprice .from').text().trim() || $('.she-price-detail .medium').text().trim() || $('meta[property="product:price:amount"]').attr('content');
     const price_from_raw = $('.product-intro__head-mainprice del').text().trim();
 
-    if (!title) {
-      throw new Error("Não foi possível extrair o produto da Shein.");
+    let finalTitle = title;
+    if (!finalTitle) {
+      if (html.includes("captcha") || html.includes("robot")) {
+        finalTitle = "Produto (Shein - Verificação, preencha manualmente)";
+      } else {
+        finalTitle = "Produto não identificado (Shein - preencha manualmente)";
+      }
     }
 
     return {
-      title,
+      title: finalTitle,
       image_url,
       price_from: cleanPrice(price_from_raw),
       price_to: cleanPrice(price_to_raw) || "Consulte no link",
@@ -484,12 +547,18 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       data = await scrapeShein(workingUrl);
     }
 
+    // Validação de sanidade: nunca devolver um preço "0,00" ou implausível como se fosse real.
+    // Preferimos avisar o usuário a entregar um valor errado que vira copy publicada.
+    const numericPrice = data.price_to ? parseFloat(String(data.price_to).replace(/\./g, "").replace(",", ".")) : NaN;
+    const priceIsPlausible = !isNaN(numericPrice) && numericPrice > 0.5 && numericPrice < 500000;
+
     return res.json({
       platform,
       title: data.title || "Produto em oferta",
       image_url: data.image_url || null,
       price_from: data.price_from || null,
-      price_to: data.price_to || "0,00",
+      price_to: priceIsPlausible ? data.price_to : null,
+      price_uncertain: !priceIsPlausible,
       installments: data.installments || null,
       coupon: data.coupon || null,
       original_link: url
