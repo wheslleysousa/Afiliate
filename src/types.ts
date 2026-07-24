@@ -9,6 +9,8 @@ export interface ApiKeysConfig {
   mercadoLivreAppId?: string;
   mercadoLivreClientSecret?: string;
   mercadoLivreKey?: string;
+  mercadoLivreRefreshToken?: string;
+  mercadoLivreExpiresAt?: number;
   shopeeKey?: string;
   amazonKey?: string;
   aliExpressKey?: string;

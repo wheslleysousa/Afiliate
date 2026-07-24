@@ -88,17 +88,73 @@ const DEFAULT_HEADERS = {
   "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
 };
 
+// Helper to refresh ML token
+async function refreshMercadoLivreToken(appId: string, clientSecret: string, refreshToken: string) {
+  try {
+    console.log("[ML Token Refresh] Tentando renovar access_token usando o refresh_token...");
+    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: String(appId).trim(),
+        client_secret: String(clientSecret).trim(),
+        refresh_token: String(refreshToken).trim(),
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.access_token) {
+      const expiresAt = Date.now() + (data.expires_in || 21600) * 1000;
+      console.log("[ML Token Refresh] Token renovado com sucesso!");
+      return {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: expiresAt,
+      };
+    } else {
+      console.error("[ML Token Refresh] Erro de resposta do Mercado Livre:", data);
+      return null;
+    }
+  } catch (err) {
+    console.error("[ML Token Refresh] Exceção ao renovar token:", err);
+    return null;
+  }
+}
+
 // Mercado Livre Scraper
 async function scrapeMercadoLivre(url: string, mlConfig?: any) {
   let finalUrl = url;
+  let ml_auth_error = false;
+  let updated_ml_keys: any = null;
   try {
     const res = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
     finalUrl = res.url || url;
     const html = await res.text();
 
     let bearerToken = typeof mlConfig === 'string' ? mlConfig : (mlConfig?.mercadoLivreKey || process.env.MERCADOLIVRE_KEY);
+    let refreshToken = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreRefreshToken : undefined;
+    let expiresAt = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreExpiresAt : undefined;
     const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
     const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+
+    // Preemptive Auto-Renew using Refresh Token if expired (or close to expiry)
+    if (refreshToken && appId && clientSecret) {
+      const isExpired = !bearerToken || !expiresAt || Date.now() >= Number(expiresAt) - 300000;
+      if (isExpired) {
+        const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken);
+        if (renewed) {
+          bearerToken = renewed.access_token;
+          refreshToken = renewed.refresh_token;
+          expiresAt = renewed.expires_at;
+          updated_ml_keys = {
+            mercadoLivreKey: renewed.access_token,
+            mercadoLivreRefreshToken: renewed.refresh_token,
+            mercadoLivreExpiresAt: renewed.expires_at,
+          };
+        }
+      }
+    }
 
     // Se tivermos App ID e Client Secret mas não o Access Token direto, tenta obter token de client_credentials
     if (!bearerToken && appId && clientSecret) {
@@ -143,9 +199,40 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           apiHeaders["Authorization"] = `Bearer ${bearerToken.trim()}`;
         }
 
-        const apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+        let apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
           headers: apiHeaders
         });
+
+        if ((apiRes.status === 401 || apiRes.status === 403) && refreshToken && appId && clientSecret && !updated_ml_keys) {
+          console.warn("[ML API] Token falhou com status 401/403. Tentando renovar com refresh_token...");
+          const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken);
+          if (renewed) {
+            bearerToken = renewed.access_token;
+            refreshToken = renewed.refresh_token;
+            expiresAt = renewed.expires_at;
+            updated_ml_keys = {
+              mercadoLivreKey: renewed.access_token,
+              mercadoLivreRefreshToken: renewed.refresh_token,
+              mercadoLivreExpiresAt: renewed.expires_at,
+            };
+            
+            // Refazer requisição com novo token
+            const retryHeaders = {
+              ...apiHeaders,
+              "Authorization": `Bearer ${bearerToken.trim()}`
+            };
+            apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+              headers: retryHeaders
+            });
+          }
+        }
+
+        if (!apiRes.ok) {
+          console.warn(`[ML API] Requisição falhou para ${itemId}. HTTP ${apiRes.status}`);
+          if (apiRes.status === 401 || apiRes.status === 403) {
+            ml_auth_error = true;
+          }
+        }
         if (apiRes.ok) {
           const data = await apiRes.json();
           const title = data.title || "";
@@ -203,7 +290,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           }
 
           if (title && price_to) {
-            return { title, description, image_url, pictures, video_url, price_from, price_to, installments, coupon, shipping };
+            return { title, description, image_url, pictures, video_url, price_from, price_to, installments, coupon, shipping, ml_auth_error: false };
           } else {
             console.warn(`[ML API] Resposta OK mas incompleta para ${itemId}. status=${data.status} title="${title}" price=${data.price}`);
           }
@@ -382,10 +469,22 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       if (selectedCardLink) {
         try {
           console.log(`[ML Scraper] Detalhe rico encontrado no card de perfil: ${selectedCardLink}. Buscando dados completos de forma recursiva...`);
-          const richData = await scrapeMercadoLivre(selectedCardLink, bearerToken);
+          const richData = await scrapeMercadoLivre(selectedCardLink, {
+            mercadoLivreKey: bearerToken,
+            mercadoLivreAppId: appId,
+            mercadoLivreClientSecret: clientSecret,
+            mercadoLivreRefreshToken: refreshToken,
+            mercadoLivreExpiresAt: expiresAt
+          });
           if (richData && richData.title) {
             console.log(`[ML Scraper] Detalhes completos e mídias obtidos com sucesso do link do card para: ${richData.title}`);
-            return richData;
+            if (richData.updated_ml_keys) {
+              updated_ml_keys = richData.updated_ml_keys;
+            }
+            return {
+              ...richData,
+              updated_ml_keys
+            };
           }
         } catch (err: any) {
           console.warn("[ML Scraper] Falha ao obter dados completos do link do card. Prosseguindo com dados do perfil.", err.message);
@@ -769,7 +868,9 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       card_price,
       installments,
       coupon,
-      shipping
+      shipping,
+      ml_auth_error,
+      updated_ml_keys
     };
   } catch (err: any) {
     console.error("[ML Scraper Error]", err);
@@ -1098,6 +1199,53 @@ app.get("/api/download", async (req, res) => {
   }
 });
 
+// Mercado Livre OAuth Authorization Code Exchange Endpoint
+app.post("/api/ml-exchange-code", async (req, res) => {
+  try {
+    const { code, redirectUri, appId, clientSecret } = req.body || {};
+    if (!code) {
+      return res.status(400).json({ error: "O código de autorização é obrigatório." });
+    }
+
+    const mAppId = appId?.trim() || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
+    const mClientSecret = clientSecret?.trim() || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+
+    console.log(`[ML OAuth Exchange] Trocando code pelo access_token com App ID: ${mAppId} e Redirect URI: ${redirectUri}`);
+
+    const response = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: String(mAppId),
+        client_secret: String(mClientSecret),
+        code: code,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok && data.access_token) {
+      const expiresAt = Date.now() + (data.expires_in || 21600) * 1000;
+      console.log("[ML OAuth Exchange] Chaves geradas com sucesso via OAuth oficial!");
+      return res.json({
+        success: true,
+        mercadoLivreKey: data.access_token,
+        mercadoLivreRefreshToken: data.refresh_token,
+        mercadoLivreExpiresAt: expiresAt,
+      });
+    } else {
+      console.error("[ML OAuth Exchange Error Response]", data);
+      return res.status(400).json({
+        error: data.message || data.error || "O Mercado Livre rejeitou a troca das chaves. Verifique as credenciais ou o Redirect URI cadastrado.",
+      });
+    }
+  } catch (err: any) {
+    console.error("[ML OAuth Exchange Exception]", err);
+    return res.status(500).json({ error: "Erro interno ao trocar o código de autorização: " + err.message });
+  }
+});
+
 // Main POST /scrape endpoint required by Prompt 01
 app.post(["/scrape", "/api/scrape"], async (req, res) => {
   try {
@@ -1141,6 +1289,8 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
         mercadoLivreKey: apiKeys?.mercadoLivreKey,
         mercadoLivreAppId: apiKeys?.mercadoLivreAppId,
         mercadoLivreClientSecret: apiKeys?.mercadoLivreClientSecret,
+        mercadoLivreRefreshToken: apiKeys?.mercadoLivreRefreshToken,
+        mercadoLivreExpiresAt: apiKeys?.mercadoLivreExpiresAt,
       });
     } else if (platform === "shopee") {
       data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey);
@@ -1177,11 +1327,13 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       price_from: data.price_from || null,
       price_to: priceIsPlausible ? data.price_to : null,
       price_uncertain: !priceIsPlausible,
+      ml_auth_error: !!data.ml_auth_error,
       card_price: data.card_price || null,
       installments: data.installments || null,
       coupon: data.coupon || null,
       shipping: data.shipping || null,
-      original_link: finalLink
+      original_link: finalLink,
+      updated_ml_keys: data.updated_ml_keys || null
     });
 
   } catch (err: any) {

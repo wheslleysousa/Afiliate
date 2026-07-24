@@ -9,7 +9,19 @@ import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation
 import { Sparkles, Menu, ShieldCheck, Zap, Loader2 } from 'lucide-react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot } from 'firebase/firestore';
+
+// Helper function to resolve the registered redirect URI for Mercado Livre OAuth dynamically
+export const getMlRedirectUri = () => {
+  const origin = window.location.origin;
+  if (origin.includes('render.com')) {
+    return 'https://afiliate.onrender.com';
+  }
+  if (origin.includes('run.app') || origin.includes('aistudio') || origin.includes('web-preview')) {
+    return 'https://ais-dev-5teru3rok43774mjkuxp2x-165140757857.us-east1.run.app/settings';
+  }
+  return origin + '/settings';
+};
 
 export default function App() {
   // User Authentication State
@@ -27,9 +39,82 @@ export default function App() {
   // API Keys State
   const [apiKeys, setApiKeys] = useState<ApiKeysConfig>({});
 
+  // OAuth State
+  const [oauthExchanging, setOauthExchanging] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthSuccess, setOauthSuccess] = useState(false);
+
+  // Listen to Mercado Livre OAuth callback code in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code && !authLoading && currentUser?.id && apiKeys && !oauthExchanging && !oauthSuccess && !oauthError) {
+      const exchangeCode = async () => {
+        setOauthExchanging(true);
+        setOauthError(null);
+        try {
+          // Grab current keys or default values
+          const appId = apiKeys.mercadoLivreAppId || '1096973158666349';
+          const clientSecret = apiKeys.mercadoLivreClientSecret || '5YoWCSRNr90KiVumj0tf35NGkpOAbops';
+          const redirectUri = getMlRedirectUri();
+
+          const res = await fetch('/api/ml-exchange-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code,
+              redirectUri,
+              appId,
+              clientSecret
+            })
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success) {
+            const updatedKeys: ApiKeysConfig = {
+              ...apiKeys,
+              mercadoLivreKey: data.mercadoLivreKey,
+              mercadoLivreRefreshToken: data.mercadoLivreRefreshToken,
+              mercadoLivreExpiresAt: data.mercadoLivreExpiresAt
+            };
+            await handleSaveApiKeys(updatedKeys);
+            setOauthSuccess(true);
+            
+            // Clean up the URL query params without reloading
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            // Redirect to settings to show active state
+            setActiveTab('settings');
+          } else {
+            setOauthError(data.error || 'Falha ao vincular com o Mercado Livre.');
+            // Clean up the URL query params even on error
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+        } catch (err: any) {
+          console.error('[ML OAuth Error]', err);
+          setOauthError(err.message || 'Erro ao comunicar com o servidor.');
+        } finally {
+          setOauthExchanging(false);
+        }
+      };
+      
+      exchangeCode();
+    }
+  }, [authLoading, currentUser, apiKeys]);
+
   // Listen to Firebase Auth state change and load user data from Firestore
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    let unsubscribeKeys: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      // Clean up previous keys listener if any
+      if (unsubscribeKeys) {
+        unsubscribeKeys();
+        unsubscribeKeys = null;
+      }
+
       if (fbUser) {
         // Fetch user profile from Firestore
         let userDocData: any = null;
@@ -65,25 +150,36 @@ export default function App() {
           setSavedItems([]);
         }
 
-        // Fetch user API Keys config from Firestore
-        try {
-          const keysSnap = await getDoc(doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'));
-          const defaultKeys = {
-            mercadoLivreAppId: '1096973158666349',
-            mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
-          };
-          if (keysSnap.exists()) {
-            setApiKeys({ ...defaultKeys, ...(keysSnap.data() as ApiKeysConfig) });
-          } else {
-            setApiKeys(defaultKeys);
+        // Set up real-time listener for user API Keys config from Firestore
+        const defaultKeys = {
+          mercadoLivreAppId: '1096973158666349',
+          mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
+        };
+
+        unsubscribeKeys = onSnapshot(
+          doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              setApiKeys({ ...defaultKeys, ...(snapshot.data() as ApiKeysConfig) });
+            } else {
+              setApiKeys(defaultKeys);
+            }
+          },
+          (err) => {
+            console.error('Erro ao escutar chaves de API no Firestore:', err);
+            // Fallback to one-time getDoc
+            getDoc(doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys')).then((keysSnap) => {
+              if (keysSnap.exists()) {
+                setApiKeys({ ...defaultKeys, ...(keysSnap.data() as ApiKeysConfig) });
+              } else {
+                setApiKeys(defaultKeys);
+              }
+            }).catch(() => {
+              setApiKeys(defaultKeys);
+            });
           }
-        } catch (e) {
-          console.error('Erro ao buscar chaves de API no Firestore:', e);
-          setApiKeys({
-            mercadoLivreAppId: '1096973158666349',
-            mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
-          });
-        }
+        );
+
       } else {
         setCurrentUser(null);
         setSavedItems([]);
@@ -92,7 +188,12 @@ export default function App() {
       setAuthLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeKeys) {
+        unsubscribeKeys();
+      }
+    };
   }, []);
 
   // Handle Login & Registration Success
@@ -182,6 +283,19 @@ export default function App() {
     }
   };
 
+  // Loading indicator for Mercado Livre OAuth exchange
+  if (oauthExchanging) {
+    return (
+      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 text-stone-100 space-y-4 text-center">
+        <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
+        <h3 className="text-lg font-bold text-white">Vinculando sua conta do Mercado Livre...</h3>
+        <p className="text-xs text-stone-400 max-w-sm">
+          Aguarde um instante enquanto nosso servidor realiza a autenticação oficial e gera as suas chaves de acesso automáticas de afiliados.
+        </p>
+      </div>
+    );
+  }
+
   // Loading indicator while checking Firebase Auth status
   if (authLoading) {
     return (
@@ -238,7 +352,7 @@ export default function App() {
               <span className="text-xs sm:text-sm font-extrabold text-white">
                 {activeTab === 'new-product' && 'Cadastrar Novo Produto'}
                 {activeTab === 'saved-products' && 'Produtos Cadastrados'}
-                {activeTab === 'settings' && 'Configurações'}
+                {activeTab === 'settings' && 'Vincular Contas'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
             </div>
@@ -254,11 +368,32 @@ export default function App() {
 
         {/* Dynamic Page Views */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
+          {oauthSuccess && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span>Parabéns! Sua conta do Mercado Livre foi vinculada oficialmente com sucesso. O token será renovado de forma totalmente automática a partir de agora!</span>
+              </div>
+              <button onClick={() => setOauthSuccess(false)} className="text-emerald-400 hover:text-white font-bold p-1">✕</button>
+            </div>
+          )}
+
+          {oauthError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-xl text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-red-400 font-bold text-base">⚠️</span>
+                <span>Erro ao vincular Mercado Livre: {oauthError} Certifique-se de que inseriu o App ID e Client Secret corretos e que configurou a URL de retorno no portal do desenvolvedor.</span>
+              </div>
+              <button onClick={() => setOauthError(null)} className="text-red-400 hover:text-white font-bold p-1">✕</button>
+            </div>
+          )}
+
           {activeTab === 'new-product' && (
             <NewProductTab
               onSaveProduct={handleSaveProduct}
               savedCount={savedItems.length}
               apiKeys={apiKeys}
+              onSaveApiKeys={handleSaveApiKeys}
             />
           )}
 

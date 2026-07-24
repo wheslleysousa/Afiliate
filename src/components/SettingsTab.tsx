@@ -1,6 +1,28 @@
 import React, { useState } from 'react';
 import { ApiKeysConfig, UserProfile } from '../types';
-import { Settings, User, Check, Save, ShieldCheck, Sparkles, Key, Info, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, ExternalLink, HelpCircle } from 'lucide-react';
+import { getMlRedirectUri } from '../App';
+import { 
+  Settings, 
+  User, 
+  Check, 
+  Save, 
+  ShieldCheck, 
+  Sparkles, 
+  Key, 
+  Info, 
+  Plus, 
+  Trash2, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2, 
+  ExternalLink, 
+  HelpCircle,
+  Copy,
+  CheckCheck,
+  Building,
+  AlertTriangle,
+  X
+} from 'lucide-react';
 
 interface SettingsTabProps {
   user: UserProfile;
@@ -17,50 +39,57 @@ interface ProviderInfo {
   badge: string;
   description: string;
   guideUrl?: string;
+  colorClass: string;
 }
 
 const PROVIDERS: ProviderInfo[] = [
   {
     id: 'mercadolivre',
     name: 'Mercado Livre',
-    badge: 'Foco Principal',
-    description: 'Extração automática de título, preços, fotos e parcelamento de links do Mercado Livre.',
+    badge: 'Conexão por 1 Clique',
+    description: 'Sincronização oficial via OAuth para extração automática de títulos, fotos, preços e parcelas.',
     guideUrl: 'https://developers.mercadolibre.com.br/',
+    colorClass: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
   },
   {
     id: 'shopee',
     name: 'Shopee Afiliados',
-    badge: 'Popular',
-    description: 'Chave de API oficial do programa de afiliados Shopee para rastreamento de ofertas.',
+    badge: 'API / Tag',
+    description: 'Integração de ofertas e redirecionamento de links de comissão para a Shopee.',
     guideUrl: 'https://affiliate.shopee.com.br/',
+    colorClass: 'border-orange-500/30 bg-orange-500/5 text-orange-400',
   },
   {
     id: 'amazon',
     name: 'Amazon Associados',
-    badge: 'E-commerce',
-    description: 'Tag de rastreamento do programa Amazon Associados para geração automática de links de comissão.',
+    badge: 'Tag de Rastreamento',
+    description: 'Insira sua Tag de Associado Amazon para gerar automaticamente links comissionados.',
     guideUrl: 'https://associados.amazon.com.br/',
+    colorClass: 'border-yellow-500/30 bg-yellow-500/5 text-yellow-400',
   },
   {
     id: 'aliexpress',
     name: 'AliExpress Portals',
-    badge: 'Internacional',
-    description: 'App Key / App Secret do portal de afiliados AliExpress.',
+    badge: 'API Key',
+    description: 'Rastreamento de promoções e comissão oficial de vendas do AliExpress.',
     guideUrl: 'https://portals.aliexpress.com/',
+    colorClass: 'border-red-500/30 bg-red-500/5 text-red-400',
   },
   {
     id: 'shein',
     name: 'Shein Publisher',
-    badge: 'Moda',
-    description: 'Token do programa de parceiros e afiliados Shein.',
+    badge: 'Token / ID',
+    description: 'Ative seu token de parceiro Shein para lucrar promovendo peças de moda.',
     guideUrl: 'https://www.shein.com/',
+    colorClass: 'border-stone-500/30 bg-stone-500/5 text-stone-300',
   },
   {
     id: 'gemini',
     name: 'Gemini IA Customizada',
     badge: 'Inteligência Artificial',
-    description: 'Sua chave de API pessoal do Google AI Studio para geração das copies de vendas.',
+    description: 'Use sua própria chave do Google AI Studio para geração das copies (Opcional).',
     guideUrl: 'https://aistudio.google.com/',
+    colorClass: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
   },
 ];
 
@@ -73,79 +102,84 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const [savedSuccess, setSavedSuccess] = useState<string | null>(null);
+  const [oauthOpened, setOauthOpened] = useState(false);
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<ProviderType>('mercadolivre');
-  
-  // Guide Modal State for ML
-  const [showMlHelpModal, setShowMlHelpModal] = useState(false);
+  // Dynamic values
+  const redirectUri = getMlRedirectUri();
+  const [copiedRedirect, setCopiedRedirect] = useState(false);
 
-  // Form State for Key Editing
-  const [keysForm, setKeysForm] = useState<ApiKeysConfig>({
-    mercadoLivreAppId: apiKeys.mercadoLivreAppId || '',
-    mercadoLivreClientSecret: apiKeys.mercadoLivreClientSecret || '',
-    mercadoLivreKey: apiKeys.mercadoLivreKey || '',
-    shopeeKey: apiKeys.shopeeKey || '',
-    amazonKey: apiKeys.amazonKey || '',
-    aliExpressKey: apiKeys.aliExpressKey || '',
-    sheinKey: apiKeys.sheinKey || '',
-    geminiApiKey: apiKeys.geminiApiKey || '',
-  });
+  // Dynamic explanation modals
+  const [activeOAuthModal, setActiveOAuthModal] = useState<string | null>(null);
 
-  // Testing State
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Inline Manual Edit Form State
+  const [editingProvider, setEditingProvider] = useState<ProviderType | null>(null);
+  const [tempManualValue, setTempManualValue] = useState('');
 
-  const handleTestAndSave = async () => {
-    setIsTesting(true);
-    setTestResult(null);
+  // ML OAuth Redirect (App ID and Secret are automatically pre-configured)
+  const handleMlOAuthRedirect = () => {
+    // Falls back to the hardcoded developer credentials
+    const appId = apiKeys.mercadoLivreAppId?.trim() || '1096973158666349';
+    const clientSecret = apiKeys.mercadoLivreClientSecret?.trim() || '5YoWCSRNr90KiVumj0tf35NGkpOAbops';
 
-    try {
-      const res = await fetch('/api/test-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: selectedProvider,
-          keys: keysForm,
-        }),
-      });
+    // Synchronize these keys first
+    onSaveApiKeys({
+      ...apiKeys,
+      mercadoLivreAppId: appId,
+      mercadoLivreClientSecret: clientSecret,
+    });
 
-      const data = await res.json();
+    const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    setOauthOpened(true);
+    window.open(authUrl, '_blank');
+  };
 
-      if (res.ok && data.success) {
-        setTestResult({ success: true, message: data.message || 'API validada com sucesso!' });
-        
-        // Save to parent state and Firestore
-        onSaveApiKeys(keysForm);
-        setSavedSuccess(`Chave do ${PROVIDERS.find(p => p.id === selectedProvider)?.name} testada e salva com sucesso!`);
-        
-        setTimeout(() => {
-          setIsModalOpen(false);
-          setTestResult(null);
-        }, 1500);
-      } else {
-        setTestResult({
-          success: false,
-          message: data.error || 'Falha ao validar credenciais. Verifique os dados e tente novamente.',
-        });
-      }
-    } catch (err: any) {
-      setTestResult({
-        success: false,
-        message: 'Erro de conexão ao testar API: ' + (err.message || 'Falha de rede'),
-      });
-    } finally {
-      setIsTesting(false);
+  const handleCopyRedirectUri = () => {
+    navigator.clipboard.writeText(redirectUri);
+    setCopiedRedirect(true);
+    setTimeout(() => setCopiedRedirect(false), 2000);
+  };
+
+  const isConfigured = (provider: ProviderType): boolean => {
+    if (provider === 'mercadolivre') {
+      return !!apiKeys.mercadoLivreKey;
     }
+    if (provider === 'shopee') return !!apiKeys.shopeeKey;
+    if (provider === 'amazon') return !!apiKeys.amazonKey;
+    if (provider === 'aliexpress') return !!apiKeys.aliExpressKey;
+    if (provider === 'shein') return !!apiKeys.sheinKey;
+    if (provider === 'gemini') return !!apiKeys.geminiApiKey;
+    return false;
+  };
+
+  const handleStartManualEdit = (provider: ProviderType) => {
+    setEditingProvider(provider);
+    if (provider === 'shopee') setTempManualValue(apiKeys.shopeeKey || '');
+    else if (provider === 'amazon') setTempManualValue(apiKeys.amazonKey || '');
+    else if (provider === 'aliexpress') setTempManualValue(apiKeys.aliExpressKey || '');
+    else if (provider === 'shein') setTempManualValue(apiKeys.sheinKey || '');
+    else if (provider === 'gemini') setTempManualValue(apiKeys.geminiApiKey || '');
+  };
+
+  const handleSaveManualKey = (provider: ProviderType) => {
+    const updated = { ...apiKeys };
+    if (provider === 'shopee') updated.shopeeKey = tempManualValue;
+    else if (provider === 'amazon') updated.amazonKey = tempManualValue;
+    else if (provider === 'aliexpress') updated.aliExpressKey = tempManualValue;
+    else if (provider === 'shein') updated.sheinKey = tempManualValue;
+    else if (provider === 'gemini') updated.geminiApiKey = tempManualValue;
+
+    onSaveApiKeys(updated);
+    setEditingProvider(null);
+    setSavedSuccess(`Configurações de ${PROVIDERS.find(p => p.id === provider)?.name} atualizadas!`);
+    setTimeout(() => setSavedSuccess(null), 3000);
   };
 
   const handleRemoveKey = (provider: ProviderType) => {
-    const updated = { ...keysForm };
+    const updated = { ...apiKeys };
     if (provider === 'mercadolivre') {
-      updated.mercadoLivreAppId = '';
-      updated.mercadoLivreClientSecret = '';
       updated.mercadoLivreKey = '';
+      updated.mercadoLivreRefreshToken = '';
+      updated.mercadoLivreExpiresAt = 0;
     } else if (provider === 'shopee') {
       updated.shopeeKey = '';
     } else if (provider === 'amazon') {
@@ -158,9 +192,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       updated.geminiApiKey = '';
     }
 
-    setKeysForm(updated);
     onSaveApiKeys(updated);
-    setSavedSuccess(`Integração do ${PROVIDERS.find(p => p.id === provider)?.name} removida.`);
+    setSavedSuccess(`Integração com ${PROVIDERS.find(p => p.id === provider)?.name} desvinculada.`);
     setTimeout(() => setSavedSuccess(null), 3000);
   };
 
@@ -169,18 +202,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     onUpdateProfile({ name, email });
     setSavedSuccess('Dados do perfil atualizados com sucesso!');
     setTimeout(() => setSavedSuccess(null), 3000);
-  };
-
-  const isConfigured = (provider: ProviderType): boolean => {
-    if (provider === 'mercadolivre') {
-      return !!(keysForm.mercadoLivreAppId || keysForm.mercadoLivreKey);
-    }
-    if (provider === 'shopee') return !!keysForm.shopeeKey;
-    if (provider === 'amazon') return !!keysForm.amazonKey;
-    if (provider === 'aliexpress') return !!keysForm.aliExpressKey;
-    if (provider === 'shein') return !!keysForm.sheinKey;
-    if (provider === 'gemini') return !!keysForm.geminiApiKey;
-    return false;
   };
 
   return (
@@ -193,9 +214,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <Settings className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-extrabold text-white">Configurações & Integrações com APIs</h2>
+            <h2 className="text-xl font-extrabold text-white">Vinculação de Contas & APIs</h2>
             <p className="text-xs text-stone-400">
-              Gerencie suas credenciais salvas no seu banco de dados pessoal do Firebase
+              Vincule suas redes sociais e contas de afiliados sem precisar de chaves complexas
             </p>
           </div>
         </div>
@@ -208,11 +229,259 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
-      {/* User Profile Section */}
+      {oauthOpened && !isConfigured('mercadolivre') && (
+        <div className="bg-blue-500/10 border border-blue-500/30 text-blue-200 p-5 rounded-2xl space-y-3 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Aguardando Autorização do Mercado Livre...
+            </h4>
+          </div>
+          <p className="text-xs text-stone-300 leading-relaxed">
+            Uma nova guia do seu navegador foi aberta para você fazer login e autorizar o aplicativo no Mercado Livre. 
+            Se a janela foi bloqueada pelo seu navegador, clique no botão abaixo para tentar abrir novamente.
+          </p>
+          <div className="flex gap-2.5">
+            <button
+              onClick={handleMlOAuthRedirect}
+              className="px-3.5 py-1.5 bg-blue-500 hover:bg-blue-400 text-stone-950 text-xs font-extrabold rounded-lg transition-all"
+            >
+              Abrir Janela Novamente
+            </button>
+            <button
+              onClick={() => setOauthOpened(false)}
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-750 text-stone-300 text-xs font-bold rounded-lg"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Environment & Redirect URI Alert */}
+      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 space-y-3 shadow-xl">
+        <div className="flex items-center gap-2 border-b border-stone-800 pb-3">
+          <Building className="w-4 h-4 text-blue-400" />
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+            Painel de Testes & Redirecionamento de Redes (Redirect URI)
+          </h4>
+        </div>
+        
+        <p className="text-xs text-stone-300 leading-relaxed">
+          Para que a vinculação automática por <strong>OAuth</strong> funcione no Mercado Livre, certifique-se de que a URL abaixo está cadastrada no campo <strong>"Redirect URIs"</strong> dentro do seu aplicativo no portal <a href="https://developers.mercadolibre.com.br" target="_blank" rel="noreferrer" className="text-amber-400 underline font-semibold hover:text-amber-300">Mercado Livre Developers</a>:
+        </p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-stone-950 p-3 rounded-xl border border-stone-800">
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-bold text-stone-500 block uppercase tracking-wider mb-0.5">
+              URL de Retorno Atual para este Ambiente
+            </span>
+            <code className="text-xs font-mono text-amber-300 truncate block select-all">
+              {redirectUri}
+            </code>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyRedirectUri}
+            className="px-4 py-2 bg-stone-850 hover:bg-stone-750 text-stone-200 text-xs font-bold rounded-lg border border-stone-700 hover:border-stone-600 transition-all flex items-center gap-1.5 self-start sm:self-center"
+          >
+            {copiedRedirect ? (
+              <>
+                <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-300">Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copiar Link</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="text-[10px] text-stone-400 leading-normal flex items-start gap-1.5">
+          <Info className="w-3 h-3 text-blue-400 shrink-0 mt-0.5" />
+          <span>
+            Esta URL muda automaticamente caso você esteja testando pelo <strong>Google AI Studio Preview</strong> ou no seu domínio do <strong>Render</strong>. Ambas são compatíveis!
+          </span>
+        </div>
+      </div>
+
+      {/* Grid of Active Connection Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {PROVIDERS.map((provider) => {
+          const configured = isConfigured(provider.id);
+          const isEditing = editingProvider === provider.id;
+
+          return (
+            <div
+              key={provider.id}
+              className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
+                configured
+                  ? 'bg-stone-900/90 border-emerald-500/40 shadow-lg shadow-emerald-950/5'
+                  : 'bg-stone-900 border-stone-800/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-white">{provider.name}</span>
+                    <span className="text-[9px] bg-stone-950/80 text-stone-400 px-2 py-0.5 rounded-full border border-stone-800">
+                      {provider.badge}
+                    </span>
+                  </div>
+
+                  {configured ? (
+                    <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span>Vinculado</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-stone-950 text-stone-500 px-2 py-0.5 rounded-full border border-stone-800">
+                      Não vinculado
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-stone-400 leading-relaxed min-h-[36px]">{provider.description}</p>
+              </div>
+
+              {/* Inline Action block for the Provider */}
+              <div className="pt-3 border-t border-stone-850 space-y-3">
+                
+                {/* Manual inline configuration form if toggled */}
+                {isEditing ? (
+                  <div className="space-y-2.5 animate-fadeIn">
+                    <label className="text-[11px] font-bold text-stone-300 block">
+                      {provider.id === 'gemini' ? 'Sua Chave de API Google AI Studio' : 'Seu Associate Tag / Chave de Afiliado'}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder={provider.id === 'amazon' ? 'suatag-20' : 'Chave / Token...'}
+                        value={tempManualValue}
+                        onChange={(e) => setTempManualValue(e.target.value)}
+                        className="flex-1 p-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveManualKey(provider.id)}
+                        className="px-3 bg-blue-500 hover:bg-blue-400 text-stone-950 font-bold text-xs rounded-xl transition-all"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingProvider(null)}
+                        className="px-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs rounded-xl"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    
+                    {/* Primary Button Strategy */}
+                    {provider.id === 'mercadolivre' ? (
+                      configured ? (
+                        <div className="flex items-center gap-3 justify-between w-full">
+                          <span className="text-[10px] text-stone-400 font-medium">
+                            Conexão ativa com renovação inteligente de tokens.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveKey('mercadolivre')}
+                            className="px-3 py-1.5 border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs font-bold rounded-lg transition-all flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Desvincular</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleMlOAuthRedirect}
+                          className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-extrabold text-xs rounded-xl transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 animate-pulse"
+                        >
+                          <span>🔗 Vincular Conta Mercado Livre (OAuth)</span>
+                        </button>
+                      )
+                    ) : (
+                      // Other Platforms
+                      <div className="flex items-center justify-between w-full gap-2">
+                        {configured ? (
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-[10px] text-emerald-400/90 font-bold font-mono truncate max-w-[120px]">
+                              Key: ***{String(apiKeys[provider.id === 'shopee' ? 'shopeeKey' : provider.id === 'amazon' ? 'amazonKey' : provider.id === 'aliexpress' ? 'aliExpressKey' : provider.id === 'shein' ? 'sheinKey' : 'geminiApiKey'] || '').slice(-4)}
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleStartManualEdit(provider.id)}
+                                className="text-[10px] text-stone-400 hover:text-white underline font-semibold"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveKey(provider.id)}
+                                className="text-[10px] text-red-400 hover:text-red-300"
+                                title="Desvincular"
+                              >
+                                Desvincular
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setActiveOAuthModal(provider.id)}
+                              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-750 text-stone-200 border border-stone-700 hover:border-stone-600 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1"
+                            >
+                              <span>🔗 Vincular (OAuth)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleStartManualEdit(provider.id)}
+                              className="text-[10px] text-stone-500 hover:text-stone-300 underline font-semibold"
+                            >
+                              Configurar Manual
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Developer Guide Link */}
+                    {provider.guideUrl && !isEditing && (
+                      <a
+                        href={provider.guideUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-stone-500 hover:text-stone-300 text-[10px] flex items-center gap-0.5 mt-1"
+                      >
+                        <span>Portal Developers</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+
+                  </div>
+                )}
+
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Profile Data Section */}
       <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-4 shadow-xl">
         <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-stone-800 pb-3">
           <User className="w-4 h-4 text-emerald-400" />
-          <span>Dados do Perfil</span>
+          <span>Meus Dados do Perfil</span>
         </h3>
 
         <form onSubmit={handleSaveProfile} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -248,378 +517,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </form>
       </div>
 
-      {/* API Integrations Manager */}
-      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-5 shadow-xl">
-        <div className="border-b border-stone-800 pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-amber-400" />
-              <span>Conexões de API & Redes de Afiliados</span>
-            </h3>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Adicione e valide as chaves de API das suas contas para extração automática e geração de links
-            </p>
-          </div>
-
-          <button
-            onClick={() => {
-              setTestResult(null);
-              setIsModalOpen(true);
-            }}
-            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Adicionar / Configurar API</span>
-          </button>
-        </div>
-
-        {/* Mercado Livre Special Guidance Alert */}
-        <div className="bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0 mt-0.5 sm:mt-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-amber-400">Como obter as credenciais do Mercado Livre?</h4>
-              <p className="text-[11px] text-stone-300 mt-0.5">
-                Saiba exatamente onde encontrar o <strong>App ID</strong>, <strong>Client Secret</strong> e o <strong>Access Token</strong> no painel de desenvolvedor do Mercado Livre.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowMlHelpModal(true)}
-            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>Ver Passo a Passo</span>
-          </button>
-        </div>
-
-        {/* Grid of Active Integrations */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {PROVIDERS.map((provider) => {
-            const configured = isConfigured(provider.id);
-
-            return (
-              <div
-                key={provider.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  configured
-                    ? 'bg-stone-950/80 border-emerald-500/40 shadow-lg shadow-emerald-950/10'
-                    : 'bg-stone-950/40 border-stone-800'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-extrabold text-white">{provider.name}</span>
-                    <span className="text-[10px] bg-stone-800 text-stone-400 px-2 py-0.5 rounded border border-stone-700">
-                      {provider.badge}
-                    </span>
-                  </div>
-
-                  {configured ? (
-                    <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Ativo</span>
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-stone-800/80 text-stone-500 px-2 py-0.5 rounded">
-                      Não configurado
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-[11px] text-stone-400 mb-3">{provider.description}</p>
-
-                <div className="flex items-center justify-between pt-2 border-t border-stone-800/80 text-xs">
-                  {configured ? (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedProvider(provider.id);
-                          setTestResult(null);
-                          setIsModalOpen(true);
-                        }}
-                        className="text-amber-400 hover:text-amber-300 font-semibold text-[11px] underline"
-                      >
-                        Editar Credenciais
-                      </button>
-                      <button
-                        onClick={() => handleRemoveKey(provider.id)}
-                        className="text-red-400 hover:text-red-300 p-1 hover:bg-red-950/30 rounded"
-                        title="Remover chave"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSelectedProvider(provider.id);
-                        setTestResult(null);
-                        setIsModalOpen(true);
-                      }}
-                      className="text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Configurar Agora</span>
-                    </button>
-                  )}
-
-                  {provider.guideUrl && (
-                    <a
-                      href={provider.guideUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-stone-500 hover:text-stone-300 text-[10px] flex items-center gap-0.5"
-                    >
-                      <span>Documentação</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Modal: Adicionar / Editar Credenciais de API com Validação por Teste */}
-      {isModalOpen && (
+      {/* Informational Modal: OAuth configurations for other platforms */}
+      {activeOAuthModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-stone-900 border border-stone-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-scaleIn">
-            
-            {/* Modal Title */}
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-base font-bold text-white">Configurar Integração de API</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-stone-400 hover:text-white p-1 rounded-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Provider Selector */}
-            <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1.5">Selecione o Provedor / Plataforma</label>
-              <select
-                value={selectedProvider}
-                onChange={(e) => {
-                  setSelectedProvider(e.target.value as ProviderType);
-                  setTestResult(null);
-                }}
-                className="w-full p-2.5 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-100 font-semibold focus:outline-none focus:border-emerald-500"
-              >
-                {PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.badge})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Dynamic Provider Form */}
-            <div className="bg-stone-950 border border-stone-800/80 rounded-xl p-4 space-y-4">
-              
-              {/* Mercado Livre Form */}
-              {selectedProvider === 'mercadolivre' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-400">Credenciais Mercado Livre Developers</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowMlHelpModal(true)}
-                      className="text-[10px] text-amber-300 underline flex items-center gap-1"
-                    >
-                      <Info className="w-3 h-3" />
-                      <span>Onde encontrar?</span>
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-stone-300 block mb-1">App ID (Client ID)</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: 847392019284..."
-                      value={keysForm.mercadoLivreAppId || ''}
-                      onChange={(e) => setKeysForm({ ...keysForm, mercadoLivreAppId: e.target.value })}
-                      className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <span className="text-[10px] text-stone-500 block mt-1">ID da sua aplicação no portal Developers Mercado Libre</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-stone-300 block mb-1">Chave Secreta (Client Secret)</label>
-                    <input
-                      type="password"
-                      placeholder="Ex: 3xAmPlE_S3cr3t_K3y..."
-                      value={keysForm.mercadoLivreClientSecret || ''}
-                      onChange={(e) => setKeysForm({ ...keysForm, mercadoLivreClientSecret: e.target.value })}
-                      className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <span className="text-[10px] text-stone-500 block mt-1">Client Secret da sua aplicação</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-stone-300 block mb-1">Access Token / Bearer Token (Opcional)</label>
-                    <input
-                      type="password"
-                      placeholder="Ex: APP_USR-847392019284..."
-                      value={keysForm.mercadoLivreKey || ''}
-                      onChange={(e) => setKeysForm({ ...keysForm, mercadoLivreKey: e.target.value })}
-                      className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <span className="text-[10px] text-stone-500 block mt-1">Se preenchido o App ID + Client Secret, o token pode ser renovado automaticamente.</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Shopee Form */}
-              {selectedProvider === 'shopee' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">Shopee Affiliate API Key / Secret</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: shopee_aff_sec_..."
-                    value={keysForm.shopeeKey || ''}
-                    onChange={(e) => setKeysForm({ ...keysForm, shopeeKey: e.target.value })}
-                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-500 block mt-1">Chave do portal Shopee Affiliate</span>
-                </div>
-              )}
-
-              {/* Amazon Form */}
-              {selectedProvider === 'amazon' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">Amazon Associates Tracking Tag</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: suatag-20"
-                    value={keysForm.amazonKey || ''}
-                    onChange={(e) => setKeysForm({ ...keysForm, amazonKey: e.target.value })}
-                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-500 block mt-1">ID de Associados Amazon (Ex: tag=seunome-20)</span>
-                </div>
-              )}
-
-              {/* AliExpress Form */}
-              {selectedProvider === 'aliexpress' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">AliExpress App Key / Secret</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: ali_app_key_..."
-                    value={keysForm.aliExpressKey || ''}
-                    onChange={(e) => setKeysForm({ ...keysForm, aliExpressKey: e.target.value })}
-                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-500 block mt-1">Chave do portal AliExpress Portals</span>
-                </div>
-              )}
-
-              {/* Shein Form */}
-              {selectedProvider === 'shein' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">Shein Publisher Token</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: shein_tok_..."
-                    value={keysForm.sheinKey || ''}
-                    onChange={(e) => setKeysForm({ ...keysForm, sheinKey: e.target.value })}
-                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-500 block mt-1">Token de Publisher do programa Shein</span>
-                </div>
-              )}
-
-              {/* Gemini Form */}
-              {selectedProvider === 'gemini' && (
-                <div>
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">Chave de API do Gemini (Google AI Studio)</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: AIzaSy..."
-                    value={keysForm.geminiApiKey || ''}
-                    onChange={(e) => setKeysForm({ ...keysForm, geminiApiKey: e.target.value })}
-                    className="w-full p-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-500 block mt-1">Chave gerada no aistudio.google.com</span>
-                </div>
-              )}
-
-            </div>
-
-            {/* Test Feedback Result */}
-            {testResult && (
-              <div
-                className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-fadeIn ${
-                  testResult.success
-                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
-                    : 'bg-red-500/10 border-red-500/40 text-red-300'
-                }`}
-              >
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                )}
-                <span>{testResult.message}</span>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold text-xs rounded-xl transition-all"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={handleTestAndSave}
-                disabled={isTesting}
-                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 disabled:opacity-50"
-              >
-                {isTesting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Testando Conexão...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Testar e Salvar no Firebase</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Help Modal: Passo a passo do Mercado Livre */}
-      {showMlHelpModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-stone-900 border border-stone-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto text-stone-200">
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-scaleIn text-stone-200">
             
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <HelpCircle className="w-5 h-5" />
-                <span>Onde conseguir as credenciais do Mercado Livre?</span>
+                <AlertTriangle className="w-5 h-5" />
+                <span>Integração de Desenvolvedor Necessária</span>
               </div>
               <button
-                onClick={() => setShowMlHelpModal(false)}
+                onClick={() => setActiveOAuthModal(null)}
                 className="text-stone-400 hover:text-white p-1 rounded-lg"
               >
                 ✕
@@ -628,46 +537,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
             <div className="space-y-3 text-xs leading-relaxed text-stone-300">
               <p>
-                Para integrar a API oficial do Mercado Livre ao seu aplicativo de afiliados, siga estes passos simples:
+                Deseja integrar com sua conta de afiliado oficial da plataforma <strong>{PROVIDERS.find(p => p.id === activeOAuthModal)?.name}</strong>?
               </p>
-
-              <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2">
-                <h5 className="font-bold text-amber-400 flex items-center gap-1.5">
-                  <span>1. ID do Aplicativo (App ID) e Chave Secreta (Client Secret)</span>
-                </h5>
-                <ol className="list-decimal list-inside space-y-1 text-stone-400 pl-1">
-                  <li>Acesse o portal oficial: <a href="https://developers.mercadolibre.com.br/" target="_blank" rel="noreferrer" className="text-amber-300 underline font-semibold">developers.mercadolibre.com.br</a>.</li>
-                  <li>Faça login com a sua conta do Mercado Livre.</li>
-                  <li>No menu superior, clique em <strong>"Meus Aplicativos"</strong> e selecione <strong>"Criar um novo aplicativo"</strong>.</li>
-                  <li>Preencha o nome do app e escolha a área (ex: Integradora / Vendas / Afiliados).</li>
-                  <li>Após criar, o sistema gera o <strong>App ID (Client ID)</strong> e o <strong>Client Secret</strong>. Copie e cole aqui nas Configurações!</li>
-                </ol>
-              </div>
-
-              <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2">
-                <h5 className="font-bold text-emerald-400 flex items-center gap-1.5">
-                  <span>2. Access Token (Bearer Token)</span>
-                </h5>
-                <p className="text-stone-400">
-                  O <strong>Access Token</strong> (`APP_USR-...`) é a permissão de acesso gerada via OAuth.
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-stone-400 pl-1">
-                  <li><strong>Automático:</strong> Se você preencher o <strong>App ID</strong> e o <strong>Client Secret</strong>, nosso servidor tentará obter e renovar o token automaticamente!</li>
-                  <li><strong>Manual:</strong> No painel do Mercado Livre Developers, você também pode ir em <i>"Autenticação e Autorização"</i> e clicar em <strong>"Gerar Token de Teste"</strong> para copiar seu token diretamente.</li>
-                </ul>
-              </div>
-
-              <div className="bg-emerald-950/20 border border-emerald-500/30 p-3 rounded-xl text-emerald-300 text-[11px] font-medium">
-                ✅ O teste integrado no botão "Testar e Salvar no Firebase" verifica na hora se as credenciais estão válidas enviando uma requisição aos servidores do Mercado Livre!
-              </div>
+              <p>
+                Para habilitar a vinculação oficial com 1 clique (OAuth) nesta rede, o desenvolvedor do site precisa cadastrar as credenciais de aplicativo parceiro (App ID & Client Secret) nas configurações globais do código.
+              </p>
+              <p className="bg-stone-950 p-3 rounded-xl border border-stone-800 text-stone-400">
+                Atualmente, <strong>apenas o Mercado Livre</strong> está com credenciais de desenvolvedor totalmente pré-configuradas e prontas para vinculação automática direta.
+              </p>
+              <p>
+                Enquanto o administrador configura as credenciais, você pode usar a <strong>Configuração Manual</strong> diretamente no card de conexão para salvar sua chave ou tag pessoal e começar a usar!
+              </p>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-stone-800">
+            <div className="flex justify-end gap-3 pt-3 border-t border-stone-800">
               <button
-                onClick={() => setShowMlHelpModal(false)}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs rounded-xl transition-all"
+                type="button"
+                onClick={() => setActiveOAuthModal(null)}
+                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs rounded-xl"
               >
-                Entendi, voltar para as Configurações
+                Entendi, Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const prov = activeOAuthModal as ProviderType;
+                  setActiveOAuthModal(null);
+                  handleStartManualEdit(prov);
+                }}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-stone-950 font-bold text-xs rounded-xl"
+              >
+                Configurar Manualmente
               </button>
             </div>
 

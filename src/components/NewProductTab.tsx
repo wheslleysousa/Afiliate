@@ -10,9 +10,10 @@ interface NewProductTabProps {
   onSaveProduct: (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => void;
   savedCount: number;
   apiKeys?: ApiKeysConfig;
+  onSaveApiKeys?: (keys: ApiKeysConfig) => void;
 }
 
-export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, savedCount, apiKeys }) => {
+export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, savedCount, apiKeys, onSaveApiKeys }) => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -134,6 +135,17 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
         throw new Error(data.error || data.detail || 'Não foi possível extrair as informações deste link.');
       }
 
+      // Check for automatic ML token renewal
+      if (data.updated_ml_keys && onSaveApiKeys && apiKeys) {
+        console.log('[NewProductTab] Token do Mercado Livre renovado com sucesso durante o scrape!');
+        onSaveApiKeys({
+          ...apiKeys,
+          mercadoLivreKey: data.updated_ml_keys.mercadoLivreKey,
+          mercadoLivreRefreshToken: data.updated_ml_keys.mercadoLivreRefreshToken,
+          mercadoLivreExpiresAt: data.updated_ml_keys.mercadoLivreExpiresAt,
+        });
+      }
+
       const prod: ProductData = {
         id: 'prod_' + Date.now(),
         platform: data.platform || 'mercadolivre',
@@ -158,7 +170,11 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
 
       setExtractedProduct(prod);
       if (prod.priceUncertain) {
-        setErrorMsg('⚠️ Não consegui confirmar o preço com segurança nessa loja. Confira o valor manualmente antes de enviar a copy.');
+        if (data.ml_auth_error) {
+          setErrorMsg('⚠️ O seu Access Token do Mercado Livre expirou (ele dura apenas 6 horas) ou é inválido. Por favor, acesse a aba "Configurações", gere um novo token no painel do Mercado Livre e salve para reativar o preenchimento de preços automáticos.');
+        } else {
+          setErrorMsg('⚠️ Não consegui confirmar o preço com segurança nessa loja. Confira o valor manualmente antes de enviar a copy.');
+        }
       }
 
       // Generate initial 3 local variations immediately
