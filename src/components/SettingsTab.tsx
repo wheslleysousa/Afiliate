@@ -44,6 +44,14 @@ interface ProviderInfo {
 
 const PROVIDERS: ProviderInfo[] = [
   {
+    id: 'gemini',
+    name: 'Google Gemini IA',
+    badge: 'Chaves de API',
+    description: 'Adicione suas chaves gratuitas do Google AI Studio para geração automatizada de copys com inteligência artificial.',
+    guideUrl: 'https://aistudio.google.com/app/apikey',
+    colorClass: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
+  },
+  {
     id: 'mercadolivre',
     name: 'Mercado Livre',
     badge: 'Conexão por 1 Clique',
@@ -326,9 +334,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <Settings className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-extrabold text-white">Vinculação de Contas & APIs</h2>
+            <h2 className="text-xl font-extrabold text-white">Configurações do Sistema & APIs</h2>
             <p className="text-xs text-stone-400">
-              Vincule suas redes sociais e contas de afiliados sem precisar de chaves complexas
+              Gerencie suas chaves de IA do Gemini e vincule suas contas de afiliados
             </p>
           </div>
         </div>
@@ -339,6 +347,173 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span>{savedSuccess}</span>
           </div>
         )}
+      </div>
+
+      {/* Dedicated Google Gemini API Keys Management Section */}
+      <div className="bg-stone-900 border border-emerald-500/30 rounded-2xl p-6 space-y-5 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl shrink-0">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <span>Chaves de API do Google Gemini IA</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  {geminiKeysList.length} {geminiKeysList.length === 1 ? 'Chave Ativa' : 'Chaves Ativas'}
+                </span>
+              </h3>
+              <p className="text-xs text-stone-400">
+                Adicione suas chaves gratuitas do Google AI Studio para geração de copys com IA.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 bg-stone-800 hover:bg-stone-750 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 self-start sm:self-center shrink-0"
+          >
+            <span>Obter Chave Grátis no Google ↗</span>
+          </a>
+        </div>
+
+        {/* Form to Add New Key */}
+        <div className="space-y-3">
+          <label className="text-xs font-bold text-stone-200 block">
+            Adicionar Nova Chave do Gemini (AI Studio):
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <input
+              type="password"
+              placeholder="Cole sua chave aqui (ex: AIzaSy...)"
+              value={newGeminiKey}
+              onChange={(e) => setNewGeminiKey(e.target.value)}
+              className="flex-1 px-3.5 py-2.5 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-100 font-mono focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              type="button"
+              disabled={validatingKeyIndex === 'new'}
+              onClick={handleAddAndValidateNewGeminiKey}
+              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-stone-950 font-extrabold text-xs rounded-xl transition-all shadow-md shadow-emerald-500/10 flex items-center justify-center gap-2 shrink-0"
+            >
+              {validatingKeyIndex === 'new' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Validando Chave...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Validar e Salvar Chave</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Validation Feedback Alert */}
+        {geminiValidationMsg && (
+          <div
+            className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2.5 animate-fadeIn ${
+              geminiValidationMsg.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                : 'bg-red-500/10 border-red-500/40 text-red-300'
+            }`}
+          >
+            {geminiValidationMsg.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            )}
+            <span>{geminiValidationMsg.text}</span>
+          </div>
+        )}
+
+        {/* List of Registered Keys */}
+        {geminiKeysList.length > 0 ? (
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold text-stone-400 block uppercase tracking-wider">
+              Sua Lista de Chaves Cadastradas:
+            </span>
+            <div className="space-y-2">
+              {geminiKeysList.map((key, index) => {
+                const masked = key.length > 12 ? `${key.slice(0, 6)}...${key.slice(-4)}` : '••••••••';
+                const isValidatingThis = validatingKeyIndex === index;
+
+                return (
+                  <div
+                    key={index}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-stone-950 border border-stone-800 rounded-xl hover:border-stone-750 transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-stone-900 border border-stone-800 text-stone-300 font-extrabold text-xs flex items-center justify-center shrink-0">
+                        #{index + 1}
+                      </div>
+                      <div className="truncate">
+                        <span className="text-xs font-mono font-bold text-emerald-300 block truncate">
+                          {masked}
+                        </span>
+                        <span className="text-[10px] text-stone-500 block">
+                          Chave ativa e pronta para uso na geração de copys
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      <button
+                        type="button"
+                        disabled={isValidatingThis}
+                        onClick={() => handleTestExistingKey(index)}
+                        className="px-3 py-1.5 bg-stone-850 hover:bg-stone-750 text-stone-300 border border-stone-700 hover:border-stone-600 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5"
+                      >
+                        {isValidatingThis ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                            <span>Testando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span>Testar Chave</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGeminiKey(index)}
+                        className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-500/30 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1"
+                        title="Remover Chave"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Excluir</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-stone-950/60 border border-dashed border-stone-800 rounded-xl text-center space-y-1">
+            <p className="text-xs font-semibold text-stone-400">Nenhuma chave do Gemini cadastrada ainda.</p>
+            <p className="text-[11px] text-stone-500">
+              Cole sua chave de API do Google AI Studio acima e clique em "Validar e Salvar Chave".
+            </p>
+          </div>
+        )}
+
+        {/* Info Box */}
+        <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300/90 leading-relaxed flex items-start gap-2">
+          <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <span>
+            <strong>Sistema de Rotação Automática</strong>: Cadastre 2 ou mais chaves do Google AI Studio para nunca ficar sem cota. Caso uma chave atinja o limite por minuto, o aplicativo chaveia automaticamente para a próxima chave válida!
+          </span>
+        </div>
       </div>
 
       {oauthOpened && !isConfigured('mercadolivre') && (

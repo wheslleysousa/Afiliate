@@ -1,5 +1,47 @@
 import { ProductData } from "../types";
 
+export function extractCleanInstallmentsOnly(rawText: string, isSemJurosConfirmed: boolean): string | null {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const lower = rawText.trim().toLowerCase();
+  if (lower === "apenas à vista" || lower.includes("não informado") || lower.includes("à vista")) return null;
+
+  const hasSemJuros = lower.includes("sem juros") || isSemJurosConfirmed;
+
+  // Regex to match installment count and price per installment (e.g. "10x de R$ 25,00", "10x 25,00", "10x de 25")
+  const regex = /(\d+)\s*x\s*(?:de\s*)?(?:R\$\s*)?([\d\.]+(?:,\d{2})?)/i;
+  const match = rawText.match(regex);
+
+  if (match && match[1] && match[2]) {
+    const qty = match[1];
+    let valStr = match[2].trim();
+    if (!valStr.includes(',')) {
+      valStr = valStr + ',00';
+    }
+    const formattedPart = `${qty}x de R$ ${valStr}`;
+    return hasSemJuros ? `${formattedPart} sem juros` : formattedPart;
+  }
+
+  // Fallback cleanup if regex doesn't match standard pattern
+  let clean = rawText.trim();
+  if (clean.toLowerCase().includes("ou ")) {
+    clean = clean.split(/ou /i).pop() || clean;
+  }
+  if (clean.toLowerCase().includes("em ")) {
+    clean = clean.split(/em /i).pop() || clean;
+  }
+  clean = clean.trim();
+
+  if (hasSemJuros) {
+    if (!clean.toLowerCase().includes("sem juros")) {
+      clean = `${clean} sem juros`;
+    }
+  } else {
+    clean = clean.replace(/sem juros/gi, "").trim();
+  }
+
+  return clean || null;
+}
+
 export function formatCopy(product: ProductData): string {
   const lines: string[] = [];
 
@@ -20,39 +62,18 @@ export function formatCopy(product: ProductData): string {
   lines.push(`por R$ ${cleanTo}`);
 
   // 4. Installments / Cartão de crédito
-  // Regra: "sem juros" SÓ VAI APARECER se for verificado que o parcelamento é sem juros!
+  // Regra: Exibir APENAS a quantidade e o valor da parcela (ex: "10x de R$ 25,00 sem juros" ou "10x de R$ 25,00")
   let installmentLine: string | null = null;
-
   const rawInst = product.installments ? String(product.installments).trim() : "";
   const rawMaxSemJuros = product.max_installments_interest_free ? String(product.max_installments_interest_free).trim() : "";
 
-  if (rawInst && rawInst !== "Apenas à vista" && !rawInst.toLowerCase().includes("não informado")) {
-    let cleanInst = rawInst;
-    if (cleanInst.toLowerCase().startsWith("ou ")) {
-      cleanInst = cleanInst.slice(3).trim();
-    }
-    if (cleanInst.toLowerCase().startsWith("em ")) {
-      cleanInst = cleanInst.slice(3).trim();
-    }
+  const isVerifiedSemJuros = rawInst.toLowerCase().includes("sem juros") || 
+                             (!!rawMaxSemJuros && rawMaxSemJuros.toLowerCase().includes("sem juros"));
 
-    // Verificar se a extração confirmou explicitamente "sem juros"
-    const isVerifiedSemJuros = cleanInst.toLowerCase().includes("sem juros") ||
-      (rawMaxSemJuros && rawMaxSemJuros.toLowerCase().includes("sem juros"));
-
-    if (isVerifiedSemJuros) {
-      if (!cleanInst.toLowerCase().includes("sem juros")) {
-        cleanInst = `${cleanInst} sem juros`;
-      }
-      installmentLine = cleanInst;
-    } else {
-      // Se NÃO tiver confirmação de "sem juros", mostra apenas a quantidade e o valor da parcela (sem a palavra "sem juros")
-      installmentLine = cleanInst.replace(/sem juros/gi, "").trim();
-    }
-  } else if (rawMaxSemJuros && rawMaxSemJuros.toLowerCase().includes("sem juros")) {
-    let cleanMax = rawMaxSemJuros;
-    if (cleanMax.toLowerCase().startsWith("ou ")) cleanMax = cleanMax.slice(3).trim();
-    if (cleanMax.toLowerCase().startsWith("em ")) cleanMax = cleanMax.slice(3).trim();
-    installmentLine = cleanMax;
+  if (rawInst) {
+    installmentLine = extractCleanInstallmentsOnly(rawInst, isVerifiedSemJuros);
+  } else if (rawMaxSemJuros) {
+    installmentLine = extractCleanInstallmentsOnly(rawMaxSemJuros, true);
   }
 
   if (installmentLine) {

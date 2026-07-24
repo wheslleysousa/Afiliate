@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'settings',
-      label: 'Vincular Contas',
+      label: 'Configurações',
       icon: <Settings className="w-5 h-5 shrink-0 text-blue-400" />,
     },
   ];

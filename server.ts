@@ -122,15 +122,62 @@ async function refreshMercadoLivreToken(appId: string, clientSecret: string, ref
   }
 }
 
+// Helper to resolve short links and HTML redirects (e.g. meli.la, amzn.to, shope.ee)
+async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: string; html: string }> {
+  let currentUrl = initialUrl;
+  let html = "";
+  
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await fetch(currentUrl, { headers: DEFAULT_HEADERS, redirect: "follow" });
+      currentUrl = res.url || currentUrl;
+      html = await res.text();
+
+      const $ = cheerio.load(html);
+      
+      // 1. Meta refresh redirect
+      const metaRefresh = $('meta[http-equiv="refresh"]').attr('content') || $('meta[http-equiv="Refresh"]').attr('content');
+      if (metaRefresh) {
+        const urlMatch = metaRefresh.match(/url=\s*['"]?([^'"]+)['"]?/i);
+        if (urlMatch && urlMatch[1] && urlMatch[1].startsWith("http")) {
+          currentUrl = urlMatch[1].trim();
+          continue;
+        }
+      }
+
+      // 2. Short link og:url or canonical link redirect
+      const isShortLink = currentUrl.includes('meli.la') || currentUrl.includes('amzn.to') || currentUrl.includes('shope.ee') || currentUrl.includes('tinyurl') || currentUrl.includes('bit.ly');
+      if (isShortLink) {
+        const canonical = $('link[rel="canonical"]').attr('href') || $('meta[property="og:url"]').attr('content');
+        if (canonical && canonical.startsWith("http") && canonical !== currentUrl) {
+          currentUrl = canonical.trim();
+          continue;
+        }
+      }
+
+      // 3. JS location redirect
+      const jsMatch = html.match(/(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
+      if (jsMatch && jsMatch[1] && jsMatch[1].startsWith("http") && jsMatch[1] !== currentUrl) {
+        currentUrl = jsMatch[1].trim();
+        continue;
+      }
+
+      break;
+    } catch (err) {
+      console.warn(`[URL Resolver] Error resolving ${currentUrl}:`, err);
+      break;
+    }
+  }
+
+  return { finalUrl: currentUrl, html };
+}
+
 // Mercado Livre Scraper
 async function scrapeMercadoLivre(url: string, mlConfig?: any) {
-  let finalUrl = url;
   let ml_auth_error = false;
   let updated_ml_keys: any = null;
   try {
-    const res = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
-    finalUrl = res.url || url;
-    const html = await res.text();
+    const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
 
     let bearerToken = typeof mlConfig === 'string' ? mlConfig : (mlConfig?.mercadoLivreKey || process.env.MERCADOLIVRE_KEY);
     let refreshToken = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreRefreshToken : undefined;
@@ -153,30 +200,6 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
             mercadoLivreExpiresAt: renewed.expires_at,
           };
         }
-      }
-    }
-
-    // Se tivermos App ID e Client Secret mas não o Access Token direto, tenta obter token de client_credentials
-    if (!bearerToken && appId && clientSecret) {
-      try {
-        const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "client_credentials",
-            client_id: String(appId).trim(),
-            client_secret: String(clientSecret).trim(),
-          }),
-        });
-        if (tokenRes.ok) {
-          const tokenData = await tokenRes.json();
-          if (tokenData.access_token) {
-            bearerToken = tokenData.access_token;
-            console.log("[ML Scraper] Token de client_credentials obtido com sucesso para o App ID.");
-          }
-        }
-      } catch (tErr) {
-        console.warn("[ML Scraper] Falha ao obter token de client_credentials:", tErr);
       }
     }
 
@@ -206,23 +229,26 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
 
     if (itemId) {
       try {
-        const apiHeaders: Record<string, string> = {
-          "Accept": "application/json",
-          "User-Agent": DEFAULT_HEADERS["User-Agent"],
-        };
-        if (bearerToken && bearerToken.trim()) {
-          apiHeaders["Authorization"] = `Bearer ${bearerToken.trim()}`;
-        }
-
         const isCatalog = finalUrl.includes("/p/MLB") || url.includes("/p/MLB") || canonicalUrl.includes("/p/MLB");
         const getApiUrl = (id: string) => isCatalog 
           ? `https://api.mercadolibre.com/products/${id}`
           : `https://api.mercadolibre.com/items/${id}`;
 
-        let apiRes = await fetch(getApiUrl(itemId), {
-          headers: apiHeaders
-        });
+        const makeApiFetch = async (token?: string) => {
+          const apiHeaders: Record<string, string> = {
+            "Accept": "application/json",
+            "User-Agent": DEFAULT_HEADERS["User-Agent"],
+          };
+          if (token && token.trim()) {
+            apiHeaders["Authorization"] = `Bearer ${token.trim()}`;
+          }
+          return await fetch(getApiUrl(itemId!), { headers: apiHeaders });
+        };
 
+        // 1. First attempt with existing token (if available)
+        let apiRes = await makeApiFetch(bearerToken);
+
+        // 2. If 401/403 and we have refresh token, attempt token auto-renew
         if ((apiRes.status === 401 || apiRes.status === 403) && refreshToken && appId && clientSecret && !updated_ml_keys) {
           console.warn("[ML API] Token falhou com status 401/403. Tentando renovar com refresh_token...");
           const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken);
@@ -235,26 +261,51 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
               mercadoLivreRefreshToken: renewed.refresh_token,
               mercadoLivreExpiresAt: renewed.expires_at,
             };
-            
-            // Refazer requisição com novo token
-            const retryHeaders = {
-              ...apiHeaders,
-              "Authorization": `Bearer ${bearerToken.trim()}`
-            };
-            apiRes = await fetch(getApiUrl(itemId), {
-              headers: retryHeaders
-            });
+            apiRes = await makeApiFetch(bearerToken);
           }
         }
 
+        // 3. If still 401/403 and we have App ID + Secret, obtain client_credentials token as fallback
+        if ((apiRes.status === 401 || apiRes.status === 403) && appId && clientSecret) {
+          console.warn("[ML API] Token do usuário expirado ou inválido. Obtendo token de client_credentials...");
+          try {
+            const ccRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                grant_type: "client_credentials",
+                client_id: String(appId).trim(),
+                client_secret: String(clientSecret).trim(),
+              }),
+            });
+            if (ccRes.ok) {
+              const ccData = await ccRes.json();
+              if (ccData.access_token) {
+                bearerToken = ccData.access_token;
+                console.log("[ML API] Token client_credentials obtido! Reexecutando chamada da API...");
+                apiRes = await makeApiFetch(bearerToken);
+              }
+            }
+          } catch (ccErr) {
+            console.warn("[ML API] Erro ao obter client_credentials:", ccErr);
+          }
+        }
+
+        // 4. If still 401/403, try public unauthenticated request (without Authorization header)
+        if (apiRes.status === 401 || apiRes.status === 403) {
+          console.warn("[ML API] Requisitando endpoint público de item do Mercado Livre sem Authorization header...");
+          apiRes = await makeApiFetch(undefined);
+        }
+
         if (!apiRes.ok) {
-          console.warn(`[ML API] Requisição falhou para ${itemId}. HTTP ${apiRes.status}`);
+          console.warn(`[ML API] Requisição API falhou para ${itemId}. HTTP ${apiRes.status}`);
           if (apiRes.status === 401 || apiRes.status === 403) {
             ml_auth_error = true;
           }
         }
 
         if (apiRes.ok) {
+          ml_auth_error = false;
           const data = await apiRes.json();
           const title = data.title || data.name || "";
           const image_url = (data.pictures && data.pictures[0]?.secure_url) || (data.pictures && data.pictures[0]?.url) || data.thumbnail || null;
@@ -1027,7 +1078,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       max_installments_interest_free: mergedMaxInstallments,
       coupon: mergedCoupon,
       shipping: mergedShipping,
-      ml_auth_error,
+      ml_auth_error: (mergedPriceTo && mergedPriceTo !== "Consulte no link" && mergedTitle) ? false : ml_auth_error,
       updated_ml_keys
     };
   } catch (err: any) {
@@ -1404,72 +1455,6 @@ app.post("/api/ml-exchange-code", async (req, res) => {
   }
 });
 
-// Main POST /scrape endpoint required by Prompt 01
-app.post(["/scrape", "/api/scrape"], async (req, res) => {
-  try {
-    let { url, apiKeys } = req.body || {};
-    if (!url || typeof url !== "string") {
-      return res.status(422).json({
-        error: "Não foi possível extrair os dados. Verifique se o link é válido.",
-        detail: "A URL deve ser válida e começar com http:// ou https://"
-      });
-    }
-
-    url = url.trim();
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      url = "https://" + url;
-    }
-
-    let platform: string;
-    let workingUrl = url;
-
-    try {
-      platform = detectPlatform(url);
-    } catch (initialErr) {
-      // Follow redirects to unwrap affiliate shortener links (e.g. bit.ly, tinyurl, custom redirectors)
-      try {
-        const redirectRes = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
-        workingUrl = redirectRes.url || url;
-        platform = detectPlatform(workingUrl);
-      } catch (redirectErr) {
-        return res.status(400).json({
-          error: "Plataforma não suportada. Use links do Mercado Livre, Shopee, Amazon, AliExpress ou Shein.",
-          detail: "Não foi possível identificar uma plataforma suportada na URL informada."
-        });
-      }
-    }
-
-    console.log(`[Scraper Endpoint] Extracting platform: ${platform} for URL: ${workingUrl} (with custom apiKeys: ${apiKeys ? 'Yes' : 'No'})`);
-
-    let data: any = {};
-    if (platform === "mercadolivre") {
-      data = await scrapeMercadoLivre(workingUrl, {
-        mercadoLivreKey: apiKeys?.mercadoLivreKey,
-        mercadoLivreAppId: apiKeys?.mercadoLivreAppId,
-        mercadoLivreClientSecret: apiKeys?.mercadoLivreClientSecret,
-        mercadoLivreRefreshToken: apiKeys?.mercadoLivreRefreshToken,
-        mercadoLivreExpiresAt: apiKeys?.mercadoLivreExpiresAt,
-      });
-    } else if (platform === "shopee") {
-      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey);
-    } else if (platform === "amazon") {
-      data = await scrapeAmazon(workingUrl, apiKeys?.amazonKey);
-    } else if (platform === "aliexpress") {
-      data = await scrapeAliExpress(workingUrl, apiKeys?.aliExpressKey);
-    } else if (platform === "shein") {
-      data = await scrapeShein(workingUrl, apiKeys?.sheinKey);
-    }
-
-    // Attach Amazon tracking tag if provided in apiKeys
-    let finalLink = url;
-    if (platform === "amazon" && apiKeys?.amazonKey) {
-      const cleanTag = apiKeys.amazonKey.trim();
-      if (cleanTag && !finalLink.includes(`tag=${cleanTag}`)) {
-        const sep = finalLink.includes("?") ? "&" : "?";
-        finalLink = `${finalLink}${sep}tag=${encodeURIComponent(cleanTag)}`;
-      }
-    }
-
 // Helper for executing Gemini requests with automatic multi-key rotation / fallback
 async function callGeminiWithRotation<T>(
   candidateKeys: (string | undefined | null | string[])[],
@@ -1561,6 +1546,72 @@ app.post("/api/gemini/validate-key", async (req, res) => {
     return res.status(400).json({ valid: false, error: errorMsg });
   }
 });
+
+// Main POST /scrape endpoint required by Prompt 01
+app.post(["/scrape", "/api/scrape"], async (req, res) => {
+  try {
+    let { url, apiKeys } = req.body || {};
+    if (!url || typeof url !== "string") {
+      return res.status(422).json({
+        error: "Não foi possível extrair os dados. Verifique se o link é válido.",
+        detail: "A URL deve ser válida e começar com http:// ou https://"
+      });
+    }
+
+    url = url.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    let platform: string;
+    let workingUrl = url;
+
+    try {
+      platform = detectPlatform(url);
+    } catch (initialErr) {
+      // Follow redirects to unwrap affiliate shortener links (e.g. bit.ly, tinyurl, custom redirectors)
+      try {
+        const redirectRes = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
+        workingUrl = redirectRes.url || url;
+        platform = detectPlatform(workingUrl);
+      } catch (redirectErr) {
+        return res.status(400).json({
+          error: "Plataforma não suportada. Use links do Mercado Livre, Shopee, Amazon, AliExpress ou Shein.",
+          detail: "Não foi possível identificar uma plataforma suportada na URL informada."
+        });
+      }
+    }
+
+    console.log(`[Scraper Endpoint] Extracting platform: ${platform} for URL: ${workingUrl} (with custom apiKeys: ${apiKeys ? 'Yes' : 'No'})`);
+
+    let data: any = {};
+    if (platform === "mercadolivre") {
+      data = await scrapeMercadoLivre(workingUrl, {
+        mercadoLivreKey: apiKeys?.mercadoLivreKey,
+        mercadoLivreAppId: apiKeys?.mercadoLivreAppId,
+        mercadoLivreClientSecret: apiKeys?.mercadoLivreClientSecret,
+        mercadoLivreRefreshToken: apiKeys?.mercadoLivreRefreshToken,
+        mercadoLivreExpiresAt: apiKeys?.mercadoLivreExpiresAt,
+      });
+    } else if (platform === "shopee") {
+      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey);
+    } else if (platform === "amazon") {
+      data = await scrapeAmazon(workingUrl, apiKeys?.amazonKey);
+    } else if (platform === "aliexpress") {
+      data = await scrapeAliExpress(workingUrl, apiKeys?.aliExpressKey);
+    } else if (platform === "shein") {
+      data = await scrapeShein(workingUrl, apiKeys?.sheinKey);
+    }
+
+    // Attach Amazon tracking tag if provided in apiKeys
+    let finalLink = url;
+    if (platform === "amazon" && apiKeys?.amazonKey) {
+      const cleanTag = apiKeys.amazonKey.trim();
+      if (cleanTag && !finalLink.includes(`tag=${cleanTag}`)) {
+        const sep = finalLink.includes("?") ? "&" : "?";
+        finalLink = `${finalLink}${sep}tag=${encodeURIComponent(cleanTag)}`;
+      }
+    }
 
     // Se a descrição estiver nula, muito curta ou com texto genérico/placeholder, geramos uma descrição curta via Gemini baseada no título.
     if (!data.description || 
@@ -1671,8 +1722,8 @@ REGRAS RÍGIDAS DE FORMATAÇÃO:
 1. Linha 1: Comece diretamente com o nome do produto limpo, sem asteriscos e sem emojis.
 2. Se houver preço anterior, inclua a linha "~de R$ {valor}~". Se não houver, omita essa linha.
 3. Inclua a linha "por R$ {valor}" em seguida.
-4. Se houver parcelamento no cartão, inclua "💳 ou {parcelas}" (ex: "💳 ou 6x de R$ 45,35").
-   IMPORTANTE: Só adicione a expressão "sem juros" se os dados do produto indicarem EXPLICITAMENTE que o parcelamento é sem juros. Se não houver confirmação de sem juros, mostre apenas as parcelas e o valor (ex: "6x de R$ 45,35").
+4. Se houver parcelamento no cartão, inclua "💳 ou {parcelas}" (ex: "💳 ou 10x de R$ 25,00 sem juros" ou "💳 ou 10x de R$ 25,00").
+   REGRA CRÍTICA PARA PARCELAS: {parcelas} deve conter APENAS a quantidade de parcelas e o valor por parcela (ex: "10x de R$ 25,00 sem juros" ou "10x de R$ 25,00"). NUNCA inclua o valor total do produto nem a palavra "ou" duplicada dentro de {parcelas}. Só adicione a expressão "sem juros" se os dados do produto indicarem EXPLICITAMENTE que o parcelamento é sem juros.
 5. Pule uma linha.
 6. Se houver cupom de desconto, inclua "🎟️ Use o cupom: {CUPOM}" e pule uma linha. Se não houver cupom, omita essa linha e a quebra extra.
 7. A linha do link deve ser exatamente "🛍️ Compre aqui: {LINK}".
