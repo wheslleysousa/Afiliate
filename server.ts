@@ -123,14 +123,21 @@ async function refreshMercadoLivreToken(appId: string, clientSecret: string, ref
   }
 }
 
-// Helper to resolve short links and HTML redirects (e.g. meli.la, amzn.to, shope.ee)
+// Helper to resolve short links and HTML redirects (e.g. meli.la, amzn.to, shope.ee, s.shopee.com.br)
 async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: string; html: string }> {
   let currentUrl = initialUrl;
   let html = "";
   
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const res = await fetch(currentUrl, { headers: DEFAULT_HEADERS, redirect: "follow" });
+      const res = await fetch(currentUrl, { 
+        headers: {
+          ...DEFAULT_HEADERS,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        }, 
+        redirect: "follow" 
+      });
       currentUrl = res.url || currentUrl;
       html = await res.text();
 
@@ -146,21 +153,35 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
         }
       }
 
-      // 2. Short link og:url or canonical link redirect
-      const isShortLink = currentUrl.includes('meli.la') || currentUrl.includes('amzn.to') || currentUrl.includes('a.co') || currentUrl.includes('shope.ee') || currentUrl.includes('shein.top') || currentUrl.includes('tinyurl') || currentUrl.includes('bit.ly');
+      // 2. Short link og:url, canonical or twitter:url redirect
+      const isShortLink = currentUrl.includes('meli.la') || 
+                          currentUrl.includes('amzn.to') || 
+                          currentUrl.includes('a.co') || 
+                          currentUrl.includes('shope.ee') || 
+                          currentUrl.includes('s.shopee.com.br') || 
+                          currentUrl.includes('shopee.com.br') || 
+                          currentUrl.includes('shein.top') || 
+                          currentUrl.includes('tinyurl') || 
+                          currentUrl.includes('bit.ly');
+
       if (isShortLink) {
-        const canonical = $('link[rel="canonical"]').attr('href') || $('meta[property="og:url"]').attr('content');
-        if (canonical && canonical.startsWith("http") && canonical !== currentUrl) {
+        const canonical = $('link[rel="canonical"]').attr('href') || $('meta[property="og:url"]').attr('content') || $('meta[name="twitter:url"]').attr('content');
+        if (canonical && canonical.startsWith("http") && canonical !== currentUrl && !canonical.includes("s.shopee.com.br") && !canonical.includes("shope.ee")) {
           currentUrl = canonical.trim();
           continue;
         }
-      }
 
-      // 3. JS location redirect
-      const jsMatch = html.match(/(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
-      if (jsMatch && jsMatch[1] && jsMatch[1].startsWith("http") && jsMatch[1] !== currentUrl) {
-        currentUrl = jsMatch[1].trim();
-        continue;
+        // Search for JS or JSON target_url or location redirect
+        const targetUrlMatch = html.match(/(?:target_?url|redirect_?url|universal_?link|targetUrl)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i) ||
+                               html.match(/href=["'](https?:\/\/(?:shopee\.com\.br)[^"']+)["']/i) ||
+                               html.match(/(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
+        if (targetUrlMatch && targetUrlMatch[1]) {
+          const cleanTarget = targetUrlMatch[1].replace(/\\/g, '').trim();
+          if (cleanTarget && cleanTarget.startsWith("http") && cleanTarget !== currentUrl) {
+            currentUrl = cleanTarget;
+            continue;
+          }
+        }
       }
 
       break;
@@ -175,7 +196,7 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
 
 // Mercado Livre Scraper
 async function scrapeMercadoLivre(url: string, mlConfig?: any) {
-  let ml_auth_error = false;
+  let ml_auth_error = false; /* default */ 
   let updated_ml_keys: any = null;
   try {
     const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
@@ -293,20 +314,20 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
         }
 
         // 4. If still 401/403, try public unauthenticated request (without Authorization header)
-        if (apiRes.status === 401 || apiRes.status === 403) {
+        if (apiRes.status >= 400 && apiRes.status <= 499) {
           console.warn("[ML API] Requisitando endpoint público de item do Mercado Livre sem Authorization header...");
           apiRes = await makeApiFetch(undefined);
         }
 
         if (!apiRes.ok) {
           console.warn(`[ML API] Requisição API falhou para ${itemId}. HTTP ${apiRes.status}`);
-          if (apiRes.status === 401 || apiRes.status === 403) {
+          if (apiRes.status >= 400 && apiRes.status <= 499) {
             ml_auth_error = true;
           }
         }
 
         if (apiRes.ok) {
-          ml_auth_error = false;
+          ml_auth_error = false; /* default */ 
           const data = await apiRes.json();
           const title = data.title || data.name || "";
           const image_url = (data.pictures && data.pictures[0]?.secure_url) || (data.pictures && data.pictures[0]?.url) || data.thumbnail || null;
@@ -331,7 +352,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           const uniqVideos = Array.from(new Set(videos));
 
           const rawPrice = data.price || data.buy_box_winner?.price || data.buy_box_winner_price;
-          const price_to = rawPrice ? cleanPrice(rawPrice) : null;
+          const price_to = rawPrice ? cleanPrice(rawPrice) : null; if (!price_to) { ml_auth_error = true; console.warn("[ML API] Preco ausente - marcando ml_auth_error=true"); } else { ml_auth_error = false; }
           
           const rawOriginalPrice = data.original_price || data.buy_box_winner?.original_price;
           const price_from = (rawOriginalPrice && rawOriginalPrice > (rawPrice || 0)) ? cleanPrice(rawOriginalPrice) : null;
@@ -1088,59 +1109,165 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
   }
 }
 
-// Shopee Scraper
+// Shopee Scraper & Official API Extractor
 async function scrapeShopee(url: string, shopeeKey?: string) {
   try {
-    const res = await fetch(url, { headers: DEFAULT_HEADERS, redirect: "follow" });
-    const finalUrl = res.url || url;
-    const match = finalUrl.match(/-i\.(\d+)\.(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || finalUrl.match(/product\/(\d+)\/(\d+)/);
+    const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
+
+    let match = finalUrl.match(/-i\.(\d+)\.(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || finalUrl.match(/product\/(\d+)\/(\d+)/);
+    if (!match && html) {
+      match = html.match(/-i\.(\d+)\.(\d+)/) || html.match(/product\/(\d+)\/(\d+)/) || html.match(/itemid[=":\s]+(\d+)[^"'\n]*shopid[=":\s]+(\d+)/i);
+      if (!match) {
+        const shopMatch = html.match(/"shopid"\s*:\s*(\d+)/i) || html.match(/"shop_id"\s*:\s*(\d+)/i);
+        const itemMatch = html.match(/"itemid"\s*:\s*(\d+)/i) || html.match(/"item_id"\s*:\s*(\d+)/i);
+        if (shopMatch && itemMatch) {
+          match = [ "", shopMatch[1], itemMatch[1] ] as RegExpMatchArray;
+        }
+      }
+    }
+
+    let apiData: any = null;
 
     if (match) {
       const shopId = match[1];
       const itemId = match[2];
-      try {
-        const apiRes = await fetch(`https://shopee.com.br/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`, {
-          headers: {
+
+      // 1. Try official Shopee API v4 & v2
+      for (const apiEndpoint of [
+        `https://shopee.com.br/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`,
+        `https://shopee.com.br/api/v2/item/get?itemid=${itemId}&shopid=${shopId}`
+      ]) {
+        try {
+          const reqHeaders: Record<string, string> = {
             ...DEFAULT_HEADERS,
-            "Referer": "https://shopee.com.br/",
+            "Referer": `https://shopee.com.br/product/${shopId}/${itemId}`,
             "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json"
+          };
+          if (shopeeKey && shopeeKey.trim()) {
+            reqHeaders["Authorization"] = `Bearer ${shopeeKey.trim()}`;
+            reqHeaders["X-Shopee-Key"] = shopeeKey.trim();
           }
-        });
-        if (apiRes.ok) {
-          const json = await apiRes.json();
-          const item = json?.data?.item;
-          if (item) {
-            const title = item.name || "";
-            const image_url = item.image ? `https://cf.shopee.com.br/file/${item.image}` : null;
-            const rawPrice = (item.price || 0) / 100000;
-            const price_to = cleanPrice(rawPrice);
-            const rawPriceBefore = (item.price_before_discount || 0) / 100000;
-            const price_from = rawPriceBefore > rawPrice ? cleanPrice(rawPriceBefore) : null;
-            const description = item.description ? String(item.description).slice(0, 300).trim() : null;
-            
-            return {
-              title,
-              description,
-              image_url,
-              price_from,
-              price_to: price_to || "Consulte no link",
-              installments: null,
-              max_installments_interest_free: null,
-              coupon: null
-            };
+
+          const apiRes = await fetch(apiEndpoint, { headers: reqHeaders });
+          if (apiRes.ok) {
+            const json = await apiRes.json();
+            const item = json?.data?.item || json?.data || json?.item;
+            if (item) {
+              const title = item.name || item.title || "";
+              const mainImgHash = item.image || item.images?.[0];
+              const mainImageUrl = mainImgHash ? `https://down-br.img.susercontent.com/file/${mainImgHash}` : null;
+              
+              // Extract pictures
+              const picturesSet = new Set<string>();
+              if (mainImageUrl) picturesSet.add(mainImageUrl);
+              if (Array.isArray(item.images)) {
+                item.images.forEach((imgHash: string) => {
+                  if (imgHash && typeof imgHash === "string") {
+                    picturesSet.add(`https://down-br.img.susercontent.com/file/${imgHash}`);
+                  }
+                });
+              }
+              const pictures = Array.from(picturesSet);
+
+              // Extract videos
+              const videosSet = new Set<string>();
+              if (Array.isArray(item.video_info_list)) {
+                item.video_info_list.forEach((v: any) => {
+                  if (v?.url) videosSet.add(v.url);
+                  else if (v?.video_id) videosSet.add(`https://down-br.img.susercontent.com/file/${v.video_id}`);
+                });
+              }
+              const videos = Array.from(videosSet);
+
+              const rawPrice = (item.price || item.price_min || 0) / 100000;
+              const price_to = cleanPrice(rawPrice);
+              const rawPriceBefore = (item.price_before_discount || item.price_max_before_discount || 0) / 100000;
+              const price_from = rawPriceBefore > rawPrice ? cleanPrice(rawPriceBefore) : null;
+              const description = item.description ? String(item.description).slice(0, 500).trim() : null;
+              
+              apiData = {
+                title,
+                description,
+                image_url: mainImageUrl,
+                pictures: pictures.length > 0 ? pictures : (mainImageUrl ? [mainImageUrl] : []),
+                video_url: videos[0] || null,
+                videos: videos.length > 0 ? videos : [],
+                price_from,
+                price_to: price_to || "Consulte no link",
+                installments: null,
+                max_installments_interest_free: null,
+                coupon: null
+              };
+              console.log(`[Shopee API] Dados extraídos com sucesso via API para item ${itemId}`);
+              break;
+            }
           }
+        } catch (e) {
+          console.warn("[Shopee Scraper] API call error", e);
         }
-      } catch (e) {
-        console.warn("[Shopee Scraper] API call failed, falling back to HTML parsing", e);
       }
     }
 
-    const html = await res.text();
+    if (apiData && apiData.title) {
+      return apiData;
+    }
+
+    // 2. Parse HTML & Embedded JSON Scripts
     const $ = cheerio.load(html);
-    const title = $('meta[property="og:title"]').attr('content') || $('title').text().trim() || "";
-    const image_url = $('meta[property="og:image"]').attr('content') || null;
-    const priceRaw = $('meta[property="product:price:amount"]').attr('content');
+    let title = $('meta[property="og:title"]').attr('content') || $('meta[name="title"]').attr('content') || $('title').text().trim() || "";
+    title = title.replace(/\s*\|\s*Shopee\s*Brasil.*$/i, '').replace(/\s*\|\s*Shopee.*$/i, '').trim();
+
+    let image_url = $('meta[property="og:image"]').attr('content') || $('meta[property="twitter:image"]').attr('content') || $('link[rel="image_src"]').attr('href') || null;
+
+    // Collect images from meta, JSON-LD, script state, and HTML CDN links
+    const picturesSet = new Set<string>();
+    if (image_url) picturesSet.add(image_url);
+
+    $('meta[property="og:image"]').each((_, el) => {
+      const src = $(el).attr('content');
+      if (src && src.startsWith("http")) picturesSet.add(src);
+    });
+
+    const jsonLdRaw = $('script[type="application/ld+json"]').html();
+    if (jsonLdRaw) {
+      try {
+        const jsonLd = JSON.parse(jsonLdRaw);
+        if (jsonLd.image) {
+          if (Array.isArray(jsonLd.image)) {
+            jsonLd.image.forEach((img: string) => { if (typeof img === 'string') picturesSet.add(img); });
+          } else if (typeof jsonLd.image === 'string') {
+            picturesSet.add(jsonLd.image);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Search CDN image URLs in HTML
+    const cdnImgMatches = html.match(/https:\/\/(?:down-br\.img\.susercontent\.com|cf\.shopee\.com\.br)\/file\/[a-f0-9_]+/g);
+    if (cdnImgMatches) {
+      cdnImgMatches.forEach(imgUrl => picturesSet.add(imgUrl));
+    }
+
+    const pictures = Array.from(picturesSet);
+
+    let priceRaw = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content');
+    
+    // Search JSON-LD for prices
+    if (!priceRaw && jsonLdRaw) {
+      const pMatch = jsonLdRaw.match(/"price"\s*:\s*"?([\d\.]+)"?/i) || jsonLdRaw.match(/"lowPrice"\s*:\s*"?([\d\.]+)"?/i);
+      if (pMatch) priceRaw = pMatch[1];
+    }
+
+    // Search Shopee script state for price in hundred-thousandths
+    if (!priceRaw) {
+      const pMatch = html.match(/"price"\s*:\s*(\d{5,})/i) || html.match(/"price_min"\s*:\s*(\d{5,})/i);
+      if (pMatch) {
+        const parsedP = parseInt(pMatch[1], 10) / 100000;
+        if (parsedP > 0.5 && parsedP < 500000) priceRaw = String(parsedP);
+      }
+    }
+
     const price_to = priceRaw ? cleanPrice(priceRaw) : "Consulte no link";
     const description = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || null;
 
@@ -1168,8 +1295,11 @@ async function scrapeShopee(url: string, shopeeKey?: string) {
 
     return {
       title: finalTitle,
-      description: description ? description.slice(0, 300).trim() : null,
-      image_url,
+      description: description ? description.slice(0, 500).trim() : null,
+      image_url: pictures[0] || image_url || null,
+      pictures: pictures.length > 0 ? pictures : (image_url ? [image_url] : []),
+      video_url: null,
+      videos: [],
       price_from: null,
       price_to,
       installments,
@@ -1545,9 +1675,36 @@ app.post("/api/ml-exchange-code", async (req, res) => {
   }
 });
 
+// Helper to extract candidate Gemini keys prioritizing user app settings over process.env
+function getCandidateGeminiKeys(apiKeys: any): string[] {
+  const userKeys: string[] = [];
+  if (Array.isArray(apiKeys?.geminiApiKeys)) {
+    for (const k of apiKeys.geminiApiKeys) {
+      if (typeof k === "string" && k.trim()) userKeys.push(k.trim());
+    }
+  }
+  if (typeof apiKeys?.geminiApiKey === "string" && apiKeys.geminiApiKey.trim()) {
+    userKeys.push(apiKeys.geminiApiKey.trim());
+  }
+
+  const uniqueUserKeys = Array.from(new Set(userKeys));
+
+  // If the user configured keys inside the app settings, USE STRICTLY THOSE KEYS
+  if (uniqueUserKeys.length > 0) {
+    return uniqueUserKeys;
+  }
+
+  // Fallback to process.env.GEMINI_API_KEY only if no key was configured in app settings
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
+    return [process.env.GEMINI_API_KEY.trim()];
+  }
+
+  return [];
+}
+
 // Helper for executing Gemini requests with automatic multi-key rotation and model fallback
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: string, params: any) {
-  const modelsToTry = [primaryModel, "gemini-2.5-flash", "gemini-flash-latest"];
+  const modelsToTry = [primaryModel, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
   const triedModels = new Set<string>();
 
   let lastErr: any = null;
@@ -1558,8 +1715,15 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: 
       return await ai.models.generateContent({ ...params, model });
     } catch (err: any) {
       const errStr = String(err?.message || err);
-      if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("quota")) {
-        console.warn(`[Gemini Model Fallback] Modelo ${model} atingiu limite de cota (429/quota). Tentando modelo alternativo...`);
+      if (
+        errStr.includes("RESOURCE_EXHAUSTED") ||
+        errStr.includes("429") ||
+        errStr.includes("quota") ||
+        errStr.includes("NOT_FOUND") ||
+        errStr.includes("404") ||
+        errStr.includes("no longer available")
+      ) {
+        console.warn(`[Gemini Model Fallback] Modelo ${model} falhou (${errStr.slice(0, 100)}...). Tentando modelo alternativo...`);
         lastErr = err;
         continue;
       }
@@ -1639,8 +1803,7 @@ app.post("/api/gemini/validate-key", async (req, res) => {
       }
     });
 
-    const testResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const testResponse = await generateGeminiContentWithFallback(ai, "gemini-2.5-flash", {
       contents: "Responda 'OK' se a chave está funcionando.",
     });
 
@@ -1734,13 +1897,9 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
         data.description.toLowerCase().includes("confira todos os detalhes") ||
         data.description.toLowerCase().includes("visite a página")) {
       
-      const candidateKeys = [
-        ...(Array.isArray(apiKeys?.geminiApiKeys) ? apiKeys.geminiApiKeys : []),
-        apiKeys?.geminiApiKey,
-        process.env.GEMINI_API_KEY
-      ];
+      const candidateKeys = getCandidateGeminiKeys(apiKeys);
 
-      if (candidateKeys.some(k => typeof k === 'string' && k.trim()) && data.title && !data.title.includes("não identificado") && !data.title.includes("Protegido por verificação")) {
+      if (candidateKeys.length > 0 && data.title && !data.title.includes("não identificado") && !data.title.includes("Protegido por verificação")) {
         try {
           console.log(`[Scraper API] Gerando descrição via Gemini com rotação para o produto: ${data.title}`);
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
@@ -1806,14 +1965,10 @@ app.post("/api/gemini/copy", async (req, res) => {
       return res.status(400).json({ error: "Dados do produto incompletos para geração com IA." });
     }
 
-    const candidateKeys = [
-      ...(Array.isArray(apiKeys?.geminiApiKeys) ? apiKeys.geminiApiKeys : []),
-      apiKeys?.geminiApiKey,
-      process.env.GEMINI_API_KEY
-    ];
+    const candidateKeys = getCandidateGeminiKeys(apiKeys);
 
-    if (!candidateKeys.some(k => typeof k === 'string' && k.trim())) {
-      return res.status(500).json({ error: "Nenhuma chave de API do Gemini foi configurada nas Configurações nem no servidor." });
+    if (candidateKeys.length === 0) {
+      return res.status(500).json({ error: "Nenhuma chave de API do Gemini foi configurada nas Configurações do app." });
     }
 
     const prompt = `Você é um gerador de copy para WhatsApp para afiliados de e-commerce no Brasil.
