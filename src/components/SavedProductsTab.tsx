@@ -28,7 +28,16 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
       item.product.platform.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const currentItem = selectedItem || filteredItems[0] || null;
+  const handleDeleteItem = (idToDelete: string) => {
+    onDelete(idToDelete);
+    const remaining = items.filter((item) => item.id !== idToDelete);
+    setSelectedItem(remaining[0] || null);
+    setActiveVarIdx(0);
+  };
+
+  const currentItem = (selectedItem && items.some(i => i.id === selectedItem.id))
+    ? selectedItem
+    : filteredItems[0] || null;
   const currentCopy = currentItem?.variations[activeVarIdx]?.copy || '';
 
   const handleCopy = async () => {
@@ -131,15 +140,24 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
                       : 'bg-stone-900 border-stone-800 hover:bg-stone-850'
                   }`}
                 >
-                  {item.product.image_url ? (
-                    <img
-                      src={item.product.image_url}
-                      alt={item.product.title}
-                      className="w-14 h-14 object-contain rounded-lg bg-stone-950 p-1 shrink-0 border border-stone-800"
-                    />
+                  {(item.product.selectedMediaUrl || item.product.image_url) ? (
+                    <div className="relative w-14 h-14 shrink-0 bg-stone-950 rounded-lg overflow-hidden border border-stone-800 p-1 flex items-center justify-center">
+                      <img
+                        src={item.product.selectedMediaUrl || item.product.image_url!}
+                        alt={item.product.title}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                      {item.product.selectedMediaType === 'video' && (
+                        <div className="absolute inset-0 bg-red-600/20 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="w-14 h-14 bg-stone-950 rounded-lg shrink-0 flex items-center justify-center text-stone-600 text-[10px] border border-stone-800">
-                      Sem foto
+                      Sem mídia
                     </div>
                   )}
 
@@ -172,13 +190,49 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
               </div>
 
               <button
-                onClick={() => onDelete(currentItem.id)}
+                onClick={() => handleDeleteItem(currentItem.id)}
                 title="Excluir do histórico"
                 className="p-2 text-stone-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-all"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Media Preview & Download */}
+            {(currentItem.product.selectedMediaUrl || currentItem.product.image_url) && (
+              <div className="flex items-center gap-3 bg-stone-950 p-3 rounded-xl border border-stone-800">
+                <div className="relative w-16 h-16 shrink-0 bg-stone-900 rounded-lg overflow-hidden border border-stone-800 p-1 flex items-center justify-center">
+                  <img
+                    src={currentItem.product.selectedMediaUrl || currentItem.product.image_url!}
+                    alt={currentItem.product.title}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-stone-500 font-bold uppercase">Mídia do Anúncio</p>
+                  <p className="text-xs text-stone-300 truncate mb-1">
+                    {currentItem.product.selectedMediaType === 'video' ? '🎥 Vídeo do Produto' : '🖼️ Imagem do Produto'}
+                  </p>
+                  <div className="flex gap-2">
+                    <a
+                      href={`/api/download?url=${encodeURIComponent(currentItem.product.selectedMediaUrl || currentItem.product.image_url!)}`}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-stone-950 text-[10px] font-black rounded-md flex items-center gap-1 transition-all"
+                      download
+                    >
+                      <span>⬇️ Baixar Mídia</span>
+                    </a>
+                    <a
+                      href={currentItem.product.selectedMediaUrl || currentItem.product.image_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 text-[10px] font-bold rounded-md border border-stone-700 flex items-center gap-1 transition-all"
+                    >
+                      <span>Abrir</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Price & Coupon Details */}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-950 p-3 rounded-xl border border-stone-800 text-xs">

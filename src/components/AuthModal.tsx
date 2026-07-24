@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { Lock, Mail, User, CheckCircle2, XCircle, Eye, EyeOff, Sparkles, ArrowRight, LogIn, UserPlus, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, User, CheckCircle2, XCircle, Eye, EyeOff, Sparkles, ArrowRight, LogIn, UserPlus, ShieldCheck, Loader2 } from 'lucide-react';
+import { auth, db } from '../lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface AuthModalProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -8,6 +11,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<'login' | 'register'>('register');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
@@ -33,8 +37,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
 
   const isPasswordValid = hasMinLength && hasSpecialChar && hasUppercase && hasLowercase && passwordsMatch;
 
-  // Handle Registration
-  const handleRegister = (e: React.FormEvent) => {
+  // Handle Registration with Firebase
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError('');
 
@@ -55,32 +59,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    // Save registered user
-    const newUser: UserProfile = {
-      id: 'user_' + Date.now(),
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      createdAt: new Date().toLocaleDateString('pt-BR'),
-    };
-
-    // Store users in localStorage
+    setIsSubmitting(true);
     try {
-      const existingUsers = JSON.parse(localStorage.getItem('afiliacopy_registered_users') || '[]');
-      if (existingUsers.some((u: any) => u.email === newUser.email)) {
-        setRegisterError('Este e-mail já está cadastrado. Faça login!');
-        return;
-      }
-      existingUsers.push({ ...newUser, password });
-      localStorage.setItem('afiliacopy_registered_users', JSON.stringify(existingUsers));
-    } catch (err) {
-      console.error(err);
-    }
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
 
-    onLoginSuccess(newUser);
+      // Update Firebase Profile Name
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: name.trim() });
+      }
+
+      const newUser: UserProfile = {
+        id: fbUser.uid,
+        name: name.trim(),
+        email: fbUser.email?.toLowerCase() || email.trim().toLowerCase(),
+        createdAt: new Date().toLocaleDateString('pt-BR'),
+      };
+
+      // Save user record to Firestore
+      await setDoc(doc(db, 'users', fbUser.uid), {
+        name: newUser.name,
+        email: newUser.email,
+        createdAt: newUser.createdAt,
+      }, { merge: true });
+
+      onLoginSuccess(newUser);
+    } catch (err: any) {
+      console.error('Firebase Register Error:', err);
+      if (err.code === 'auth/email-already-in-use') {
+        setRegisterError('Este e-mail já está cadastrado. Faça login!');
+      } else if (err.code === 'auth/invalid-email') {
+        setRegisterError('Formato de e-mail inválido.');
+      } else if (err.code === 'auth/weak-password') {
+        setRegisterError('A senha fornecida é muito fraca.');
+      } else {
+        setRegisterError('Erro ao criar conta. Verifique sua conexão e tente novamente.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Handle Login
-  const handleLogin = (e: React.FormEvent) => {
+  // Handle Login with Firebase
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
@@ -89,36 +110,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      const existingUsers = JSON.parse(localStorage.getItem('afiliacopy_registered_users') || '[]');
-      const found = existingUsers.find(
-        (u: any) => u.email === loginEmail.trim().toLowerCase() && u.password === loginPassword
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      const fbUser = userCredential.user;
 
-      if (found) {
-        const userObj: UserProfile = {
-          id: found.id,
-          name: found.name,
-          email: found.email,
-          createdAt: found.createdAt,
-        };
-        onLoginSuccess(userObj);
+      const userObj: UserProfile = {
+        id: fbUser.uid,
+        name: fbUser.displayName || loginEmail.split('@')[0] || 'Afiliado',
+        email: fbUser.email?.toLowerCase() || loginEmail.trim().toLowerCase(),
+        createdAt: new Date().toLocaleDateString('pt-BR'),
+      };
+
+      onLoginSuccess(userObj);
+    } catch (err: any) {
+      console.error('Firebase Login Error:', err);
+      if (
+        err.code === 'auth/user-not-found' ||
+        err.code === 'auth/wrong-password' ||
+        err.code === 'auth/invalid-credential'
+      ) {
+        setLoginError('E-mail ou senha incorretos.');
+      } else if (err.code === 'auth/invalid-email') {
+        setLoginError('Formato de e-mail inválido.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setLoginError('Muitas tentativas mal sucedidas. Aguarde alguns instantes.');
       } else {
-        // Fallback for easy initial demo login if user types anything valid
-        if (loginPassword.length >= 6) {
-          const demoUser: UserProfile = {
-            id: 'demo_user',
-            name: loginEmail.split('@')[0] || 'Afiliado',
-            email: loginEmail.trim().toLowerCase(),
-            createdAt: new Date().toLocaleDateString('pt-BR'),
-          };
-          onLoginSuccess(demoUser);
-        } else {
-          setLoginError('E-mail ou senha incorretos.');
-        }
+        setLoginError('Erro ao efetuar login. Verifique seus dados.');
       }
-    } catch (err) {
-      setLoginError('Erro ao efetuar login.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -134,7 +155,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
           <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-400 mb-1">
             <Sparkles className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">AfiliaCopy</h1>
+          <h1 className="text-2xl font-black tracking-tight text-white">afiliate</h1>
           <p className="text-xs text-stone-400">
             {mode === 'register' ? 'Crie sua conta para gerenciar e extrair copies' : 'Acesse seu painel de afiliado'}
           </p>
@@ -308,11 +329,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
 
             <button
               type="submit"
-              disabled={!isPasswordValid || !emailsMatch || !name.trim()}
+              disabled={isSubmitting || !isPasswordValid || !emailsMatch || !name.trim()}
               className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>Criar Conta e Acessar</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Criando Conta no Firebase...</span>
+                </>
+              ) : (
+                <>
+                  <span>Criar Conta e Acessar</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         )}
@@ -358,10 +388,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <span>Entrar no AfiliaCopy</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Autenticando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Entrar no AfiliaCopy</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         )}

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Bot, Sparkles, Loader2, ArrowRight, Wand2, RefreshCw } from 'lucide-react';
-import { ScrapedProduct, GeminiCopyVariation } from '../types';
+import { ScrapedProduct, GeminiCopyVariation, ApiKeysConfig } from '../types';
 
 interface GeminiAiPanelProps {
   product: ScrapedProduct;
   onSelectVariation: (copyText: string) => void;
+  apiKeys?: ApiKeysConfig;
 }
 
-export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectVariation }) => {
+export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectVariation, apiKeys }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [angle, setAngle] = useState('Urgência e Estoque Baixo');
   const [targetAudience, setTargetAudience] = useState('Compradores do WhatsApp');
@@ -27,7 +28,8 @@ export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectV
           product,
           angle,
           targetAudience,
-          extraPrompt
+          extraPrompt,
+          apiKeys,
         })
       });
 

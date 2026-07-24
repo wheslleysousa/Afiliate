@@ -10,6 +10,13 @@ interface WhatsAppPreviewProps {
   isSaved: boolean;
 }
 
+function getYouTubeId(url?: string | null): string | null {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
 export const WhatsAppPreview: React.FC<WhatsAppPreviewProps> = ({
   copyText,
   setCopyText,
@@ -113,17 +120,46 @@ export const WhatsAppPreview: React.FC<WhatsAppPreviewProps> = ({
         {/* Message Bubble */}
         <div className="max-w-[92%] sm:max-w-[85%] self-end bg-[#005c4b] text-[#e9edef] rounded-2xl rounded-tr-xs p-3.5 shadow-md relative z-10 text-xs sm:text-sm font-sans space-y-2 border border-[#006e5a]">
           
-          {/* Link / Image Card Preview in WhatsApp */}
-          {product.image_url && (
-            <div className="bg-[#024337] rounded-xl overflow-hidden border border-[#006e5a] mb-2 p-1.5">
-              <img
-                src={product.image_url}
-                alt="Preview do produto"
-                className="w-full h-36 object-contain rounded-lg bg-stone-900"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+          {/* Link / Image/Video Card Preview in WhatsApp */}
+          {(product.selectedMediaUrl || product.image_url) && (
+            <div className="bg-[#024337] rounded-xl overflow-hidden border border-[#006e5a] mb-2 p-1.5 relative group">
+              {product.selectedMediaType === 'video' ? (
+                <div className="relative w-full h-36 rounded-lg bg-stone-950 overflow-hidden flex items-center justify-center">
+                  {product.selectedMediaUrl && getYouTubeId(product.selectedMediaUrl) ? (
+                    <img
+                      src={`https://img.youtube.com/vi/${getYouTubeId(product.selectedMediaUrl)}/mqdefault.jpg`}
+                      alt="Thumbnail do vídeo"
+                      className="w-full h-full object-cover opacity-65"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-red-600/20 text-red-500 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    </div>
+                  )}
+                  {/* YouTube Overlay badge */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-12 h-12 bg-red-600 text-white rounded-xl shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="absolute bottom-2 left-2 bg-black/60 text-[9px] text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                    VÍDEO YOUTUBE
+                  </span>
+                </div>
+              ) : (
+                <img
+                  src={product.selectedMediaUrl || product.image_url!}
+                  alt="Preview do produto"
+                  className="w-full h-36 object-contain rounded-lg bg-stone-900"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              )}
               <div className="p-1.5">
                 <p className="font-bold text-[11px] text-white truncate">{product.title}</p>
                 <p className="text-[10px] text-emerald-200/70 truncate">{product.original_link}</p>

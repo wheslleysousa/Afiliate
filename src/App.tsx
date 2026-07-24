@@ -6,18 +6,15 @@ import { SavedProductsTab } from './components/SavedProductsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig } from './types';
-import { Sparkles, Menu, ShieldCheck, Zap } from 'lucide-react';
+import { Sparkles, Menu, ShieldCheck, Zap, Loader2 } from 'lucide-react';
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 
 export default function App() {
   // User Authentication State
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('afiliacopy_active_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Sidebar navigation & responsive state
   const [activeTab, setActiveTab] = useState<AppTab>('new-product');
@@ -25,41 +22,78 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   // Saved Products State
-  const [savedItems, setSavedItems] = useState<SavedHistoryItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('afiliacopy_saved_products');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [savedItems, setSavedItems] = useState<SavedHistoryItem[]>([]);
 
   // API Keys State
-  const [apiKeys, setApiKeys] = useState<ApiKeysConfig>(() => {
-    try {
-      const saved = localStorage.getItem('afiliacopy_api_keys');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  });
+  const [apiKeys, setApiKeys] = useState<ApiKeysConfig>({});
 
-  // Sync state to LocalStorage
+  // Listen to Firebase Auth state change and load user data from Firestore
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('afiliacopy_active_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('afiliacopy_active_user');
-    }
-  }, [currentUser]);
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        // Fetch user profile from Firestore
+        let userDocData: any = null;
+        try {
+          const uSnap = await getDoc(doc(db, 'users', fbUser.uid));
+          if (uSnap.exists()) {
+            userDocData = uSnap.data();
+          }
+        } catch (e) {
+          console.error('Erro ao buscar dados do perfil no Firestore:', e);
+        }
 
-  useEffect(() => {
-    localStorage.setItem('afiliacopy_saved_products', JSON.stringify(savedItems));
-  }, [savedItems]);
+        const profile: UserProfile = {
+          id: fbUser.uid,
+          name: fbUser.displayName || userDocData?.name || fbUser.email?.split('@')[0] || 'Afiliado',
+          email: fbUser.email?.toLowerCase() || userDocData?.email || '',
+          createdAt: userDocData?.createdAt || new Date().toLocaleDateString('pt-BR'),
+        };
+        setCurrentUser(profile);
 
-  useEffect(() => {
-    localStorage.setItem('afiliacopy_api_keys', JSON.stringify(apiKeys));
-  }, [apiKeys]);
+        // Fetch Saved Products collection for this specific user
+        try {
+          const savedSnap = await getDocs(collection(db, 'users', fbUser.uid, 'savedProducts'));
+          const productsList: SavedHistoryItem[] = [];
+          savedSnap.forEach((docSnap) => {
+            productsList.push(docSnap.data() as SavedHistoryItem);
+          });
+          // Sort newest items first
+          productsList.sort((a, b) => (b.id > a.id ? 1 : -1));
+          setSavedItems(productsList);
+        } catch (e) {
+          console.error('Erro ao buscar produtos salvos no Firestore:', e);
+          setSavedItems([]);
+        }
+
+        // Fetch user API Keys config from Firestore
+        try {
+          const keysSnap = await getDoc(doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'));
+          const defaultKeys = {
+            mercadoLivreAppId: '1096973158666349',
+            mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
+          };
+          if (keysSnap.exists()) {
+            setApiKeys({ ...defaultKeys, ...(keysSnap.data() as ApiKeysConfig) });
+          } else {
+            setApiKeys(defaultKeys);
+          }
+        } catch (e) {
+          console.error('Erro ao buscar chaves de API no Firestore:', e);
+          setApiKeys({
+            mercadoLivreAppId: '1096973158666349',
+            mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
+          });
+        }
+      } else {
+        setCurrentUser(null);
+        setSavedItems([]);
+        setApiKeys({});
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Handle Login & Registration Success
   const handleLoginSuccess = (user: UserProfile) => {
@@ -67,12 +101,17 @@ export default function App() {
   };
 
   // Handle Logout
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('Erro ao sair do Firebase:', e);
+    }
     setCurrentUser(null);
   };
 
-  // Handle Save New Product to Dashboard
-  const handleSaveProduct = (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => {
+  // Handle Save New Product to Firestore & State
+  const handleSaveProduct = async (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => {
     const newItem: SavedHistoryItem = {
       id: 'saved_' + Date.now(),
       product,
@@ -82,17 +121,78 @@ export default function App() {
     };
 
     setSavedItems((prev) => [newItem, ...prev]);
+
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id, 'savedProducts', newItem.id), newItem);
+      } catch (e) {
+        console.error('Erro ao salvar produto no Firestore:', e);
+      }
+    }
   };
 
-  const handleDeleteSavedItem = (id: string) => {
+  const handleDeleteSavedItem = async (id: string) => {
     setSavedItems((prev) => prev.filter((item) => item.id !== id));
+
+    if (currentUser?.id) {
+      try {
+        await deleteDoc(doc(db, 'users', currentUser.id, 'savedProducts', id));
+      } catch (e) {
+        console.error('Erro ao excluir produto do Firestore:', e);
+      }
+    }
   };
 
-  const handleClearAllSaved = () => {
+  const handleClearAllSaved = async () => {
+    const previousItems = [...savedItems];
     setSavedItems([]);
+
+    if (currentUser?.id) {
+      try {
+        const batch = writeBatch(db);
+        previousItems.forEach((item) => {
+          batch.delete(doc(db, 'users', currentUser.id, 'savedProducts', item.id));
+        });
+        await batch.commit();
+      } catch (e) {
+        console.error('Erro ao limpar histórico no Firestore:', e);
+      }
+    }
   };
 
-  // If user is not logged in, show Auth Screen first
+  const handleSaveApiKeys = async (newKeys: ApiKeysConfig) => {
+    setApiKeys(newKeys);
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id, 'userConfig', 'apiKeys'), newKeys, { merge: true });
+      } catch (e) {
+        console.error('Erro ao salvar chaves de API no Firestore:', e);
+      }
+    }
+  };
+
+  const handleUpdateProfile = async (updated: { name: string; email: string }) => {
+    setCurrentUser((prev) => (prev ? { ...prev, ...updated } : null));
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id), updated, { merge: true });
+      } catch (e) {
+        console.error('Erro ao atualizar perfil no Firestore:', e);
+      }
+    }
+  };
+
+  // Loading indicator while checking Firebase Auth status
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 text-stone-100 space-y-3">
+        <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+        <p className="text-xs text-stone-400 font-medium">Carregando dados do Firebase...</p>
+      </div>
+    );
+  }
+
+  // If user is not logged in, show Auth Screen
   if (!currentUser) {
     return <AuthModal onLoginSuccess={handleLoginSuccess} />;
   }
@@ -158,6 +258,7 @@ export default function App() {
             <NewProductTab
               onSaveProduct={handleSaveProduct}
               savedCount={savedItems.length}
+              apiKeys={apiKeys}
             />
           )}
 
@@ -174,8 +275,8 @@ export default function App() {
             <SettingsTab
               user={currentUser}
               apiKeys={apiKeys}
-              onSaveApiKeys={setApiKeys}
-              onUpdateProfile={(updated) => setCurrentUser((prev) => (prev ? { ...prev, ...updated } : null))}
+              onSaveApiKeys={handleSaveApiKeys}
+              onUpdateProfile={handleUpdateProfile}
             />
           )}
 
@@ -187,12 +288,12 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-emerald-500" />
-              <span className="font-semibold text-stone-300">AfiliaCopy v2.0</span>
+              <span className="font-semibold text-stone-300">afiliate v2.0</span>
               <span>— Suporte a Mercado Livre, Shopee, Amazon, AliExpress e Shein</span>
             </div>
             <div className="flex items-center gap-2 text-emerald-500 font-medium">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Painel do Afiliado Ativo</span>
+              <span>Conectado ao Firebase Firestore (ytdark-2026)</span>
             </div>
           </div>
         </footer>

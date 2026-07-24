@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "User profile data",
+      "properties": {
+        "name": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["name", "email"]
+    },
+    "savedProducts": {
+      "title": "Saved Products",
+      "description": "Products and copies saved by user",
+      "properties": {
+        "id": { "type": "string" },
+        "savedAt": { "type": "string" },
+        "product": { "type": "object" },
+        "variations": { "type": "array" },
+        "selectedVariationIndex": { "type": "number" },
+        "customNotes": { "type": "string" }
+      },
+      "required": ["id", "savedAt", "product", "variations"]
+    },
+    "userConfig": {
+      "title": "User Configurations",
+      "description": "API keys and user settings",
+      "properties": {
+        "mercadoLivreKey": { "type": "string" },
+        "shopeeKey": { "type": "string" },
+        "amazonKey": { "type": "string" },
+        "aliExpressKey": { "type": "string" },
+        "sheinKey": { "type": "string" },
+        "geminiApiKey": { "type": "string" }
+      }
+    }
+  }
+}

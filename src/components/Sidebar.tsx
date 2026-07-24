@@ -42,11 +42,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Configurações',
       icon: <Settings className="w-5 h-5 shrink-0 text-blue-400" />,
     },
-    {
-      id: 'api-docs',
-      label: 'Documentação API',
-      icon: <Code2 className="w-5 h-5 shrink-0 text-purple-400" />,
-    },
   ];
 
   return (
@@ -78,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {(isExpanded || mobileOpen) && (
                 <div className="animate-fadeIn truncate">
-                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">AfiliaCopy</h1>
+                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">afiliate</h1>
                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Afiliado</span>
                 </div>
               )}

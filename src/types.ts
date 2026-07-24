@@ -6,6 +6,8 @@ export interface UserProfile {
 }
 
 export interface ApiKeysConfig {
+  mercadoLivreAppId?: string;
+  mercadoLivreClientSecret?: string;
   mercadoLivreKey?: string;
   shopeeKey?: string;
   amazonKey?: string;
@@ -20,13 +22,20 @@ export interface ProductData {
   title: string;
   description?: string;
   image_url: string | null;
+  pictures?: string[]; // Array com todas as imagens extraídas do produto
+  video_url?: string | null; // URL do vídeo (se houver, ex: YouTube)
+  selectedMediaUrl?: string | null; // URL da mídia selecionada pelo usuário
+  selectedMediaType?: 'image' | 'video' | null; // Tipo de mídia selecionada
+  selectedImageIndex?: number;
   price_to: string; // Preço extraído do produto
   price_from?: string | null; // Opcional se presente
+  card_price?: string | null; // Preço para parcelamento no cartão
   installments?: string | null; // Opcional se presente
   coupon: string | null; // Apenas se houver cupom real
   original_link: string;
   extractedAt?: string;
   priceUncertain?: boolean; // true quando o backend não confiou no preço extraído
+  shipping?: string | null; // Opcional, ex: "Frete grátis"
 }
 
 export type ScrapedProduct = ProductData;
