@@ -75,7 +75,8 @@ function detectPlatform(url: string): string {
     return "aliexpress";
   } else if (
     urlLower.includes("shein") ||
-    urlLower.includes("she.in")
+    urlLower.includes("she.in") ||
+    urlLower.includes("shein.top")
   ) {
     return "shein";
   }
@@ -146,7 +147,7 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
       }
 
       // 2. Short link og:url or canonical link redirect
-      const isShortLink = currentUrl.includes('meli.la') || currentUrl.includes('amzn.to') || currentUrl.includes('shope.ee') || currentUrl.includes('tinyurl') || currentUrl.includes('bit.ly');
+      const isShortLink = currentUrl.includes('meli.la') || currentUrl.includes('amzn.to') || currentUrl.includes('a.co') || currentUrl.includes('shope.ee') || currentUrl.includes('shein.top') || currentUrl.includes('tinyurl') || currentUrl.includes('bit.ly');
       if (isShortLink) {
         const canonical = $('link[rel="canonical"]').attr('href') || $('meta[property="og:url"]').attr('content');
         if (canonical && canonical.startsWith("http") && canonical !== currentUrl) {
@@ -1125,6 +1126,7 @@ async function scrapeShopee(url: string, shopeeKey?: string) {
               price_from,
               price_to: price_to || "Consulte no link",
               installments: null,
+              max_installments_interest_free: null,
               coupon: null
             };
           }
@@ -1151,13 +1153,27 @@ async function scrapeShopee(url: string, shopeeKey?: string) {
       }
     }
 
+    let installments: string | null = null;
+    let max_installments_interest_free: string | null = null;
+    const shopeeInstMatch = html.match(/(?:em\s+até\s+|ou\s+)?(\d+\s*x\s*(?:de\s*)?R\$\s*[\d\.]+(?:,\d{2})?)(?:\s*(sem\s*juros))?/i);
+    if (shopeeInstMatch) {
+      const qtyAndPrice = shopeeInstMatch[1].trim();
+      const isSemJuros = Boolean(shopeeInstMatch[2]) || html.toLowerCase().includes(`${qtyAndPrice.toLowerCase()} sem juros`) || html.toLowerCase().includes("sem juros");
+      installments = isSemJuros ? `${qtyAndPrice} sem juros` : qtyAndPrice;
+      const qMatch = qtyAndPrice.match(/(\d+)\s*x/i);
+      if (qMatch && isSemJuros) {
+        max_installments_interest_free = `${qMatch[1]}x sem juros`;
+      }
+    }
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 300).trim() : null,
       image_url,
       price_from: null,
       price_to,
-      installments: null,
+      installments,
+      max_installments_interest_free,
       coupon: null
     };
   } catch (err: any) {
@@ -1220,6 +1236,50 @@ async function scrapeAmazon(url: string, amazonKey?: string) {
       coupon = couponBadge;
     }
 
+    // Extrair parcelamento (Amazon)
+    let installments: string | null = null;
+    let max_installments_interest_free: string | null = null;
+
+    const instSels = [
+      '#installmentCalculator_feature_div',
+      '#paymentOptions_feature_div',
+      '#installments',
+      '#installment-calculator',
+      '#corePriceDisplay_desktop_feature_div',
+      '#corePrice_feature_div',
+      '#apex_desktop',
+      '#price'
+    ];
+
+    for (const sel of instSels) {
+      const text = $(sel).text().replace(/\s+/g, ' ').trim();
+      const instMatch = text.match(/(?:em\s+até\s+|ou\s+)?(\d+\s*x\s*(?:de\s*)?R\$\s*[\d\.]+(?:,\d{2})?)(?:\s*(sem\s*juros))?/i);
+      if (instMatch) {
+        const qtyAndPrice = instMatch[1].trim();
+        const isSemJuros = Boolean(instMatch[2]) || text.toLowerCase().includes("sem juros");
+        installments = isSemJuros ? `${qtyAndPrice} sem juros` : qtyAndPrice;
+        const qMatch = qtyAndPrice.match(/(\d+)\s*x/i);
+        if (qMatch && isSemJuros) {
+          max_installments_interest_free = `${qMatch[1]}x sem juros`;
+        }
+        break;
+      }
+    }
+
+    if (!installments) {
+      const bodyText = $('body').text().replace(/\s+/g, ' ');
+      const match = bodyText.match(/(?:em\s+até\s+|ou\s+)?(\d+\s*x\s*(?:de\s*)?R\$\s*[\d\.]+(?:,\d{2})?)(?:\s*(sem\s*juros))?/i);
+      if (match) {
+        const qtyAndPrice = match[1].trim();
+        const isSemJuros = Boolean(match[2]) || bodyText.toLowerCase().includes(`${qtyAndPrice.toLowerCase()} sem juros`) || bodyText.toLowerCase().includes("sem juros");
+        installments = isSemJuros ? `${qtyAndPrice} sem juros` : qtyAndPrice;
+        const qMatch = qtyAndPrice.match(/(\d+)\s*x/i);
+        if (qMatch && isSemJuros) {
+          max_installments_interest_free = `${qMatch[1]}x sem juros`;
+        }
+      }
+    }
+
     const description = $('#feature-bullets ul li span.a-list-item')
       .map((_, el) => $(el).text().trim())
       .get()
@@ -1241,7 +1301,8 @@ async function scrapeAmazon(url: string, amazonKey?: string) {
       image_url,
       price_from: price_from && price_from !== price_to ? price_from : null,
       price_to: price_to || "Consulte no link",
-      installments: null,
+      installments,
+      max_installments_interest_free,
       coupon: coupon || null
     };
   } catch (err: any) {
@@ -1281,6 +1342,7 @@ async function scrapeAliExpress(url: string, aliExpressKey?: string) {
             price_from: origPrice !== salePrice ? cleanPrice(origPrice) : null,
             price_to: cleanPrice(salePrice) || "Consulte no link",
             installments: null,
+            max_installments_interest_free: null,
             coupon: null
           };
         }
@@ -1304,13 +1366,27 @@ async function scrapeAliExpress(url: string, aliExpressKey?: string) {
       }
     }
 
+    let installments: string | null = null;
+    let max_installments_interest_free: string | null = null;
+    const aliInstMatch = html.match(/(?:em\s+até\s+|ou\s+)?(\d+\s*x\s*(?:de\s*)?R\$\s*[\d\.]+(?:,\d{2})?)(?:\s*(sem\s*juros))?/i);
+    if (aliInstMatch) {
+      const qtyAndPrice = aliInstMatch[1].trim();
+      const isSemJuros = Boolean(aliInstMatch[2]) || html.toLowerCase().includes(`${qtyAndPrice.toLowerCase()} sem juros`) || html.toLowerCase().includes("sem juros");
+      installments = isSemJuros ? `${qtyAndPrice} sem juros` : qtyAndPrice;
+      const qMatch = qtyAndPrice.match(/(\d+)\s*x/i);
+      if (qMatch && isSemJuros) {
+        max_installments_interest_free = `${qMatch[1]}x sem juros`;
+      }
+    }
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 300).trim() : null,
       image_url: img,
       price_from: null,
       price_to: cleanPrice(priceRaw) || "Consulte no link",
-      installments: null,
+      installments,
+      max_installments_interest_free,
       coupon: null
     };
   } catch (err: any) {
@@ -1347,13 +1423,27 @@ async function scrapeShein(url: string, sheinKey?: string) {
       }
     }
 
+    let installments: string | null = null;
+    let max_installments_interest_free: string | null = null;
+    const sheinInstMatch = html.match(/(?:em\s+até\s+|ou\s+)?(\d+\s*x\s*(?:de\s*)?R\$\s*[\d\.]+(?:,\d{2})?)(?:\s*(sem\s*juros))?/i);
+    if (sheinInstMatch) {
+      const qtyAndPrice = sheinInstMatch[1].trim();
+      const isSemJuros = Boolean(sheinInstMatch[2]) || html.toLowerCase().includes(`${qtyAndPrice.toLowerCase()} sem juros`) || html.toLowerCase().includes("sem juros");
+      installments = isSemJuros ? `${qtyAndPrice} sem juros` : qtyAndPrice;
+      const qMatch = qtyAndPrice.match(/(\d+)\s*x/i);
+      if (qMatch && isSemJuros) {
+        max_installments_interest_free = `${qMatch[1]}x sem juros`;
+      }
+    }
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 300).trim() : null,
       image_url,
       price_from: cleanPrice(price_from_raw),
       price_to: cleanPrice(price_to_raw) || "Consulte no link",
-      installments: null,
+      installments,
+      max_installments_interest_free,
       coupon: null
     };
   } catch (err: any) {
@@ -1455,6 +1545,30 @@ app.post("/api/ml-exchange-code", async (req, res) => {
   }
 });
 
+// Helper for executing Gemini requests with automatic multi-key rotation and model fallback
+async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: string, params: any) {
+  const modelsToTry = [primaryModel, "gemini-2.5-flash", "gemini-flash-latest"];
+  const triedModels = new Set<string>();
+
+  let lastErr: any = null;
+  for (const model of modelsToTry) {
+    if (triedModels.has(model)) continue;
+    triedModels.add(model);
+    try {
+      return await ai.models.generateContent({ ...params, model });
+    } catch (err: any) {
+      const errStr = String(err?.message || err);
+      if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("quota")) {
+        console.warn(`[Gemini Model Fallback] Modelo ${model} atingiu limite de cota (429/quota). Tentando modelo alternativo...`);
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 // Helper for executing Gemini requests with automatic multi-key rotation / fallback
 async function callGeminiWithRotation<T>(
   candidateKeys: (string | undefined | null | string[])[],
@@ -1498,7 +1612,8 @@ async function callGeminiWithRotation<T>(
       console.log(`[Gemini Rotation] Sucesso na execução com a chave ${i + 1}!`);
       return { result, keyUsed: key };
     } catch (err: any) {
-      console.warn(`[Gemini Rotation] Erro ao usar a chave ${i + 1} (${err.message || err}). Alternando para a próxima chave...`);
+      const errDetail = err?.message || err;
+      console.warn(`[Gemini Rotation] Erro ao usar a chave ${i + 1} (${errDetail}). Alternando para a próxima chave...`);
       lastError = err;
     }
   }
@@ -1631,8 +1746,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
           
           const { result: descResponse } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-            return await ai.models.generateContent({
-              model: "gemini-3.6-flash",
+            return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
               contents: descPrompt,
             });
           });
@@ -1741,8 +1855,7 @@ DADOS DO PRODUTO:
 - Link de Compra: {LINK}`;
 
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
