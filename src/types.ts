@@ -16,6 +16,7 @@ export interface ApiKeysConfig {
   aliExpressKey?: string;
   sheinKey?: string;
   geminiApiKey?: string;
+  geminiApiKeys?: string[];
 }
 
 export interface ProductData {

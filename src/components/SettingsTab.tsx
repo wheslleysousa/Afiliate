@@ -83,14 +83,6 @@ const PROVIDERS: ProviderInfo[] = [
     guideUrl: 'https://www.shein.com/',
     colorClass: 'border-stone-500/30 bg-stone-500/5 text-stone-300',
   },
-  {
-    id: 'gemini',
-    name: 'Gemini IA Customizada',
-    badge: 'Inteligência Artificial',
-    description: 'Use sua própria chave do Google AI Studio para geração das copies (Opcional).',
-    guideUrl: 'https://aistudio.google.com/',
-    colorClass: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
-  },
 ];
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
@@ -114,6 +106,126 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   // Inline Manual Edit Form State
   const [editingProvider, setEditingProvider] = useState<ProviderType | null>(null);
   const [tempManualValue, setTempManualValue] = useState('');
+
+  // Gemini Multi-Key Management State
+  const [newGeminiKey, setNewGeminiKey] = useState('');
+  const [validatingKeyIndex, setValidatingKeyIndex] = useState<number | 'new' | null>(null);
+  const [geminiValidationMsg, setGeminiValidationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Normalized Gemini Keys List
+  const geminiKeysList: string[] = Array.isArray(apiKeys.geminiApiKeys) && apiKeys.geminiApiKeys.length > 0
+    ? apiKeys.geminiApiKeys
+    : apiKeys.geminiApiKey ? [apiKeys.geminiApiKey] : [];
+
+  // Add and validate new Gemini Key
+  const handleAddAndValidateNewGeminiKey = async () => {
+    if (!newGeminiKey.trim()) {
+      setGeminiValidationMsg({ type: 'error', text: 'Por favor, insira uma chave de API do Gemini.' });
+      return;
+    }
+
+    const cleanKey = newGeminiKey.trim();
+
+    if (geminiKeysList.includes(cleanKey)) {
+      setGeminiValidationMsg({ type: 'error', text: 'Esta chave de API do Gemini já está cadastrada na sua lista.' });
+      return;
+    }
+
+    setValidatingKeyIndex('new');
+    setGeminiValidationMsg(null);
+
+    try {
+      const res = await fetch('/api/gemini/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.valid) {
+        const updatedList = [...geminiKeysList, cleanKey];
+        const newConfig: ApiKeysConfig = {
+          ...apiKeys,
+          geminiApiKey: updatedList[0],
+          geminiApiKeys: updatedList,
+        };
+
+        onSaveApiKeys(newConfig);
+        setNewGeminiKey('');
+        setGeminiValidationMsg({
+          type: 'success',
+          text: `Chave ${updatedList.length} testada com sucesso e salva automaticamente!`
+        });
+        setTimeout(() => setGeminiValidationMsg(null), 4500);
+      } else {
+        setGeminiValidationMsg({
+          type: 'error',
+          text: data.error || 'A chave informada é inválida ou ultrapassou a cota do Google AI Studio.'
+        });
+      }
+    } catch (err: any) {
+      console.error('[Validate Key Error]', err);
+      setGeminiValidationMsg({
+        type: 'error',
+        text: 'Não foi possível conectar ao servidor para validar a chave.'
+      });
+    } finally {
+      setValidatingKeyIndex(null);
+    }
+  };
+
+  // Test an existing Gemini Key in list
+  const handleTestExistingKey = async (index: number) => {
+    const keyToTest = geminiKeysList[index];
+    if (!keyToTest) return;
+
+    setValidatingKeyIndex(index);
+    setGeminiValidationMsg(null);
+
+    try {
+      const res = await fetch('/api/gemini/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: keyToTest })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.valid) {
+        setGeminiValidationMsg({
+          type: 'success',
+          text: `Chave ${index + 1} testada com sucesso! Está ativa e operando perfeitamente.`
+        });
+        setTimeout(() => setGeminiValidationMsg(null), 4500);
+      } else {
+        setGeminiValidationMsg({
+          type: 'error',
+          text: `Falha no teste da Chave ${index + 1}: ${data.error || 'Inativa ou sem cota disponível'}`
+        });
+      }
+    } catch (err) {
+      setGeminiValidationMsg({
+        type: 'error',
+        text: `Erro ao testar a Chave ${index + 1}.`
+      });
+    } finally {
+      setValidatingKeyIndex(null);
+    }
+  };
+
+  // Remove a Gemini Key
+  const handleRemoveGeminiKey = (index: number) => {
+    const updatedList = geminiKeysList.filter((_, i) => i !== index);
+    const newConfig: ApiKeysConfig = {
+      ...apiKeys,
+      geminiApiKey: updatedList[0] || '',
+      geminiApiKeys: updatedList,
+    };
+    onSaveApiKeys(newConfig);
+    setSavedSuccess(`Chave ${index + 1} removida. As chaves restantes foram reordenadas automaticamente.`);
+    setTimeout(() => setSavedSuccess(null), 3000);
+  };
 
   // ML OAuth Redirect (App ID and Secret are automatically pre-configured)
   const handleMlOAuthRedirect = () => {

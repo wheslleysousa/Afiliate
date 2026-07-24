@@ -1470,35 +1470,128 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       }
     }
 
+// Helper for executing Gemini requests with automatic multi-key rotation / fallback
+async function callGeminiWithRotation<T>(
+  candidateKeys: (string | undefined | null | string[])[],
+  fn: (ai: GoogleGenAI, keyUsed: string) => Promise<T>
+): Promise<{ result: T; keyUsed: string }> {
+  const keys: string[] = [];
+
+  for (const raw of candidateKeys) {
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string' && item.trim()) {
+          keys.push(item.trim());
+        }
+      }
+    } else if (typeof raw === 'string' && raw.trim()) {
+      keys.push(raw.trim());
+    }
+  }
+
+  // Deduplicate keys
+  const uniqueKeys = Array.from(new Set(keys));
+
+  if (uniqueKeys.length === 0) {
+    throw new Error("Nenhuma chave Gemini API fornecida.");
+  }
+
+  let lastError: any = null;
+  for (let i = 0; i < uniqueKeys.length; i++) {
+    const key = uniqueKeys[i];
+    console.log(`[Gemini Rotation] Tentando chave ${i + 1} de ${uniqueKeys.length}...`);
+    try {
+      const ai = new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+      const result = await fn(ai, key);
+      console.log(`[Gemini Rotation] Sucesso na execução com a chave ${i + 1}!`);
+      return { result, keyUsed: key };
+    } catch (err: any) {
+      console.warn(`[Gemini Rotation] Erro ao usar a chave ${i + 1} (${err.message || err}). Alternando para a próxima chave...`);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Todas as chaves de API do Gemini falharam.");
+}
+
+// Endpoint para validar se uma chave de API do Gemini está ativa e funcionando
+app.post("/api/gemini/validate-key", async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+      return res.status(400).json({ valid: false, error: "Chave de API não fornecida." });
+    }
+
+    const cleanKey = apiKey.trim();
+    const ai = new GoogleGenAI({
+      apiKey: cleanKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        }
+      }
+    });
+
+    const testResponse = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: "Responda 'OK' se a chave está funcionando.",
+    });
+
+    if (testResponse && testResponse.text) {
+      return res.json({ valid: true, message: "Chave de API do Gemini validada com sucesso!" });
+    } else {
+      return res.status(400).json({ valid: false, error: "A API do Gemini não retornou resposta com esta chave." });
+    }
+  } catch (err: any) {
+    console.error("[Validate Gemini Key Error]", err.message || err);
+    let errorMsg = "A chave informada é inválida ou o Google AI Studio recusou a conexão.";
+    const errStr = String(err.message || err);
+    if (errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("quota")) {
+      errorMsg = "Esta chave ultrapassou a cota de requisições do Google AI Studio (Quota Exceeded).";
+    } else if (errStr.includes("API_KEY_INVALID") || errStr.includes("API key not valid")) {
+      errorMsg = "A chave de API informada é inválida.";
+    }
+    return res.status(400).json({ valid: false, error: errorMsg });
+  }
+});
+
     // Se a descrição estiver nula, muito curta ou com texto genérico/placeholder, geramos uma descrição curta via Gemini baseada no título.
     if (!data.description || 
         data.description.trim().length < 15 || 
         data.description.toLowerCase().includes("confira todos os detalhes") ||
         data.description.toLowerCase().includes("visite a página")) {
       
-      const apiKey = (apiKeys?.geminiApiKey && apiKeys.geminiApiKey.trim()) || process.env.GEMINI_API_KEY;
-      if (apiKey && data.title && !data.title.includes("não identificado") && !data.title.includes("Protegido por verificação")) {
+      const candidateKeys = [
+        ...(Array.isArray(apiKeys?.geminiApiKeys) ? apiKeys.geminiApiKeys : []),
+        apiKeys?.geminiApiKey,
+        process.env.GEMINI_API_KEY
+      ];
+
+      if (candidateKeys.some(k => typeof k === 'string' && k.trim()) && data.title && !data.title.includes("não identificado") && !data.title.includes("Protegido por verificação")) {
         try {
-          console.log(`[Scraper API] Gerando descrição via Gemini 3.6 Flash para o produto: ${data.title}`);
-          const ai = new GoogleGenAI({
-            apiKey,
-            httpOptions: {
-              headers: {
-                "User-Agent": "aistudio-build",
-              }
-            }
-          });
+          console.log(`[Scraper API] Gerando descrição via Gemini com rotação para o produto: ${data.title}`);
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
-          const descResponse = await ai.models.generateContent({
-            model: "gemini-3.6-flash",
-            contents: descPrompt,
+          
+          const { result: descResponse } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+            return await ai.models.generateContent({
+              model: "gemini-3.6-flash",
+              contents: descPrompt,
+            });
           });
-          if (descResponse.text) {
+
+          if (descResponse && descResponse.text) {
             data.description = descResponse.text.trim();
             console.log("[Scraper API] Descrição gerada com sucesso via Gemini!");
           }
         } catch (descErr: any) {
-          console.log("[Scraper API Info] Descrição mantida no padrão (Gemini limite de cota de requisições ou indisponível).");
+          console.log("[Scraper API Info] Descrição mantida no padrão (Todas as chaves Gemini indisponíveis ou sem cota).");
         }
       }
     }
@@ -1548,19 +1641,15 @@ app.post("/api/gemini/copy", async (req, res) => {
       return res.status(400).json({ error: "Dados do produto incompletos para geração com IA." });
     }
 
-    const apiKey = (apiKeys?.geminiApiKey && apiKeys.geminiApiKey.trim()) || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor nem informada nas Configurações." });
-    }
+    const candidateKeys = [
+      ...(Array.isArray(apiKeys?.geminiApiKeys) ? apiKeys.geminiApiKeys : []),
+      apiKeys?.geminiApiKey,
+      process.env.GEMINI_API_KEY
+    ];
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        }
-      }
-    });
+    if (!candidateKeys.some(k => typeof k === 'string' && k.trim())) {
+      return res.status(500).json({ error: "Nenhuma chave de API do Gemini foi configurada nas Configurações nem no servidor." });
+    }
 
     const prompt = `Você é um gerador de copy para WhatsApp para afiliados de e-commerce no Brasil.
 Gere a copy do produto obedecendo RIGOROSAMENTE ao padrão visual oficial abaixo, sem adicionar introduções, saudações, frases extras de vendas, títulos apelativos ou emojis adicionais fora do modelo.
@@ -1600,31 +1689,33 @@ DADOS DO PRODUTO:
 - Cupom de Desconto: ${product.coupon || 'N/A'}
 - Link de Compra: {LINK}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            variations: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  title: { type: Type.STRING, description: "Título curto identificando o estilo da variação" },
-                  copy: { type: Type.STRING, description: "Texto completo da copy para WhatsApp com a tag {LINK} inserida no CTA" }
-                },
-                required: ["id", "title", "copy"]
+    const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+      return await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              variations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING, description: "Título curto identificando o estilo da variação" },
+                    copy: { type: Type.STRING, description: "Texto completo da copy para WhatsApp com a tag {LINK} inserida no CTA" }
+                  },
+                  required: ["id", "title", "copy"]
+                }
               }
-            }
+            },
+            required: ["variations"]
           },
-          required: ["variations"]
-        },
-        temperature: 0.4
-      }
+          temperature: 0.4
+        }
+      });
     });
 
     let result = { variations: [] };
