@@ -108,7 +108,11 @@ async function scrapeMercadoLivre(url: string) {
       const itemId = mlbMatch[1].replace("-", "").toUpperCase();
       try {
         const apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
-          headers: { "Accept": "application/json" }
+          headers: {
+            "Accept": "application/json",
+            // Sem um User-Agent de navegador, a API pública do ML às vezes recusa/limita a requisição
+            "User-Agent": DEFAULT_HEADERS["User-Agent"],
+          }
         });
         if (apiRes.ok) {
           const data = await apiRes.json();
@@ -116,7 +120,7 @@ async function scrapeMercadoLivre(url: string) {
           const image_url = (data.pictures && data.pictures[0]?.url) || data.thumbnail || null;
           const price_to = cleanPrice(data.price);
           const price_from = (data.original_price && data.original_price > data.price) ? cleanPrice(data.original_price) : null;
-          
+
           let installments: string | null = null;
           if (data.installments) {
             const q = data.installments.quantity;
@@ -133,7 +137,13 @@ async function scrapeMercadoLivre(url: string) {
 
           if (title && price_to) {
             return { title, image_url, price_from, price_to, installments, coupon };
+          } else {
+            // Isso ajuda a ver no log do Render POR QUE caiu pro fallback de HTML:
+            // item pausado/encerrado, sem preço público, ou resposta incompleta da API.
+            console.warn(`[ML API] Resposta OK mas incompleta para ${itemId}. status=${data.status} title="${title}" price=${data.price}`);
           }
+        } else {
+          console.warn(`[ML API] Requisição falhou para ${itemId}. HTTP ${apiRes.status}`);
         }
       } catch (e) {
         console.warn("[ML Scraper] ML API request failed, proceeding to HTML parsing", e);
@@ -215,8 +225,10 @@ async function scrapeMercadoLivre(url: string) {
 
     if (!title) {
       if (html.includes("captcha") || html.includes("Verificação de segurança") || html.includes("robot")) {
+        console.warn(`[ML Scraper] Página bloqueada por verificação/captcha para ${finalUrl} (HTTP ${res.status})`);
         title = "Produto (Protegido por verificação, preencha manualmente)";
       } else {
+        console.warn(`[ML Scraper] Título não encontrado no HTML para ${finalUrl} (HTTP ${res.status})`);
         title = "Produto não identificado (preencha manualmente)";
       }
     }
