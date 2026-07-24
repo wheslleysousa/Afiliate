@@ -89,7 +89,11 @@ export const ScraperCard: React.FC<ScraperCardProps> = ({
       onScrapeSuccess(data);
     } catch (err: any) {
       console.error('Error scraping:', err);
-      setErrorMsg(err.message || 'Não foi possível conectar ao servidor de extração.');
+      const isNetworkError = err.message === 'Failed to fetch' || err.toString().includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'Não foi possível conectar ao servidor. O aplicativo está iniciando ou reiniciando. Aguarde alguns segundos e tente novamente.'
+        : (err.message || 'Não foi possível conectar ao servidor de extração.');
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }

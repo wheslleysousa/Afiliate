@@ -87,14 +87,46 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
           </div>
 
           {/* Media Selector (Pictures + Video) */}
-          {((product.pictures && product.pictures.length > 0) || product.video_url) && (
+          {((product.pictures && product.pictures.length > 0) || (product.videos && product.videos.length > 0) || product.video_url) && (
             <div className="w-full mt-3">
               <span className="text-[11px] font-bold text-stone-300 block mb-1.5">
-                Mídias do Produto ({((product.pictures?.length || 0) + (product.video_url ? 1 : 0))} encontradas - Clique para escolher a principal):
+                Mídias do Produto ({((product.pictures?.length || 0) + (product.videos?.length || (product.video_url ? 1 : 0)))} encontradas - Clique para escolher a principal):
               </span>
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                {/* Render Video Thumbnail first if available */}
-                {product.video_url && (
+                {/* Render Video Thumbnails first if available */}
+                {product.videos && product.videos.length > 0 ? (
+                  product.videos.map((vidUrl, idx) => {
+                    const isSelected = currentMediaType === 'video' && currentMediaUrl === vidUrl;
+                    return (
+                      <button
+                        key={`vid-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          updateField('selectedMediaUrl', vidUrl);
+                          updateField('selectedMediaType', 'video');
+                        }}
+                        className={`w-12 h-12 rounded-lg border-2 p-0.5 shrink-0 overflow-hidden relative flex flex-col items-center justify-center bg-red-950/40 transition-all ${
+                          isSelected
+                            ? 'border-red-500 ring-2 ring-red-500/30 scale-105'
+                            : 'border-stone-800 hover:border-red-900 opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        {getYouTubeEmbedUrl(vidUrl) ? (
+                          <div className="absolute inset-0 bg-stone-900/60 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-red-500 fill-current" viewBox="0 0 24 24">
+                              <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.003 3.003 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                            </svg>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-red-400 font-black">VÍDEO {idx + 1}</span>
+                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-red-600 text-[8px] text-white font-bold text-center leading-none py-0.5">
+                          VÍDEO {product.videos!.length > 1 ? idx + 1 : ''}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : product.video_url ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -120,7 +152,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
                       VÍDEO
                     </span>
                   </button>
-                )}
+                ) : null}
 
                 {/* Render Image Thumbnails */}
                 {product.pictures && product.pictures.map((picUrl, idx) => {
@@ -265,8 +297,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
             </div>
           </div>
 
-          {/* Installments, Coupon & Shipping */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Installments, Coupon, Shipping & Interest Free */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
                 <CreditCard className="w-3.5 h-3.5 text-teal-400" />
@@ -276,7 +308,21 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
                 type="text"
                 value={product.installments || ''}
                 onChange={(e) => updateField('installments', e.target.value)}
-                placeholder="Ex: 12x de R$ 14,99 sem juros"
+                placeholder="Ex: 12x de R$ 14,99"
+                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                Até sem juros
+              </label>
+              <input
+                type="text"
+                value={product.max_installments_interest_free || ''}
+                onChange={(e) => updateField('max_installments_interest_free', e.target.value)}
+                placeholder="Ex: 10x sem juros"
                 className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
               />
             </div>

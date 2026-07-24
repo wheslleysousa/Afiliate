@@ -45,7 +45,11 @@ export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectV
       }
     } catch (err: any) {
       console.error('AI Error:', err);
-      setError(err.message || 'Ocorreu um erro ao gerar a copy com IA.');
+      const isNetworkError = err.message === 'Failed to fetch' || err.toString().includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'Não foi possível conectar ao servidor. O aplicativo está iniciando ou reiniciando. Aguarde alguns segundos e tente novamente.'
+        : (err.message || 'Ocorreu um erro ao gerar a copy com IA.');
+      setError(msg);
     } finally {
       setIsGenerating(false);
     }

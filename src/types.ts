@@ -26,6 +26,7 @@ export interface ProductData {
   image_url: string | null;
   pictures?: string[]; // Array com todas as imagens extraídas do produto
   video_url?: string | null; // URL do vídeo (se houver, ex: YouTube)
+  videos?: string[]; // Array com todos os vídeos extraídos do produto
   selectedMediaUrl?: string | null; // URL da mídia selecionada pelo usuário
   selectedMediaType?: 'image' | 'video' | null; // Tipo de mídia selecionada
   selectedImageIndex?: number;
@@ -33,6 +34,7 @@ export interface ProductData {
   price_from?: string | null; // Opcional se presente
   card_price?: string | null; // Preço para parcelamento no cartão
   installments?: string | null; // Opcional se presente
+  max_installments_interest_free?: string | null; // Máximo de parcelas sem juros
   coupon: string | null; // Apenas se houver cupom real
   original_link: string;
   extractedAt?: string;

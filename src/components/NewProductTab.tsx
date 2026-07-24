@@ -36,32 +36,85 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
 
   const handleUpdateProductField = (field: keyof ProductData, value: any) => {
     if (!extractedProduct) return;
-    const oldValue = extractedProduct[field];
 
-    // 1. Update the product state
-    setExtractedProduct((prev) => (prev ? { ...prev, [field]: value } : null));
+    // 1. Create the updated product object and set it
+    const updatedProduct = { ...extractedProduct, [field]: value };
+    setExtractedProduct(updatedProduct);
 
-    // 2. Handle variation updates cleanly without nesting state updaters
-    if (oldValue !== undefined && oldValue !== null && oldValue !== "") {
-      const oldStr = String(oldValue).trim();
-      const newStr = String(value).trim();
-      if (oldStr && newStr && oldStr !== newStr) {
-        setVariations((prevVars) => {
-          const updatedVars = prevVars.map((v) => {
-            try {
-              return { ...v, copy: v.copy.replace(new RegExp(escapeRegExp(oldStr), 'g'), newStr) };
-            } catch (e) {
-              return v;
-            }
+    // 2. If variations are local templates, automatically regenerate them in real-time
+    const isUsingLocal = variations.some(v => v.id.startsWith('var_'));
+    if (isUsingLocal) {
+      const localVars = generateVariationsForProduct(updatedProduct);
+      setVariations(localVars);
+      setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+    } else {
+      // If using AI-generated variations, perform a best-effort string replacement
+      const oldValue = extractedProduct[field];
+      if (oldValue !== undefined && oldValue !== null && oldValue !== "") {
+        const oldStr = String(oldValue).trim();
+        const newStr = String(value).trim();
+        if (oldStr && newStr && oldStr !== newStr) {
+          setVariations((prevVars) => {
+            const updatedVars = prevVars.map((v) => {
+              try {
+                return { ...v, copy: v.copy.replace(new RegExp(escapeRegExp(oldStr), 'g'), newStr) };
+              } catch (e) {
+                return v;
+              }
+            });
+            setEditedCopyText(updatedVars[selectedVariationIndex]?.copy || '');
+            return updatedVars;
           });
-          setEditedCopyText(updatedVars[selectedVariationIndex]?.copy || '');
-          return updatedVars;
-        });
+        }
       }
     }
   };
+
+  const handleRegenerateAiCopies = async () => {
+    if (!extractedProduct) return;
+    setIsAiGenerating(true);
+    setErrorMsg(null);
+    try {
+      const aiResponse = await fetch('/api/gemini/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product: extractedProduct,
+          apiKeys,
+        }),
+      });
+      const aiData = await aiResponse.json();
+      if (aiResponse.ok) {
+        if (aiData.variations && Array.isArray(aiData.variations) && aiData.variations.length > 0) {
+          const formattedAiVars = aiData.variations.map((v: any, i: number) => ({
+            id: v.id || `ai_var_${i}_` + Date.now(),
+            title: v.title || `Variação IA ${i + 1}`,
+            copy: (v.copy || '').replace(/\{LINK\}/g, extractedProduct.original_link),
+          }));
+          setVariations(formattedAiVars);
+          setEditedCopyText(formattedAiVars[selectedVariationIndex]?.copy || '');
+        } else {
+          throw new Error('Retorno da IA vazio ou com formato inválido.');
+        }
+      } else {
+        throw new Error(aiData.error || 'Erro desconhecido na geração.');
+      }
+    } catch (aiErr: any) {
+      console.error('[Regenerate AI Copy Error]', aiErr);
+      setErrorMsg(`⚠️ Falha ao regerar com IA: ${aiErr.message || 'Erro desconhecido'}.`);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
+  const handleRegenerateLocalCopies = () => {
+    if (!extractedProduct) return;
+    const localVars = generateVariationsForProduct(extractedProduct);
+    setVariations(localVars);
+    setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+  };
   const generateVariationsForProduct = (prod: ProductData): GeminiCopyVariation[] => {
-    const couponLine = prod.coupon ? `\n🎟️ Cupom de Desconto: ${prod.coupon}` : '';
+    const couponLine = prod.coupon ? `\n\n🎟️ *Use o cupom:* *${prod.coupon}*` : '';
     const descLine = prod.description ? `\n\n📝 ${prod.description}` : '';
 
     const discountNum = calculateDiscountPercent(prod.price_from, prod.price_to);
@@ -81,17 +134,19 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
       }
     }
 
+    const maxInstallments = prod.max_installments_interest_free || installmentText;
+
     const priceTextUrgency = prod.price_from && prod.price_from !== prod.price_to
-      ? `❌ De: ~R$ ${prod.price_from}~\n💵 À vista no Pix ou Boleto: *R$ ${prod.price_to}*${discountBadge}\n💳 Ou em até *${installmentText || '12x de R$ 0,00'}*`
-      : `💵 À vista no Pix ou Boleto: *R$ ${prod.price_to}*\n💳 Ou em até *${installmentText || '12x de R$ 0,00'}*`;
+      ? `❌ De: ~R$ ${prod.price_from}~\n💵 À vista (Pix, Boleto ou Cartão 1x): *R$ ${prod.price_to}*${discountBadge}\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`
+      : `💵 À vista (Pix, Boleto ou Cartão 1x): *R$ ${prod.price_to}*\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`;
 
     const priceTextDirect = prod.price_from && prod.price_from !== prod.price_to
-      ? `❌ Estava por: R$ ${prod.price_from}\n✅ Agora por apenas: *R$ ${prod.price_to}* à vista${discountBadge}\n💳 Parcelas: *${installmentText || '12x de R$ 0,00'}*`
-      : `✅ Por apenas: *R$ ${prod.price_to}* à vista\n💳 Parcelas: *${installmentText || '12x de R$ 0,00'}*`;
+      ? `❌ Estava por: R$ ${prod.price_from}\n✅ Agora por apenas: *R$ ${prod.price_to}* à vista (Pix, Boleto ou Cartão 1x)${discountBadge}\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`
+      : `✅ Por apenas: *R$ ${prod.price_to}* à vista (Pix, Boleto ou Cartão 1x)\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`;
 
     const priceTextReview = prod.price_from && prod.price_from !== prod.price_to
-      ? `Antes custava R$ ${prod.price_from}, mas comprando à vista sai por apenas *R$ ${prod.price_to}*!${discountBadge}\nOu se preferir, pode parcelar em até *${installmentText || '12x de R$ 0,00'}*!`
-      : `Comprando à vista sai por apenas *R$ ${prod.price_to}*!\nOu parcelado em até *${installmentText || '12x de R$ 0,00'}*!`;
+      ? `Antes custava R$ ${prod.price_from}, mas comprando à vista (Pix, Boleto ou Cartão 1x) sai por apenas *R$ ${prod.price_to}*!${discountBadge}\nOu se preferir, pode parcelar em até *${maxInstallments || '12x sem juros'}*!`
+      : `Comprando à vista (Pix, Boleto ou Cartão 1x) sai por apenas *R$ ${prod.price_to}*!\nOu parcelado em até *${maxInstallments || '12x sem juros'}*!`;
 
     return [
       {
@@ -154,6 +209,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
         image_url: data.image_url || null,
         pictures: Array.isArray(data.pictures) && data.pictures.length > 0 ? data.pictures : (data.image_url ? [data.image_url] : []),
         video_url: data.video_url || null,
+        videos: Array.isArray(data.videos) && data.videos.length > 0 ? data.videos : (data.video_url ? [data.video_url] : []),
         selectedMediaUrl: data.image_url || null,
         selectedMediaType: data.image_url ? 'image' : null,
         selectedImageIndex: 0,
@@ -161,6 +217,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
         price_to: data.price_to || 'Consulte no link',
         card_price: data.card_price ? String(data.card_price).trim() : null,
         installments: data.installments ? String(data.installments).trim() : null,
+        max_installments_interest_free: data.max_installments_interest_free ? String(data.max_installments_interest_free).trim() : null,
         coupon: data.coupon ? String(data.coupon).trim() : null,
         original_link: data.original_link || urlInput.trim(),
         extractedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -219,7 +276,11 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
 
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(`❌ Erro ao extrair dados do produto: ${err.message || 'Não foi possível extrair as informações deste link.'}`);
+      const isNetworkError = err.message === 'Failed to fetch' || err.toString().includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'Não foi possível conectar ao servidor. O aplicativo está iniciando ou reiniciando. Aguarde alguns segundos e tente novamente.'
+        : (err.message || 'Não foi possível extrair as informações deste link.');
+      setErrorMsg(`❌ Erro ao extrair dados do produto: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -385,6 +446,29 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
                     <p className="truncate">{v.title}</p>
                   </button>
                 ))}
+              </div>
+
+              {/* Sync / Regenerate Actions */}
+              <div className="flex flex-wrap gap-2 pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={handleRegenerateLocalCopies}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-950 hover:bg-stone-850 border border-stone-800 hover:border-stone-700 text-stone-300 rounded-lg text-[11px] font-bold transition-all"
+                  title="Aplica os valores do formulário usando a fórmula padrão offline"
+                >
+                  <RefreshCw className="w-3 h-3 text-emerald-400" />
+                  <span>Sincronizar (Fórmula Local)</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiGenerating}
+                  onClick={handleRegenerateAiCopies}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50"
+                  title="Envia os novos valores editados para a IA reescrever a copy"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Regerar com IA (Valores Atuais)</span>
+                </button>
               </div>
 
               {/* Editable Copy Textarea */}

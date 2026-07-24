@@ -94,7 +94,12 @@ export default function App() {
           }
         } catch (err: any) {
           console.error('[ML OAuth Error]', err);
-          setOauthError(err.message || 'Erro ao comunicar com o servidor.');
+          const isNetworkError = err.message === 'Failed to fetch' || err.toString().includes('Failed to fetch');
+          setOauthError(
+            isNetworkError 
+              ? 'Não foi possível conectar ao servidor. O aplicativo está iniciando ou reiniciando. Aguarde alguns segundos e tente novamente.'
+              : (err.message || 'Erro ao comunicar com o servidor.')
+          );
         } finally {
           setOauthExchanging(false);
         }

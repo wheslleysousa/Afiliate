@@ -183,13 +183,26 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     // Try extracting MLB ID — primeiro na URL, depois no HTML (canonical/og:url/JSON embutido)
     const $preload = cheerio.load(html);
     const canonicalUrl = $preload('link[rel="canonical"]').attr('href') || $preload('meta[property="og:url"]').attr('content') || "";
-    const mlbMatch =
-      finalUrl.match(/(MLB-?\d+)/i) ||
-      url.match(/(MLB-?\d+)/i) ||
-      canonicalUrl.match(/(MLB-?\d+)/i) ||
-      html.match(/"(MLB\d+)"/i);
-    if (mlbMatch && mlbMatch[1]) {
-      const itemId = mlbMatch[1].replace("-", "").toUpperCase();
+    
+    // Try to find a real item ID (MLB followed by digits) in query parameters, avoiding catalog product IDs (/p/MLB...) if possible.
+    let itemId: string | null = null;
+    const urlDecoded = decodeURIComponent(finalUrl + " " + url + " " + canonicalUrl);
+    const itemIdParamMatch = urlDecoded.match(/(?:item_id|wid|vip_id)[:=](MLB\d+)/i);
+    if (itemIdParamMatch && itemIdParamMatch[1]) {
+      itemId = itemIdParamMatch[1].toUpperCase();
+    } else {
+      const nonCatalogMatch = finalUrl.match(/(?<!\/p\/)(MLB-?\d+)/i) || url.match(/(?<!\/p\/)(MLB-?\d+)/i) || canonicalUrl.match(/(?<!\/p\/)(MLB-?\d+)/i);
+      if (nonCatalogMatch && nonCatalogMatch[1]) {
+        itemId = nonCatalogMatch[1].replace("-", "").toUpperCase();
+      } else {
+        const anyMlbMatch = finalUrl.match(/(MLB-?\d+)/i) || url.match(/(MLB-?\d+)/i) || canonicalUrl.match(/(?<!\/p\/)(MLB-?\d+)/i) || html.match(/"(MLB\d+)"/i);
+        if (anyMlbMatch && anyMlbMatch[1]) {
+          itemId = anyMlbMatch[1].replace("-", "").toUpperCase();
+        }
+      }
+    }
+
+    if (itemId) {
       try {
         const apiHeaders: Record<string, string> = {
           "Accept": "application/json",
@@ -199,7 +212,12 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           apiHeaders["Authorization"] = `Bearer ${bearerToken.trim()}`;
         }
 
-        let apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+        const isCatalog = finalUrl.includes("/p/MLB") || url.includes("/p/MLB") || canonicalUrl.includes("/p/MLB");
+        const getApiUrl = (id: string) => isCatalog 
+          ? `https://api.mercadolibre.com/products/${id}`
+          : `https://api.mercadolibre.com/items/${id}`;
+
+        let apiRes = await fetch(getApiUrl(itemId), {
           headers: apiHeaders
         });
 
@@ -221,7 +239,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
               ...apiHeaders,
               "Authorization": `Bearer ${bearerToken.trim()}`
             };
-            apiRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+            apiRes = await fetch(getApiUrl(itemId), {
               headers: retryHeaders
             });
           }
@@ -233,32 +251,62 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
             ml_auth_error = true;
           }
         }
+
         if (apiRes.ok) {
           const data = await apiRes.json();
-          const title = data.title || "";
-          const image_url = (data.pictures && data.pictures[0]?.url) || data.thumbnail || null;
+          const title = data.title || data.name || "";
+          const image_url = (data.pictures && data.pictures[0]?.secure_url) || (data.pictures && data.pictures[0]?.url) || data.thumbnail || null;
           
           // Extrair todas as imagens disponíveis
           const pictures: string[] = Array.isArray(data.pictures)
             ? data.pictures.map((p: any) => p.secure_url || p.url).filter(Boolean)
             : (image_url ? [image_url] : []);
 
-          let video_url: string | null = null;
+          const videos: string[] = [];
           if (data.video_id) {
-            video_url = `https://www.youtube.com/watch?v=${data.video_id}`;
-          } else if (Array.isArray(data.videos) && data.videos[0]?.id) {
-            video_url = `https://www.youtube.com/watch?v=${data.videos[0].id}`;
+            videos.push(`https://www.youtube.com/watch?v=${data.video_id}`);
           }
+          if (Array.isArray(data.videos)) {
+            data.videos.forEach((v: any) => {
+              const vidId = v.id || v.youtube_id;
+              if (vidId) {
+                videos.push(`https://www.youtube.com/watch?v=${vidId}`);
+              }
+            });
+          }
+          const uniqVideos = Array.from(new Set(videos));
+          const video_url = uniqVideos[0] || null;
 
-          const price_to = cleanPrice(data.price);
-          const price_from = (data.original_price && data.original_price > data.price) ? cleanPrice(data.original_price) : null;
+          const rawPrice = data.price || data.buy_box_winner?.price || data.buy_box_winner_price;
+          const price_to = rawPrice ? cleanPrice(rawPrice) : null;
+          
+          const rawOriginalPrice = data.original_price || data.buy_box_winner?.original_price;
+          const price_from = (rawOriginalPrice && rawOriginalPrice > (rawPrice || 0)) ? cleanPrice(rawOriginalPrice) : null;
 
           let installments: string | null = null;
+          let max_installments_interest_free: string | null = null;
           if (data.installments) {
             const q = data.installments.quantity;
             const amt = cleanPrice(data.installments.amount);
-            const noInterest = data.installments.rate === 0 ? " sem juros" : "";
-            if (q && amt) installments = `${q}x de R$ ${amt}${noInterest}`;
+            const isNoInterest = data.installments.rate === 0;
+            const noInterest = isNoInterest ? " sem juros" : "";
+            if (q && amt) {
+              installments = `${q}x de R$ ${amt}${noInterest}`;
+              if (isNoInterest) {
+                max_installments_interest_free = `${q}x sem juros`;
+              }
+            }
+          } else if (data.buy_box_winner?.installments) {
+            const q = data.buy_box_winner.installments.quantity;
+            const amt = cleanPrice(data.buy_box_winner.installments.amount);
+            const isNoInterest = data.buy_box_winner.installments.rate === 0;
+            const noInterest = isNoInterest ? " sem juros" : "";
+            if (q && amt) {
+              installments = `${q}x de R$ ${amt}${noInterest}`;
+              if (isNoInterest) {
+                max_installments_interest_free = `${q}x sem juros`;
+              }
+            }
           }
 
           let coupon: string | null = null;
@@ -268,16 +316,18 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           }
 
           let description: string | null = null;
-          try {
-            const descRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`, {
-              headers: { "User-Agent": DEFAULT_HEADERS["User-Agent"] }
-            });
-            if (descRes.ok) {
-              const descData = await descRes.json();
-              description = (descData.plain_text || '').slice(0, 400).trim() || null;
+          if (!isCatalog) {
+            try {
+              const descRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`, {
+                headers: { "User-Agent": DEFAULT_HEADERS["User-Agent"] }
+              });
+              if (descRes.ok) {
+                const descData = await descRes.json();
+                description = (descData.plain_text || '').slice(0, 1000).trim() || null;
+              }
+            } catch (e) {
+              console.warn(`[ML API] Não foi possível buscar descrição de ${itemId}`, e);
             }
-          } catch (e) {
-            console.warn(`[ML API] Não foi possível buscar descrição de ${itemId}`, e);
           }
 
           let shipping: string | null = null;
@@ -290,7 +340,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           }
 
           if (title && price_to) {
-            return { title, description, image_url, pictures, video_url, price_from, price_to, installments, coupon, shipping, ml_auth_error: false };
+            return { title, description, image_url, pictures, video_url, videos: uniqVideos, price_from, price_to, installments, max_installments_interest_free, coupon, shipping, ml_auth_error: false };
           } else {
             console.warn(`[ML API] Resposta OK mas incompleta para ${itemId}. status=${data.status} title="${title}" price=${data.price}`);
           }
@@ -476,7 +526,15 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
             mercadoLivreRefreshToken: refreshToken,
             mercadoLivreExpiresAt: expiresAt
           });
-          if (richData && richData.title) {
+          
+          const isFallback = !richData || !richData.title ||
+            richData.title.includes("não identificado") ||
+            richData.title.includes("Protegido por verificação") ||
+            richData.title.trim() === "Mercado Livre" ||
+            richData.title.trim() === "Mercado Livre Brasil" ||
+            richData.title.trim() === "Mercado Libre";
+
+          if (richData && !isFallback) {
             console.log(`[ML Scraper] Detalhes completos e mídias obtidos com sucesso do link do card para: ${richData.title}`);
             if (richData.updated_ml_keys) {
               updated_ml_keys = richData.updated_ml_keys;
@@ -485,6 +543,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
               ...richData,
               updated_ml_keys
             };
+          } else {
+            console.log("[ML Scraper] Detalhe recursivo retornou título genérico/fallback ou captcha. Usando dados extraídos do card social.");
           }
         } catch (err: any) {
           console.warn("[ML Scraper] Falha ao obter dados completos do link do card. Prosseguindo com dados do perfil.", err.message);
@@ -751,6 +811,13 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       }
     }
 
+    if (installments) {
+      const ouIndex = installments.toLowerCase().indexOf(" ou ");
+      if (ouIndex !== -1) {
+        installments = installments.slice(0, ouIndex).trim();
+      }
+    }
+
     // Extract shipping (frete)
     let shipping: string | null = null;
     const shippingSels = [
@@ -844,16 +911,41 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       }
     }
 
-    let video_url: string | null = null;
-    const youtubeRegex = /(?:youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/i;
-    const youtubeMatch = html.match(youtubeRegex);
-    if (youtubeMatch) {
-      video_url = `https://www.youtube.com/watch?v=${youtubeMatch[1]}`;
+    const videosSet = new Set<string>();
+    const youtubeMatches = html.match(/(?:youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/gi);
+    if (youtubeMatches) {
+      youtubeMatches.forEach(m => {
+        const idMatch = m.match(/([a-zA-Z0-9_-]{11})/);
+        if (idMatch) {
+          videosSet.add(`https://www.youtube.com/watch?v=${idMatch[1]}`);
+        }
+      });
+    }
+    const videoIdMatches = html.match(/"video_id"\s*:\s*"([a-zA-Z0-9_-]{11})"/gi);
+    if (videoIdMatches) {
+      videoIdMatches.forEach(m => {
+        const idMatch = m.match(/"video_id"\s*:\s*"([a-zA-Z0-9_-]{11})"/i);
+        if (idMatch) {
+          videosSet.add(`https://www.youtube.com/watch?v=${idMatch[1]}`);
+        }
+      });
+    }
+    const uniqVideos = Array.from(videosSet);
+    const video_url = uniqVideos[0] || null;
+
+    // Check for interest-free installments in text or next to pricing
+    let max_installments_interest_free: string | null = null;
+    const semJurosRegex = /(\d+)\s*x\s*(?:de\s*R\$\s*[\d,.]+)?\s*sem\s*juros/i;
+    const semJurosMatch = html.match(semJurosRegex);
+    if (semJurosMatch) {
+      max_installments_interest_free = `${semJurosMatch[1]}x sem juros`;
     } else {
-      const videoIdRegex = /"video_id"\s*:\s*"([a-zA-Z0-9_-]{11})"/i;
-      const videoIdMatch = html.match(videoIdRegex);
-      if (videoIdMatch) {
-        video_url = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+      // Look for the installments text itself
+      if (installments && (installments.toLowerCase().includes("sem juros") || installments.toLowerCase().includes("sem juros"))) {
+        const qMatch = installments.match(/(\d+)\s*x/i);
+        if (qMatch) {
+          max_installments_interest_free = `${qMatch[1]}x sem juros`;
+        }
       }
     }
 
@@ -863,10 +955,12 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       image_url,
       pictures,
       video_url,
+      videos: uniqVideos,
       price_from,
       price_to: price_to || "Consulte no link",
       card_price,
       installments,
+      max_installments_interest_free,
       coupon,
       shipping,
       ml_auth_error,
@@ -1324,12 +1418,14 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       image_url: data.image_url || null,
       pictures: data.pictures || (data.image_url ? [data.image_url] : []),
       video_url: data.video_url || null,
+      videos: data.videos || (data.video_url ? [data.video_url] : []),
       price_from: data.price_from || null,
       price_to: priceIsPlausible ? data.price_to : null,
       price_uncertain: !priceIsPlausible,
       ml_auth_error: !!data.ml_auth_error,
       card_price: data.card_price || null,
       installments: data.installments || null,
+      max_installments_interest_free: data.max_installments_interest_free || null,
       coupon: data.coupon || null,
       shipping: data.shipping || null,
       original_link: finalLink,
@@ -1373,8 +1469,9 @@ Escreva 3 variações de textos de venda altamente persuasivos, limpos e atraent
 DADOS DO PRODUTO:
 - Nome/Título: ${product.title}
 - Preço de (Anterior): ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
-- Preço por (Atual à Vista/Pix): R$ ${product.price_to}
+- Preço à Vista (Pix, Boleto ou Cartão 1x): R$ ${product.price_to}
 - Parcelamento / Cartão: ${product.installments || 'N/A'}
+- Máximo de parcelas sem juros: ${product.max_installments_interest_free || 'N/A'}
 - Preço total parcelado no Cartão: ${product.card_price ? 'R$ ' + product.card_price : 'N/A'}
 - Cupom de Desconto: ${product.coupon || 'N/A'}
 - Frete: ${product.shipping || 'Consulte no link'}
@@ -1386,9 +1483,9 @@ DADOS DO PRODUTO:
 REQUISITOS EXTRA DE CONTEXTO:
 - A copy de cada variação deve obrigatoriamente mostrar o preço estruturado desta forma exata:
   * O preço que estava antes (se disponível, ex: De: ~R$ ${product.price_from || ''}~)
-  * O preço que vai pagar se for pagamento à vista no PIX ou no Boleto (ex: À vista: *R$ ${product.price_to}*)
-  * O preço da parcela para pagamento parcelado no cartão, utilizando o parcelamento fornecido (${product.installments || '12x de R$ ...'}). ATENÇÃO: Nunca divida o preço à vista (${product.price_to}) por 12 se houver parcelamento específico informado (${product.installments || 'N/A'}), pois os preços parcelados e à vista costumam ser diferentes! Utilize o valor real das parcelas informado em "Parcelamento / Cartão".
-- Se houver Cupom de Desconto disponível (${product.coupon || ''}), mencione-o com imenso destaque no texto!
+  * O preço que vai pagar se for pagamento à vista no PIX, Boleto ou Cartão de Crédito 1x (ex: À vista (Pix, Boleto ou Cartão 1x): *R$ ${product.price_to}*)
+  * O preço parcelado no cartão de crédito, com destaque para a quantidade máxima de parcelas sem juros se disponível (ex: Parcelado: em até *${product.max_installments_interest_free || product.installments || '12x sem juros'}*). Utilize o valor real das parcelas informado em "Parcelamento / Cartão".
+- Se houver Cupom de Desconto disponível (${product.coupon || ''}), mencione-o com IMENSO destaque e ensine o usuário como aplicar (ex: "🎟️ Use o cupom: *${product.coupon}*").
 - Se houver Frete Grátis (${product.shipping || ''}), enfatize isso como um grande diferencial competitivo!
 
 ESTILOS DAS 3 VARIAÇÕES QUE VOCÊ DEVE GERAR:
