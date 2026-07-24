@@ -221,164 +221,143 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
           </div>
         </div>
 
-        {/* Product Fields */}
-        <div className="md:col-span-7 space-y-3.5">
-          {/* Title */}
-          <div>
-            <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-emerald-400" />
-              Título do Produto
-            </label>
-            <textarea
-              rows={2}
-              value={product.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              className="w-full px-3 py-2.5 bg-stone-950 border border-stone-800 rounded-xl text-stone-100 text-sm font-medium focus:outline-none focus:border-emerald-500"
-            />
+        {/* Product Fields (Read-Only Elegant Dashboard) */}
+        <div className="md:col-span-7 space-y-4">
+          {/* Title Card */}
+          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 shadow-sm">
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-emerald-500" />
+              Título do Produto Extraído
+            </span>
+            <h3 className="text-sm font-bold text-stone-100 leading-relaxed">
+              {product.title}
+            </h3>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
+          {/* Description Card */}
+          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 shadow-sm">
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-blue-400" />
-              Descrição / Resumo do Anúncio
-            </label>
-            <textarea
-              rows={2}
-              value={product.description || ''}
-              onChange={(e) => updateField('description', e.target.value)}
-              placeholder="Resumo ou destaques do produto..."
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-xs focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          {/* Prices Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-stone-500" />
-                Preço Anterior (R$) <span className="text-stone-500 text-[10px]">(De)</span>
-              </label>
-              <input
-                type="text"
-                value={product.price_from || ''}
-                onChange={(e) => updateField('price_from', e.target.value)}
-                placeholder="Ex: 199,90"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-emerald-400 font-semibold mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                Preço À Vista (R$) <span className="text-emerald-400 text-[10px]">(Pix/Boleto)</span>
-              </label>
-              <input
-                type="text"
-                value={product.price_to}
-                onChange={(e) => updateField('price_to', e.target.value)}
-                placeholder="Ex: 149,90"
-                className="w-full px-3 py-2 bg-stone-950 border border-emerald-500/50 rounded-xl text-emerald-400 font-bold text-sm focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-sky-400 font-semibold mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-sky-400" />
-                Preço no Cartão (R$) <span className="text-sky-400 text-[10px]">(Se diferente)</span>
-              </label>
-              <input
-                type="text"
-                value={product.card_price || ''}
-                onChange={(e) => updateField('card_price', e.target.value)}
-                placeholder="Ex: 169,90"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-sky-400 text-sm focus:outline-none focus:border-emerald-500"
-              />
+              Descrição Completa / Detalhes
+            </span>
+            <div className="text-xs text-stone-300 max-h-40 overflow-y-auto pr-1 scrollbar-thin leading-relaxed space-y-1 whitespace-pre-line">
+              {product.description ? product.description : (
+                <span className="text-stone-600 italic">Nenhuma descrição disponível</span>
+              )}
             </div>
           </div>
 
-          {/* Installments, Coupon, Shipping & Interest Free */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-teal-400" />
-                Parcelamento
-              </label>
-              <input
-                type="text"
-                value={product.installments || ''}
-                onChange={(e) => updateField('installments', e.target.value)}
-                placeholder="Ex: 12x de R$ 14,99"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
-              />
+          {/* Core Prices Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Price To (Pix / À Vista) */}
+            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5 shadow-sm">
+              <span className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-emerald-400" />
+                Preço À Vista (Pix / 1x)
+              </span>
+              <p className="text-xl font-black text-emerald-400">
+                R$ {product.price_to}
+              </p>
+              {discountPercent && (
+                <span className="text-[10px] font-bold text-red-400 block mt-0.5">
+                  🔥 Economia de {discountPercent}% OFF
+                </span>
+              )}
             </div>
 
-            <div>
-              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
-                Até sem juros
-              </label>
-              <input
-                type="text"
-                value={product.max_installments_interest_free || ''}
-                onChange={(e) => updateField('max_installments_interest_free', e.target.value)}
-                placeholder="Ex: 10x sem juros"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                <Ticket className="w-3.5 h-3.5 text-amber-400" />
-                Cupom de Desconto
-              </label>
-              <input
-                type="text"
-                value={product.coupon || ''}
-                onChange={(e) => updateField('coupon', e.target.value)}
-                placeholder="Ex: PROMO10"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-amber-300 font-mono text-sm focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-blue-400" />
-                Frete
-              </label>
-              <input
-                type="text"
-                value={product.shipping || ''}
-                onChange={(e) => updateField('shipping', e.target.value)}
-                placeholder="Ex: Frete grátis"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-stone-300 text-sm focus:outline-none focus:border-emerald-500"
-              />
+            {/* Price From (Original / Crossed Out) */}
+            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3.5 shadow-sm">
+              <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-stone-500" />
+                Preço Original (Antes)
+              </span>
+              <p className="text-lg font-bold text-stone-400 line-through">
+                {product.price_from ? `R$ ${product.price_from}` : "Não identificado"}
+              </p>
             </div>
           </div>
 
-          {/* Link */}
-          <div>
-            <label className="text-xs text-stone-400 font-medium mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
-                Link de Afiliado Final
+          {/* Installments & Payment Options */}
+          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 space-y-3 shadow-sm">
+            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-sky-400" />
+              Opções de Parcelamento Extraídas
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Total Parcelado / Card Price */}
+              <div>
+                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                  Total Parcelado no Cartão
+                </span>
+                <p className="text-sm font-semibold text-stone-200">
+                  {product.card_price ? `R$ ${product.card_price}` : (product.price_to ? `R$ ${product.price_to}` : "Não informado")}
+                </p>
+              </div>
+
+              {/* Installments info */}
+              <div>
+                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                  Plano de Parcelas
+                </span>
+                <p className="text-sm font-semibold text-sky-400">
+                  {product.installments ? product.installments : "Apenas à vista"}
+                </p>
+              </div>
+
+              {/* Max Installments Interest Free */}
+              <div>
+                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                  Parcelas Sem Juros
+                </span>
+                <p className="text-sm font-bold text-emerald-400">
+                  {product.max_installments_interest_free ? product.max_installments_interest_free : "Não informado"}
+                </p>
+              </div>
+
+              {/* Coupon banner */}
+              <div>
+                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                  Cupom de Desconto Ativo
+                </span>
+                {product.coupon ? (
+                  <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold px-2.5 py-0.5 rounded-lg">
+                    <Ticket className="w-3 h-3 text-amber-400" />
+                    {product.coupon}
+                  </span>
+                ) : (
+                  <p className="text-sm font-semibold text-stone-500 italic">Nenhum cupom detectado</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Shipping & Delivery */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-blue-400" />
+                <span className="text-xs text-stone-400 font-medium">Frete</span>
+              </div>
+              <span className="text-xs font-semibold text-stone-200">
+                {product.shipping || "Consulte no link"}
+              </span>
+            </div>
+
+            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <span className="text-xs text-stone-400 font-medium flex items-center gap-2">
+                <ExternalLink className="w-4 h-4 text-emerald-400" />
+                Link do Produto
               </span>
               <a
                 href={product.original_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-emerald-400 hover:underline text-[11px] flex items-center gap-1"
+                className="text-xs text-emerald-400 font-bold hover:underline"
               >
-                Testar link ↗
+                Testar Link ↗
               </a>
-            </label>
-            <input
-              type="url"
-              value={product.original_link}
-              onChange={(e) => updateField('original_link', e.target.value)}
-              placeholder="https://..."
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-blue-400 text-xs focus:outline-none focus:border-emerald-500 truncate"
-            />
+            </div>
           </div>
         </div>
       </div>

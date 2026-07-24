@@ -131,12 +131,12 @@ export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectV
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>IA Criando 3 Opções de Venda...</span>
+                <span>IA Gerando Copy Padrão Oficial...</span>
               </>
             ) : (
               <>
                 <Bot className="w-4 h-4" />
-                <span>Gerar 3 Variações com IA Gemini</span>
+                <span>Gerar Copy no Padrão Oficial com IA Gemini</span>
               </>
             )}
           </button>

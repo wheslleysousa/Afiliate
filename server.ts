@@ -202,6 +202,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       }
     }
 
+    let apiData: any = null;
+
     if (itemId) {
       try {
         const apiHeaders: Record<string, string> = {
@@ -275,7 +277,6 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
             });
           }
           const uniqVideos = Array.from(new Set(videos));
-          const video_url = uniqVideos[0] || null;
 
           const rawPrice = data.price || data.buy_box_winner?.price || data.buy_box_winner_price;
           const price_to = rawPrice ? cleanPrice(rawPrice) : null;
@@ -316,17 +317,18 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           }
 
           let description: string | null = null;
-          if (!isCatalog) {
+          const targetDescItemId = isCatalog ? (data.buy_box_winner?.item_id || data.children_ids?.[0]) : itemId;
+          if (targetDescItemId) {
             try {
-              const descRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`, {
-                headers: { "User-Agent": DEFAULT_HEADERS["User-Agent"] }
+              const descRes = await fetch(`https://api.mercadolibre.com/items/${targetDescItemId}/description`, {
+                headers: { "Authorization": `Bearer ${bearerToken.trim()}` }
               });
               if (descRes.ok) {
                 const descData = await descRes.json();
-                description = (descData.plain_text || '').slice(0, 1000).trim() || null;
+                description = (descData.plain_text || '').trim() || null;
               }
             } catch (e) {
-              console.warn(`[ML API] Não foi possível buscar descrição de ${itemId}`, e);
+              console.warn(`[ML API] Não foi possível buscar descrição de ${targetDescItemId}`, e);
             }
           }
 
@@ -339,13 +341,23 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
             }
           }
 
-          if (title && price_to) {
-            return { title, description, image_url, pictures, video_url, videos: uniqVideos, price_from, price_to, installments, max_installments_interest_free, coupon, shipping, ml_auth_error: false };
-          } else {
-            console.warn(`[ML API] Resposta OK mas incompleta para ${itemId}. status=${data.status} title="${title}" price=${data.price}`);
+          if (title) {
+            apiData = {
+              title,
+              description,
+              image_url,
+              pictures,
+              video_url: uniqVideos[0] || null,
+              videos: uniqVideos,
+              price_from,
+              price_to,
+              installments,
+              max_installments_interest_free,
+              coupon,
+              shipping
+            };
+            console.log(`[ML API] Dados pré-carregados com sucesso do item ID ${itemId}`);
           }
-        } else {
-          console.warn(`[ML API] Requisição falhou para ${itemId}. HTTP ${apiRes.status}`);
         }
       } catch (e) {
         console.warn("[ML Scraper] ML API request failed, proceeding to HTML parsing", e);
@@ -479,7 +491,10 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
         let cardInstallments: string | null = null;
         const installmentsEl = $card.find('.poly-price__installments');
         if (installmentsEl.length > 0) {
-          cardInstallments = installmentsEl.text().replace(/\s+/g, ' ').trim();
+          const rawInst = installmentsEl.text().replace(/\s+/g, ' ').trim();
+          if (rawInst && (rawInst.includes('x') || rawInst.toLowerCase().includes('parcela') || rawInst.toLowerCase().includes('vezes') || rawInst.toLowerCase().includes('sem juros'))) {
+            cardInstallments = rawInst;
+          }
         }
 
         const score = socialTitle ? getOverlapScore(socialTitle, cardTitle) : 0;
@@ -553,16 +568,32 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
 
       socialTitle = socialTitle.replace(/\s+/g, ' ').trim() || "Produto Mercado Livre";
 
+      let calculatedInstallments: string | null = null;
+      const basePriceForInstallments = socialCardPrice || socialPriceTo;
+      if (basePriceForInstallments) {
+        const pNum = parseFloat(basePriceForInstallments.replace(/\./g, "").replace(",", "."));
+        if (!isNaN(pNum) && pNum > 0) {
+          const val12 = (pNum / 12).toFixed(2).replace(".", ",");
+          calculatedInstallments = `12x de R$ ${val12}`;
+        }
+      }
+
+      const finalInstallments = (socialInstallments && (
+        socialInstallments.includes('x') || 
+        socialInstallments.toLowerCase().includes('parcela') || 
+        socialInstallments.toLowerCase().includes('vezes')
+      )) ? socialInstallments : (calculatedInstallments || "Consulte as condições de parcelamento");
+
       return {
         title: socialTitle,
-        description: "Confira todos os detalhes e garanta o seu produto com desconto no link oficial do Mercado Livre.",
+        description: null,
         image_url: socialImage,
         pictures: socialImage ? [socialImage] : [],
         video_url: null,
         price_from: socialPriceFrom,
         price_to: socialPriceTo || "Consulte no link",
         card_price: socialCardPrice,
-        installments: socialInstallments || "Consulte as condições de parcelamento",
+        installments: finalInstallments,
         coupon: null,
         shipping: "Consulte as opções de frete"
       };
@@ -799,18 +830,6 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       }
     }
 
-    // If still not found, calculate 12x installment from card_price or price_to
-    if (!installments) {
-      const basePriceForInstallments = card_price || price_to;
-      if (basePriceForInstallments) {
-        const pNum = parseFloat(basePriceForInstallments.replace(/\./g, "").replace(",", "."));
-        if (!isNaN(pNum) && pNum > 0) {
-          const val12 = (pNum / 12).toFixed(2).replace(".", ",");
-          installments = `12x de R$ ${val12} sem juros`;
-        }
-      }
-    }
-
     if (installments) {
       const ouIndex = installments.toLowerCase().indexOf(" ou ");
       if (ouIndex !== -1) {
@@ -931,7 +950,6 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       });
     }
     const uniqVideos = Array.from(videosSet);
-    const video_url = uniqVideos[0] || null;
 
     // Check for interest-free installments in text or next to pricing
     let max_installments_interest_free: string | null = null;
@@ -949,20 +967,66 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       }
     }
 
+    // MERGE API DATA AND CHEERIO EXTRACTED DATA WITH HIGHEST ACCURACY
+    const mergedTitle = apiData?.title || title || "";
+    const mergedDescription = apiData?.description || description || null;
+    const mergedPriceFrom = price_from || apiData?.price_from || null;
+    const mergedPriceTo = price_to || apiData?.price_to || null;
+    const mergedCardPrice = card_price || apiData?.card_price || null;
+    const mergedInstallments = installments || apiData?.installments || null;
+    const mergedMaxInstallments = max_installments_interest_free || apiData?.max_installments_interest_free || null;
+    const mergedCoupon = coupon || apiData?.coupon || null;
+    const mergedShipping = shipping || apiData?.shipping || "Consulte o frete";
+
+    // Deduplicate and resolve pictures to high resolution
+    const finalPicturesSet = new Set<string>();
+    if (apiData?.pictures && Array.isArray(apiData.pictures)) {
+      apiData.pictures.forEach((p: string) => finalPicturesSet.add(p));
+    }
+    if (pictures && Array.isArray(pictures)) {
+      pictures.forEach((p: string) => finalPicturesSet.add(p));
+    }
+
+    const mergedPictures = Array.from(finalPicturesSet).map(img => {
+      let hiRes = img.trim().replace(/\\/g, "");
+      // Convert standard Mercado Livre thumbnail formats to large resolution originals
+      if (hiRes.includes("-I.jpg")) hiRes = hiRes.replace("-I.jpg", "-O.jpg");
+      if (hiRes.includes("-V.jpg")) hiRes = hiRes.replace("-V.jpg", "-O.jpg");
+      if (hiRes.includes("-R.jpg")) hiRes = hiRes.replace("-R.jpg", "-O.jpg");
+      if (hiRes.includes("-W.jpg")) hiRes = hiRes.replace("-W.jpg", "-O.jpg");
+      if (hiRes.includes("-D.jpg")) hiRes = hiRes.replace("-D.jpg", "-O.jpg");
+      if (hiRes.includes("-N.jpg")) hiRes = hiRes.replace("-N.jpg", "-O.jpg");
+      if (hiRes.includes("-O.webp")) hiRes = hiRes.replace("-O.webp", "-O.jpg");
+      return hiRes;
+    }).filter(p => p.startsWith("http"));
+
+    const mergedImageUrl = apiData?.image_url || image_url || mergedPictures[0] || null;
+
+    // Deduplicate and resolve videos
+    const finalVideosSet = new Set<string>();
+    if (apiData?.videos && Array.isArray(apiData.videos)) {
+      apiData.videos.forEach((v: string) => finalVideosSet.add(v));
+    }
+    if (uniqVideos && Array.isArray(uniqVideos)) {
+      uniqVideos.forEach((v: string) => finalVideosSet.add(v));
+    }
+    const mergedVideos = Array.from(finalVideosSet);
+    const mergedVideoUrl = mergedVideos[0] || null;
+
     return {
-      title,
-      description: description ? description.slice(0, 1000).trim() : null,
-      image_url,
-      pictures,
-      video_url,
-      videos: uniqVideos,
-      price_from,
-      price_to: price_to || "Consulte no link",
-      card_price,
-      installments,
-      max_installments_interest_free,
-      coupon,
-      shipping,
+      title: mergedTitle,
+      description: mergedDescription,
+      image_url: mergedImageUrl,
+      pictures: mergedPictures,
+      video_url: mergedVideoUrl,
+      videos: mergedVideos,
+      price_from: mergedPriceFrom,
+      price_to: mergedPriceTo || "Consulte no link",
+      card_price: mergedCardPrice,
+      installments: mergedInstallments,
+      max_installments_interest_free: mergedMaxInstallments,
+      coupon: mergedCoupon,
+      shipping: mergedShipping,
       ml_auth_error,
       updated_ml_keys
     };
@@ -1406,6 +1470,39 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       }
     }
 
+    // Se a descrição estiver nula, muito curta ou com texto genérico/placeholder, geramos uma descrição curta via Gemini baseada no título.
+    if (!data.description || 
+        data.description.trim().length < 15 || 
+        data.description.toLowerCase().includes("confira todos os detalhes") ||
+        data.description.toLowerCase().includes("visite a página")) {
+      
+      const apiKey = (apiKeys?.geminiApiKey && apiKeys.geminiApiKey.trim()) || process.env.GEMINI_API_KEY;
+      if (apiKey && data.title && !data.title.includes("não identificado") && !data.title.includes("Protegido por verificação")) {
+        try {
+          console.log(`[Scraper API] Gerando descrição via Gemini 3.6 Flash para o produto: ${data.title}`);
+          const ai = new GoogleGenAI({
+            apiKey,
+            httpOptions: {
+              headers: {
+                "User-Agent": "aistudio-build",
+              }
+            }
+          });
+          const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
+          const descResponse = await ai.models.generateContent({
+            model: "gemini-3.6-flash",
+            contents: descPrompt,
+          });
+          if (descResponse.text) {
+            data.description = descResponse.text.trim();
+            console.log("[Scraper API] Descrição gerada com sucesso via Gemini!");
+          }
+        } catch (descErr: any) {
+          console.log("[Scraper API Info] Descrição mantida no padrão (Gemini limite de cota de requisições ou indisponível).");
+        }
+      }
+    }
+
     // Validação de sanidade: nunca devolver um preço "0,00" ou implausível como se fosse real.
     // Preferimos avisar o usuário a entregar um valor errado que vira copy publicada.
     const numericPrice = data.price_to ? parseFloat(String(data.price_to).replace(/\./g, "").replace(",", ".")) : NaN;
@@ -1443,8 +1540,10 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
 
 // Gemini AI Copy Enhancer Endpoint
 app.post("/api/gemini/copy", async (req, res) => {
+  let product: any = null;
   try {
-    const { product, angle, targetAudience, extraPrompt, apiKeys } = req.body;
+    product = req.body?.product;
+    const { angle, targetAudience, extraPrompt, apiKeys } = req.body;
     if (!product || !product.title) {
       return res.status(400).json({ error: "Dados do produto incompletos para geração com IA." });
     }
@@ -1463,49 +1562,43 @@ app.post("/api/gemini/copy", async (req, res) => {
       }
     });
 
-    const prompt = `Você é um mestre experiente em copywriting para grupos de ofertas do WhatsApp e afiliados de alto desempenho no Brasil.
-Escreva 3 variações de textos de venda altamente persuasivos, limpos e atraentes para o produto abaixo, respeitando rigorosamente cada um dos 3 estilos predefinidos solicitados.
+    const prompt = `Você é um gerador de copy para WhatsApp para afiliados de e-commerce no Brasil.
+Gere a copy do produto obedecendo RIGOROSAMENTE ao padrão visual oficial abaixo, sem adicionar introduções, saudações, frases extras de vendas, títulos apelativos ou emojis adicionais fora do modelo.
+
+ESTRUTURA EXATA OBRIGATÓRIA DA COPY:
+{Nome do Produto}
+
+~de R$ {Preço Anterior}~
+por R$ {Preço Promocional}
+💳 ou {Parcelamento}
+
+🎟️ Use o cupom: {Cupom de Desconto}
+
+🛍️ Compre aqui: {LINK}
+
+*Promoção sujeita a alteração a qualquer momento
+
+REGRAS RÍGIDAS DE FORMATAÇÃO:
+1. Linha 1: Comece diretamente com o nome do produto limpo, sem asteriscos e sem emojis.
+2. Se houver preço anterior, inclua a linha "~de R$ {valor}~". Se não houver, omita essa linha.
+3. Inclua a linha "por R$ {valor}" em seguida.
+4. Se houver parcelamento no cartão, inclua "💳 ou {parcelas}" (ex: "💳 ou 6x de R$ 45,35").
+   IMPORTANTE: Só adicione a expressão "sem juros" se os dados do produto indicarem EXPLICITAMENTE que o parcelamento é sem juros. Se não houver confirmação de sem juros, mostre apenas as parcelas e o valor (ex: "6x de R$ 45,35").
+5. Pule uma linha.
+6. Se houver cupom de desconto, inclua "🎟️ Use o cupom: {CUPOM}" e pule uma linha. Se não houver cupom, omita essa linha e a quebra extra.
+7. A linha do link deve ser exatamente "🛍️ Compre aqui: {LINK}".
+8. Pule uma linha.
+9. Termine obrigatoriamente com a linha "*Promoção sujeita a alteração a qualquer momento".
+10. Retorne exatamente 1 item no array 'variations' com id "var_standard", title "📋 Modelo Oficial Padrão".
 
 DADOS DO PRODUTO:
 - Nome/Título: ${product.title}
-- Preço de (Anterior): ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
-- Preço à Vista (Pix, Boleto ou Cartão 1x): R$ ${product.price_to}
-- Parcelamento / Cartão: ${product.installments || 'N/A'}
-- Máximo de parcelas sem juros: ${product.max_installments_interest_free || 'N/A'}
-- Preço total parcelado no Cartão: ${product.card_price ? 'R$ ' + product.card_price : 'N/A'}
+- Preço Anterior: ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
+- Preço à Vista (Pix/Boleto): R$ ${product.price_to}
+- Parcelamento Cartão: ${product.installments || 'N/A'}
+- Parcelamento Confirmado Sem Juros: ${product.max_installments_interest_free || 'Não informado'}
 - Cupom de Desconto: ${product.coupon || 'N/A'}
-- Frete: ${product.shipping || 'Consulte no link'}
-- Link de Compra: {LINK}
-- Gatilho principal: ${angle || 'Promoção imperdível'}
-- Público-alvo: ${targetAudience || 'Compradores de promoções'}
-- Notas extras: ${extraPrompt || 'Nenhuma'}
-
-REQUISITOS EXTRA DE CONTEXTO:
-- A copy de cada variação deve obrigatoriamente mostrar o preço estruturado desta forma exata:
-  * O preço que estava antes (se disponível, ex: De: ~R$ ${product.price_from || ''}~)
-  * O preço que vai pagar se for pagamento à vista no PIX, Boleto ou Cartão de Crédito 1x (ex: À vista (Pix, Boleto ou Cartão 1x): *R$ ${product.price_to}*)
-  * O preço parcelado no cartão de crédito, com destaque para a quantidade máxima de parcelas sem juros se disponível (ex: Parcelado: em até *${product.max_installments_interest_free || product.installments || '12x sem juros'}*). Utilize o valor real das parcelas informado em "Parcelamento / Cartão".
-- Se houver Cupom de Desconto disponível (${product.coupon || ''}), mencione-o com IMENSO destaque e ensine o usuário como aplicar (ex: "🎟️ Use o cupom: *${product.coupon}*").
-- Se houver Frete Grátis (${product.shipping || ''}), enfatize isso como um grande diferencial competitivo!
-
-ESTILOS DAS 3 VARIAÇÕES QUE VOCÊ DEVE GERAR:
-1. Variação 1 - Título: "⚡ 1. Urgência & Oferta Relâmpago"
-   - Tom altamente urgente, escassez, FOMO (medo de perder), preço reduzido por tempo limitado.
-   - Frases fortes como "CORRE QUE É OFERTA RELÂMPAGO!", "Estoque limitado", "O preço pode subir a qualquer momento!".
-
-2. Variação 2 - Título: "🎯 2. Direta & Foco no Preço"
-   - Extremamente direto ao ponto, limpo e escaneável.
-   - Listagem em tópicos organizados: Título do produto, Valores de desconto (se houver), Preço promocional destacado, Parcelas, Cupom, Frete e o Link oficial de compra.
-
-3. Variação 3 - Título: "⭐ 3. Indicação & Review Sincero"
-   - Tom de recomendação pessoal ("achadinho" de amigo ou influencer para o grupo).
-   - Use falas informais e amigáveis, ex: "Gente, olhem esse achado de hoje!", e inclua recomendação com avaliação alta (5 estrelas ⭐⭐⭐⭐⭐).
-
-REGRAS IMPORTANTES DE FORMATAÇÃO:
-- Use formatação simples com quebras de linha para ficar bem estruturado no WhatsApp.
-- Aplique negrito do WhatsApp colocando palavras importantes entre asteriscos (ex: *R$ ${product.price_to}*).
-- Insira a tag exata {LINK} como o marcador para o link de compra onde o usuário deve clicar.
-- Retorne a resposta rigorosamente respeitando o JSON Schema fornecido.`;
+- Link de Compra: {LINK}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.6-flash",
@@ -1550,8 +1643,77 @@ REGRAS IMPORTANTES DE FORMATAÇÃO:
 
     return res.json(result);
   } catch (err: any) {
-    console.error("[Gemini API Error]", err);
-    return res.status(500).json({ error: "Erro ao gerar copy com Gemini AI: " + (err.message || "") });
+    console.log("[Gemini API Info] Gerando copy pelo modelo padrão oficial local (Gemini limite de cota ou indisponível).");
+
+    if (!product || !product.title) {
+      return res.status(400).json({ error: "Dados do produto indisponíveis para gerar copy." });
+    }
+
+    // Fallback to official standard copy pattern
+    const rawInst = product.installments ? String(product.installments).trim() : "";
+    const rawMaxSemJuros = product.max_installments_interest_free ? String(product.max_installments_interest_free).trim() : "";
+    
+    let installmentLine: string | null = null;
+    if (rawInst && rawInst !== "Apenas à vista" && !rawInst.toLowerCase().includes("não informado")) {
+      let cleanInst = rawInst;
+      if (cleanInst.toLowerCase().startsWith("ou ")) cleanInst = cleanInst.slice(3).trim();
+      
+      const isVerifiedSemJuros = cleanInst.toLowerCase().includes("sem juros") ||
+        (rawMaxSemJuros && rawMaxSemJuros.toLowerCase().includes("sem juros"));
+
+      if (isVerifiedSemJuros) {
+        if (!cleanInst.toLowerCase().includes("sem juros")) {
+          cleanInst = `${cleanInst} sem juros`;
+        }
+        installmentLine = cleanInst;
+      } else {
+        installmentLine = cleanInst.replace(/sem juros/gi, "").trim();
+      }
+    } else if (rawMaxSemJuros && rawMaxSemJuros.toLowerCase().includes("sem juros")) {
+      let cleanMax = rawMaxSemJuros;
+      if (cleanMax.toLowerCase().startsWith("ou ")) cleanMax = cleanMax.slice(3).trim();
+      installmentLine = cleanMax;
+    }
+
+    const lines: string[] = [];
+    lines.push(product.title.trim());
+    lines.push("");
+
+    if (product.price_from && String(product.price_from).trim() && product.price_from !== product.price_to) {
+      let cleanFrom = String(product.price_from).trim();
+      if (cleanFrom.toLowerCase().startsWith("r$")) cleanFrom = cleanFrom.slice(2).trim();
+      lines.push(`~de R$ ${cleanFrom}~`);
+    }
+
+    let cleanTo = String(product.price_to || "Consulte no link").trim();
+    if (cleanTo.toLowerCase().startsWith("r$")) cleanTo = cleanTo.slice(2).trim();
+    lines.push(`por R$ ${cleanTo}`);
+
+    if (installmentLine) {
+      lines.push(`💳 ou ${installmentLine}`);
+    }
+
+    lines.push("");
+
+    if (product.coupon && String(product.coupon).trim()) {
+      lines.push(`🎟️ Use o cupom: ${String(product.coupon).trim()}`);
+      lines.push("");
+    }
+
+    lines.push(`🛍️ Compre aqui: {LINK}`);
+    lines.push("");
+    lines.push("*Promoção sujeita a alteração a qualquer momento");
+
+    return res.json({
+      fallbackUsed: true,
+      variations: [
+        {
+          id: "var_standard",
+          title: "📋 Modelo Oficial Padrão",
+          copy: lines.join("\n")
+        }
+      ]
+    });
   }
 });
 

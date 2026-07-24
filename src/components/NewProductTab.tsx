@@ -3,6 +3,7 @@ import { ProductData, GeminiCopyVariation, ApiKeysConfig } from '../types';
 import { Link2, Sparkles, Loader2, Copy, Check, Share2, Save, ShoppingBag, Tag, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Wand2, Eye, TrendingDown } from 'lucide-react';
 import { getPlatformLabel } from '../utils/platformLabel';
 import { calculateDiscountPercent } from '../utils/copyHelper';
+import { formatCopy } from '../utils/formatCopy';
 import { ProductEditor } from './ProductEditor';
 import { GeminiAiPanel } from './GeminiAiPanel';
 
@@ -114,55 +115,11 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
     setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
   };
   const generateVariationsForProduct = (prod: ProductData): GeminiCopyVariation[] => {
-    const couponLine = prod.coupon ? `\n\n🎟️ *Use o cupom:* *${prod.coupon}*` : '';
-    const descLine = prod.description ? `\n\n📝 ${prod.description}` : '';
-
-    const discountNum = calculateDiscountPercent(prod.price_from, prod.price_to);
-    const discountBadge = discountNum ? ` (-${discountNum}% OFF)` : '';
-
-    let installmentText = '';
-    if (prod.installments) {
-      installmentText = prod.installments;
-    } else {
-      const baseForInstallment = prod.card_price || prod.price_to;
-      if (baseForInstallment) {
-        const pNum = parseFloat(baseForInstallment.replace(/\./g, '').replace(',', '.'));
-        if (!isNaN(pNum) && pNum > 0) {
-          const val12 = (pNum / 12).toFixed(2).replace('.', ',');
-          installmentText = `12x de R$ ${val12} sem juros`;
-        }
-      }
-    }
-
-    const maxInstallments = prod.max_installments_interest_free || installmentText;
-
-    const priceTextUrgency = prod.price_from && prod.price_from !== prod.price_to
-      ? `❌ De: ~R$ ${prod.price_from}~\n💵 À vista (Pix, Boleto ou Cartão 1x): *R$ ${prod.price_to}*${discountBadge}\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`
-      : `💵 À vista (Pix, Boleto ou Cartão 1x): *R$ ${prod.price_to}*\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`;
-
-    const priceTextDirect = prod.price_from && prod.price_from !== prod.price_to
-      ? `❌ Estava por: R$ ${prod.price_from}\n✅ Agora por apenas: *R$ ${prod.price_to}* à vista (Pix, Boleto ou Cartão 1x)${discountBadge}\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`
-      : `✅ Por apenas: *R$ ${prod.price_to}* à vista (Pix, Boleto ou Cartão 1x)\n💳 Parcelado: em até *${maxInstallments || '12x sem juros'}*`;
-
-    const priceTextReview = prod.price_from && prod.price_from !== prod.price_to
-      ? `Antes custava R$ ${prod.price_from}, mas comprando à vista (Pix, Boleto ou Cartão 1x) sai por apenas *R$ ${prod.price_to}*!${discountBadge}\nOu se preferir, pode parcelar em até *${maxInstallments || '12x sem juros'}*!`
-      : `Comprando à vista (Pix, Boleto ou Cartão 1x) sai por apenas *R$ ${prod.price_to}*!\nOu parcelado em até *${maxInstallments || '12x sem juros'}*!`;
-
     return [
       {
-        id: 'var_urgency_' + Date.now(),
-        title: '⚡ 1. Urgência & Oferta Relâmpago',
-        copy: `🚨 *OFERTA RELÂMPAGO DO DIA!* 🚨\n\n*${prod.title}*${descLine}\n\n${priceTextUrgency}${couponLine}\n\n⚠️ Preço de oportunidade com estoque limitado!\n\n🛍️ *Compre aqui antes que acabe:* \n${prod.original_link}\n\n*Promoção por tempo limitado!`,
-      },
-      {
-        id: 'var_direct_' + Date.now(),
-        title: '🎯 2. Direta & Foco no Preço',
-        copy: `🔥 *MENOR PREÇO ENCONTRADO!*\n\n*${prod.title}*${descLine}\n\n${priceTextDirect}${couponLine}\n\n🛍️ *Link direto com desconto:*\n${prod.original_link}`,
-      },
-      {
-        id: 'var_review_' + Date.now(),
-        title: '⭐ 3. Indicação & Review Sincero',
-        copy: `Gente, dá uma olhada nesse achado! ⭐⭐⭐⭐⭐\n\n*${prod.title}*${descLine}\n\n${priceTextReview}${couponLine}\n\n📲 *Garanta o seu aqui:* \n${prod.original_link}`,
+        id: 'var_standard_' + Date.now(),
+        title: '📋 Copy Padrão Oficial',
+        copy: formatCopy(prod),
       },
     ];
   };
@@ -268,8 +225,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
           throw new Error(aiData.error || 'Erro desconhecido na geração.');
         }
       } catch (aiErr: any) {
-        console.error('[Auto Gemini Copy Error]', aiErr);
-        setErrorMsg(`⚠️ Produto extraído com sucesso, mas a Inteligência Artificial falhou ao gerar as copies: ${aiErr.message || 'Erro desconhecido'}. Usando as 3 copies padrão locais.`);
+        console.warn('[Auto Gemini Copy Notice] Gemini API indisponível, utilizando modelo oficial padrão:', aiErr.message || aiErr);
       } finally {
         setIsAiGenerating(false);
       }
