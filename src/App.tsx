@@ -14,9 +14,6 @@ import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnap
 // Helper function to resolve the registered redirect URI for Mercado Livre OAuth dynamically
 export const getMlRedirectUri = () => {
   const origin = window.location.origin;
-  if (origin.includes('render.com')) {
-    return 'https://afiliate.onrender.com';
-  }
   if (origin.includes('run.app') || origin.includes('aistudio') || origin.includes('web-preview')) {
     return 'https://ais-dev-5teru3rok43774mjkuxp2x-165140757857.us-east1.run.app/settings';
   }

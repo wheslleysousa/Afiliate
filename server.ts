@@ -138,8 +138,22 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
         }, 
         redirect: "follow" 
       });
-      currentUrl = res.url || currentUrl;
-      html = await res.text();
+
+      if (res.status === 403 || res.status === 401) {
+        console.warn(`[Scraper] Acesso negado (${res.status}) para ${currentUrl}. Tentando proxy AllOrigins...`);
+        const proxyRes = await fetch("https://api.allorigins.win/get?url=" + encodeURIComponent(currentUrl));
+        const proxyData = await proxyRes.json();
+        if (proxyData && proxyData.contents) {
+          html = proxyData.contents;
+          // Note: URL might not resolve through proxy redirects as easily, but we keep currentUrl
+        } else {
+          currentUrl = res.url || currentUrl;
+          html = await res.text();
+        }
+      } else {
+        currentUrl = res.url || currentUrl;
+        html = await res.text();
+      }
 
       const $ = cheerio.load(html);
       
