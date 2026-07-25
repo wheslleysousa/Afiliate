@@ -34,6 +34,52 @@
         "sheinKey": { "type": "string" },
         "geminiApiKey": { "type": "string" }
       }
+    },
+    "products": {
+      "title": "Global Marketplace Products",
+      "description": "Unique product entries shared across all users — deduplicated by platform + platformId",
+      "properties": {
+        "id":            { "type": "string" },
+        "platform":      { "type": "string" },
+        "platformId":    { "type": "string" },
+        "title":         { "type": "string" },
+        "description":   { "type": "string" },
+        "image_url":     { "type": "string" },
+        "pictures":      { "type": "array" },
+        "price_to":      { "type": "string" },
+        "price_from":    { "type": "string" },
+        "installments":  { "type": "string" },
+        "coupon":        { "type": "string" },
+        "shipping":      { "type": "string" },
+        "original_link": { "type": "string" },
+        "miners":        { "type": "array" },
+        "mineCount":     { "type": "number" },
+        "firstMinedAt":  { "type": "string" },
+        "lastMinedAt":   { "type": "string" },
+        "lastUpdatedAt": { "type": "string" }
+      },
+      "required": ["id", "platform", "platformId", "title", "price_to", "original_link"]
+    },
+    "minedProducts": {
+      "title": "User Mined Products (References)",
+      "description": "Per-user references to global marketplace products",
+      "properties": {
+        "productId":  { "type": "string" },
+        "platform":   { "type": "string" },
+        "minedAt":    { "type": "string" },
+        "favorite":   { "type": "boolean" },
+        "status":     { "type": "string" }
+      },
+      "required": ["productId", "platform", "minedAt"]
+    },
+    "dailyStats": {
+      "title": "User Daily Mining Stats",
+      "description": "Daily counter of products mined by the user",
+      "properties": {
+        "date":  { "type": "string" },
+        "count": { "type": "number" }
+      },
+      "required": ["date", "count"]
     }
   }
 }

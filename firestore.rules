@@ -2,6 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Dados privados de cada usuário (chaves, produtos salvos, referências mineiradas, stats)
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
@@ -9,5 +11,19 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
+
+    // Marketplace Global — qualquer usuário autenticado pode ler e criar/atualizar produtos
+    match /products/{productId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+
+      // Histórico de preço — qualquer usuário autenticado pode ler; somente criar (não editar)
+      match /priceHistory/{historyId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if false;
+      }
+    }
   }
 }
+

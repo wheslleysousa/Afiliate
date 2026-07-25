@@ -7,18 +7,29 @@ import { formatCopy } from '../utils/formatCopy';
 import { ProductEditor } from './ProductEditor';
 import { GeminiAiPanel } from './GeminiAiPanel';
 
+import { getDailyMineCount, PLAN_LIMITS } from '../utils/marketplaceUtils';
+
 interface NewProductTabProps {
   onSaveProduct: (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => void;
   savedCount: number;
   apiKeys?: ApiKeysConfig;
   onSaveApiKeys?: (keys: ApiKeysConfig) => void;
+  uid?: string;
 }
 
-export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, savedCount, apiKeys, onSaveApiKeys }) => {
+export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, savedCount, apiKeys, onSaveApiKeys, uid }) => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [dailyCount, setDailyCount] = useState<number | null>(null);
+  const DAILY_LIMIT = PLAN_LIMITS.free;
+
+  useEffect(() => {
+    if (!uid) return;
+    getDailyMineCount(uid).then(setDailyCount).catch(() => {});
+  }, [uid]);
 
   // Extracted product state
   const [extractedProduct, setExtractedProduct] = useState<ProductData | null>(null);
@@ -267,6 +278,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
     if (!extractedProduct) return;
     onSaveProduct(extractedProduct, variations, selectedVariationIndex);
     setIsSaved(true);
+    setDailyCount((prev) => (prev !== null ? prev + 1 : 1));
   };
 
   return (
@@ -285,6 +297,40 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
               Insira o link de produto do Mercado Livre, Shopee, Amazon, AliExpress ou Shein
             </p>
           </div>
+          
+          {/* Widget de cota diária */}
+          {uid && dailyCount !== null && (
+            <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs min-w-[240px] ${
+              dailyCount >= DAILY_LIMIT
+                ? 'bg-red-950/40 border-red-500/30 text-red-400'
+                : dailyCount >= DAILY_LIMIT * 0.8
+                ? 'bg-yellow-950/40 border-yellow-500/30 text-yellow-400'
+                : 'bg-stone-900 border-stone-800 text-stone-400'
+            }`}>
+              <span className="font-medium">
+                {dailyCount >= DAILY_LIMIT
+                  ? '⚠ Limite diário atingido'
+                  : `Minerados hoje: ${dailyCount} / ${DAILY_LIMIT}`}
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="w-24 h-1.5 bg-stone-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dailyCount >= DAILY_LIMIT
+                        ? 'bg-red-500'
+                        : dailyCount >= DAILY_LIMIT * 0.8
+                        ? 'bg-yellow-500'
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min((dailyCount / DAILY_LIMIT) * 100, 100)}%` }}
+                  />
+                </div>
+                <span className="font-bold">
+                  {Math.min(Math.round((dailyCount / DAILY_LIMIT) * 100), 100)}%
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Link Input Form */}

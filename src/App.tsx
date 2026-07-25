@@ -3,13 +3,22 @@ import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
 import { NewProductTab } from './components/NewProductTab';
 import { SavedProductsTab } from './components/SavedProductsTab';
+import { MarketplaceTab } from './components/MarketplaceTab';
+import { MinedProductsTab } from './components/MinedProductsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { ApiDocsModal } from './components/ApiDocsModal';
-import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig } from './types';
+import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef } from './types';
 import { Sparkles, Menu, ShieldCheck, Zap, Loader2 } from 'lucide-react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore';
+import {
+  upsertToMarketplace,
+  incrementDailyMineCount,
+  checkMiningLimit,
+  PLAN_LIMITS,
+  getDailyMineCount,
+} from './utils/marketplaceUtils';
 
 // Helper function to resolve the registered redirect URI for Mercado Livre OAuth dynamically
 export const getMlRedirectUri = () => {
@@ -32,6 +41,8 @@ export default function App() {
 
   // Saved Products State
   const [savedItems, setSavedItems] = useState<SavedHistoryItem[]>([]);
+  const [minedItems, setMinedItems] = useState<MinedProductRef[]>([]);
+  const [dailyMineCount, setDailyMineCount] = useState<number>(0);
 
   // API Keys State
   const [apiKeys, setApiKeys] = useState<ApiKeysConfig>({});
@@ -158,6 +169,19 @@ export default function App() {
           mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
         };
 
+        try {
+          const minedSnap = await getDocs(
+            query(
+              collection(db, 'users', fbUser.uid, 'minedProducts'),
+              orderBy('minedAt', 'desc')
+            )
+          );
+          setMinedItems(minedSnap.docs.map((d) => d.data() as MinedProductRef));
+          getDailyMineCount(fbUser.uid).then(setDailyMineCount).catch(console.error);
+        } catch (e) {
+          console.error('Erro ao carregar minedProducts:', e);
+        }
+
         unsubscribeKeys = onSnapshot(
           doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'),
           (snapshot) => {
@@ -182,9 +206,16 @@ export default function App() {
           }
         );
 
+        const origUnsub = unsubscribeKeys;
+        unsubscribeKeys = () => {
+          origUnsub();
+        };
+
       } else {
         setCurrentUser(null);
         setSavedItems([]);
+        setMinedItems([]);
+        setDailyMineCount(0);
         setApiKeys({});
       }
       setAuthLoading(false);
@@ -214,7 +245,11 @@ export default function App() {
   };
 
   // Handle Save New Product to Firestore & State
-  const handleSaveProduct = async (product: ProductData, variations: GeminiCopyVariation[], selectedIndex: number) => {
+  const handleSaveProduct = async (
+    product: ScrapedProduct,
+    variations: GeminiCopyVariation[],
+    selectedIndex: number
+  ) => {
     const newItem: SavedHistoryItem = {
       id: 'saved_' + Date.now(),
       product,
@@ -226,10 +261,46 @@ export default function App() {
     setSavedItems((prev) => [newItem, ...prev]);
 
     if (currentUser?.id) {
+      // 1. Salvar no histórico pessoal do usuário (comportamento existente)
       try {
         await setDoc(doc(db, 'users', currentUser.id, 'savedProducts', newItem.id), newItem);
       } catch (e) {
         console.error('Erro ao salvar produto no Firestore:', e);
+      }
+
+      // 2. Verificar limite diário antes de inserir no marketplace
+      try {
+        const { allowed, current, limit } = await checkMiningLimit(currentUser.id);
+
+        if (!allowed) {
+          console.warn(`[Marketplace] Limite diário atingido (${current}/${limit}). Produto salvo apenas no histórico pessoal.`);
+          // Não bloqueia o salvamento pessoal — apenas não insere no marketplace
+          return;
+        }
+
+        // 3. Upsert no Marketplace Global
+        const result = await upsertToMarketplace(currentUser.id, product);
+        console.log(
+          `[Marketplace] Produto ${result.isNew ? 'criado' : 'atualizado'} no marketplace. ID: ${result.globalId}` +
+          (result.priceChanged ? ' (preço atualizado)' : '')
+        );
+
+        // 4. Incrementar contador diário
+        await incrementDailyMineCount(currentUser.id);
+        setDailyMineCount((prev) => prev + 1);
+
+        // 5. Recarregar a lista de produtos minerados localmente
+        const minedSnap = await getDocs(
+          query(
+            collection(db, 'users', currentUser.id, 'minedProducts'),
+            orderBy('minedAt', 'desc')
+          )
+        );
+        setMinedItems(minedSnap.docs.map((d) => d.data() as MinedProductRef));
+
+      } catch (e) {
+        // Falha no marketplace NÃO deve bloquear o fluxo principal
+        console.error('[Marketplace] Erro ao sincronizar com marketplace global:', e);
       }
     }
   };
@@ -323,6 +394,9 @@ export default function App() {
         user={currentUser}
         onLogout={handleLogout}
         savedCount={savedItems.length}
+        minedCount={minedItems.length}
+        dailyMineCount={dailyMineCount}
+        dailyMineLimit={PLAN_LIMITS.free}
         isExpanded={isSidebarExpanded}
         setIsExpanded={setIsSidebarExpanded}
         mobileOpen={mobileMenuOpen}
@@ -353,8 +427,10 @@ export default function App() {
               </span>
               <span className="text-xs sm:text-sm font-extrabold text-white">
                 {activeTab === 'new-product' && 'Cadastrar Novo Produto'}
-                {activeTab === 'saved-products' && 'Produtos Cadastrados'}
-                {activeTab === 'settings' && 'Vincular Contas'}
+                {activeTab === 'saved-products' && 'Histórico Pessoal'}
+                {activeTab === 'marketplace' && 'Marketplace Global'}
+                {activeTab === 'my-products' && 'Meus Minerados'}
+                {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
             </div>
@@ -396,6 +472,7 @@ export default function App() {
               savedCount={savedItems.length}
               apiKeys={apiKeys}
               onSaveApiKeys={handleSaveApiKeys}
+              uid={currentUser.id}
             />
           )}
 
@@ -405,6 +482,18 @@ export default function App() {
               onDelete={handleDeleteSavedItem}
               onClearAll={handleClearAllSaved}
               onNavigateToNew={() => setActiveTab('new-product')}
+            />
+          )}
+
+          {activeTab === 'marketplace' && (
+            <MarketplaceTab currentUserId={currentUser?.id} />
+          )}
+
+          {activeTab === 'my-products' && (
+            <MinedProductsTab
+              uid={currentUser?.id || ''}
+              dailyMineCount={dailyMineCount}
+              dailyMineLimit={PLAN_LIMITS.free}
             />
           )}
 

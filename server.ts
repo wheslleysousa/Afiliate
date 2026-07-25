@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import * as cheerio from "cheerio";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
@@ -11,6 +12,22 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Configuração de CORS — aceita frontend React + extensão Chrome + Cloud Run
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || origin.startsWith('chrome-extension://') || origin.includes('localhost') || origin.includes('run.app')) {
+      return callback(null, true);
+    }
+    callback(new Error('CORS não permitido para: ' + origin));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Affiliate-UID'],
+  credentials: true,
+}));
+
+// Responder pre-flight OPTIONS rapidamente
+app.options('*', cors());
 
 // Helper for cleaning prices
 function cleanPrice(val: any): string | null {
@@ -1718,7 +1735,13 @@ function getCandidateGeminiKeys(apiKeys: any): string[] {
 
 // Helper for executing Gemini requests with automatic multi-key rotation and model fallback
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: string, params: any) {
-  const modelsToTry = [primaryModel, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
+  const modelsToTry = [
+    primaryModel,
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash-lite",
+  ];
   const triedModels = new Set<string>();
 
   let lastErr: any = null;
@@ -2254,6 +2277,97 @@ app.post("/api/test-key", async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ success: false, error: "Erro ao testar credenciais: " + (err.message || "") });
   }
+});
+
+// ─── POST /api/extension/bulk-upsert ────────────────────────────────────────
+app.post(['/api/extension/bulk-upsert', '/extension/bulk-upsert'], async (req, res) => {
+  try {
+    const { uid, products } = req.body;
+
+    if (!uid || typeof uid !== 'string') {
+      return res.status(400).json({ error: 'UID do usuário é obrigatório.' });
+    }
+
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: 'Lista de produtos é obrigatória e não pode estar vazia.' });
+    }
+
+    if (products.length > 200) {
+      return res.status(400).json({ error: 'Máximo de 200 produtos por requisição.' });
+    }
+
+    const invalid = products.filter((p) => !p.platform || !p.title || !p.price_to || !p.original_link);
+    if (invalid.length > 0) {
+      return res.status(400).json({
+        error: `${invalid.length} produto(s) inválidos — campos obrigatórios: platform, title, price_to, original_link`,
+      });
+    }
+
+    const sanitized = products.map((p) => ({
+      platform: String(p.platform).toLowerCase(),
+      title: String(p.title).slice(0, 500),
+      price_to: String(p.price_to),
+      price_from: p.price_from ? String(p.price_from) : null,
+      image_url: p.image_url ? String(p.image_url) : null,
+      original_link: String(p.original_link),
+      installments: p.installments ? String(p.installments) : null,
+      coupon: p.coupon ? String(p.coupon) : null,
+      shipping: p.shipping ? String(p.shipping) : null,
+      description: p.description ? String(p.description).slice(0, 2000) : null,
+      pictures: Array.isArray(p.pictures) ? p.pictures.slice(0, 10).map(String) : [],
+    }));
+
+    res.json({
+      success: true,
+      received: sanitized.length,
+      products: sanitized,
+      message: 'Produtos validados. A extensão deve processar o upsert via Firebase SDK.',
+    });
+
+  } catch (err: any) {
+    console.error('[/api/extension/bulk-upsert] Erro:', err);
+    res.status(500).json({ error: 'Erro interno ao processar produtos.' });
+  }
+});
+
+// ─── POST /api/extension/generate-copy ──────────────────────────────────────
+app.post(['/api/extension/generate-copy', '/extension/generate-copy'], async (req, res) => {
+  try {
+    const { uid, product } = req.body;
+
+    if (!uid || !product?.title || !product?.price_to) {
+      return res.status(400).json({ error: 'uid, product.title e product.price_to são obrigatórios.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Use /api/gemini/copy diretamente com os dados do produto.',
+      endpoint: '/api/gemini/copy',
+    });
+
+  } catch (err: any) {
+    console.error('[/api/extension/generate-copy] Erro:', err);
+    res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
+// ─── GET /api/extension/status ───────────────────────────────────────────────
+app.get(['/api/extension/status', '/extension/status'], (req, res) => {
+  res.json({
+    online: true,
+    version: '1.0.0',
+    features: {
+      scrape: true,
+      geminiCopy: true,
+      bulkUpsert: true,
+      marketplace: true,
+    },
+    limits: {
+      bulkUpsertMaxPerRequest: 200,
+      dailyFreeLimit: 100,
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Vite / Production middleware

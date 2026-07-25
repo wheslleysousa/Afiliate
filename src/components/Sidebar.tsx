@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab, UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -8,6 +8,9 @@ interface SidebarProps {
   user: UserProfile;
   onLogout: () => void;
   savedCount: number;
+  minedCount: number;
+  dailyMineCount?: number;
+  dailyMineLimit?: number;
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
   mobileOpen: boolean;
@@ -20,6 +23,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user,
   onLogout,
   savedCount,
+  minedCount,
+  dailyMineCount,
+  dailyMineLimit,
   isExpanded,
   setIsExpanded,
   mobileOpen,
@@ -28,14 +34,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems: { id: AppTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
       id: 'new-product',
-      label: 'Cadastrar Novo Produto',
+      label: 'Novo Produto',
       icon: <PlusCircle className="w-5 h-5 shrink-0 text-emerald-400" />,
     },
     {
       id: 'saved-products',
-      label: 'Produtos Cadastrados',
+      label: 'Histórico Pessoal',
       icon: <ShoppingBag className="w-5 h-5 shrink-0 text-amber-400" />,
       badge: savedCount,
+    },
+    {
+      id: 'marketplace',
+      label: 'Marketplace Global',
+      icon: <Globe className="w-5 h-5 shrink-0 text-violet-400" />,
+    },
+    {
+      id: 'my-products',
+      label: 'Meus Minerados',
+      icon: <PackageCheck className="w-5 h-5 shrink-0 text-sky-400" />,
+      badge: minedCount,
     },
     {
       id: 'settings',
@@ -164,6 +181,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
           </div>
+
+          {(isExpanded || mobileOpen) && dailyMineCount !== undefined && dailyMineLimit !== undefined && (
+            <div className="mt-3 px-1">
+              <div className="flex justify-between text-[10px] font-bold text-stone-500 mb-1.5">
+                <span>Minerados hoje</span>
+                <span className={dailyMineCount >= dailyMineLimit ? 'text-red-400' : 'text-emerald-400'}>
+                  {dailyMineCount}/{dailyMineLimit}
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-stone-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    dailyMineCount >= dailyMineLimit ? 'bg-red-500' : dailyMineCount >= dailyMineLimit * 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min((dailyMineCount / dailyMineLimit) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>

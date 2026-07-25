@@ -25,22 +25,22 @@ export interface ProductData {
   title: string;
   description?: string;
   image_url: string | null;
-  pictures?: string[]; // Array com todas as imagens extraídas do produto
-  video_url?: string | null; // URL do vídeo (se houver, ex: YouTube)
-  videos?: string[]; // Array com todos os vídeos extraídos do produto
-  selectedMediaUrl?: string | null; // URL da mídia selecionada pelo usuário
-  selectedMediaType?: 'image' | 'video' | null; // Tipo de mídia selecionada
+  pictures?: string[];
+  video_url?: string | null;
+  videos?: string[];
+  selectedMediaUrl?: string | null;
+  selectedMediaType?: 'image' | 'video' | null;
   selectedImageIndex?: number;
-  price_to: string; // Preço extraído do produto
-  price_from?: string | null; // Opcional se presente
-  card_price?: string | null; // Preço para parcelamento no cartão
-  installments?: string | null; // Opcional se presente
-  max_installments_interest_free?: string | null; // Máximo de parcelas sem juros
-  coupon: string | null; // Apenas se houver cupom real
+  price_to: string;
+  price_from?: string | null;
+  card_price?: string | null;
+  installments?: string | null;
+  max_installments_interest_free?: string | null;
+  coupon: string | null;
   original_link: string;
   extractedAt?: string;
-  priceUncertain?: boolean; // true quando o backend não confiou no preço extraído
-  shipping?: string | null; // Opcional, ex: "Frete grátis"
+  priceUncertain?: boolean;
+  shipping?: string | null;
 }
 
 export type ScrapedProduct = ProductData;
@@ -67,4 +67,60 @@ export interface SavedHistoryItem {
   createdAt: string;
 }
 
-export type AppTab = "new-product" | "saved-products" | "settings" | "api-docs";
+// ─── Marketplace Global ──────────────────────────────────────────────────────
+
+/** Produto único no Marketplace Global (deduplicado por platform + platformId) */
+export interface GlobalProduct {
+  id: string;              // "{platform}_{platformId}" — ex: "mercadolivre_MLB123456789"
+  platform: string;
+  platformId: string;      // ID nativo do produto na plataforma
+  title: string;
+  description?: string | null;
+  image_url: string | null;
+  pictures?: string[];
+  video_url?: string | null;
+  price_to: string;        // preço atual (Pix/à vista)
+  price_from?: string | null;
+  installments?: string | null;
+  coupon?: string | null;
+  shipping?: string | null;
+  original_link: string;
+  miners: string[];        // UIDs dos usuários que mineraram este produto
+  mineCount: number;
+  firstMinedAt: string;    // ISO timestamp
+  lastMinedAt: string;     // ISO timestamp
+  lastUpdatedAt: string;   // ISO timestamp (última atualização de preço)
+}
+
+/** Entrada no histórico de preço de um produto do marketplace */
+export interface PriceHistoryEntry {
+  id: string;
+  price: string;
+  price_from?: string | null;
+  recordedAt: string;      // ISO timestamp
+}
+
+/** Referência por usuário a um produto do marketplace global */
+export interface MinedProductRef {
+  productId: string;       // = GlobalProduct.id
+  platform: string;
+  minedAt: string;         // ISO timestamp
+  favorite: boolean;
+  status: 'active' | 'archived';
+}
+
+/** Contador diário de produtos minerados por usuário */
+export interface DailyStat {
+  date: string;            // "YYYY-MM-DD"
+  count: number;
+}
+
+// ─── Navegação ───────────────────────────────────────────────────────────────
+
+export type AppTab =
+  | "new-product"
+  | "saved-products"
+  | "marketplace"
+  | "my-products"
+  | "settings"
+  | "api-docs";

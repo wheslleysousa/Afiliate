@@ -137,7 +137,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
           <div>
             <div className="flex items-center gap-1 flex-wrap mb-1.5 text-[11px] text-stone-400">
               <span>Inserir tag:</span>
-              {['{TITLE}', '{PRICE_FROM}', '{PRICE_TO}', '{INSTALLMENTS}', '{COUPON}', '{LINK}', '{DISCOUNT_PERCENT}'].map((tag) => (
+              {['{titulo}', '{preco}', '{precoAntigo}', '{parcelamento}', '{cupom}', '{frete}', '{descricao}', '{linkAfiliado}'].map((tag) => (
                 <button
                   key={tag}
                   type="button"
