@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { ProductData, GlobalProduct, MinedProductRef } from '../types';
+import { cleanAffiliateLink } from './affiliateLink';
 
 // ─── Extrair ID nativo do produto por plataforma ──────────────────────────────
 
@@ -92,7 +93,8 @@ export async function upsertToMarketplace(
   uid: string,
   product: ProductData
 ): Promise<UpsertResult> {
-  const platformId = extractPlatformId(product.platform, product.original_link);
+  const cleanLink = cleanAffiliateLink(product.original_link);
+  const platformId = extractPlatformId(product.platform, cleanLink);
   const globalId = buildGlobalId(product.platform, platformId);
   const now = new Date().toISOString();
 
@@ -120,12 +122,17 @@ export async function upsertToMarketplace(
       installments: product.installments ?? null,
       coupon: product.coupon ?? null,
       shipping: product.shipping ?? null,
-      original_link: product.original_link,
+      original_link: cleanLink,
       miners: [uid],
       mineCount: 1,
       firstMinedAt: now,
       lastMinedAt: now,
       lastUpdatedAt: now,
+      pix_price: product.pix_price ?? null,
+      free_shipping: product.free_shipping ?? false,
+      stars: product.stars ?? null,
+      sales_count: product.sales_count ?? null,
+      discount_pct: product.discount_pct ?? null,
     };
 
     await setDoc(productRef, newGlobalProduct);
@@ -148,6 +155,7 @@ export async function upsertToMarketplace(
       title: product.title,
       image_url: product.image_url,
       price_to: product.price_to,
+      original_link: cleanLink,
       miners: arrayUnion(uid) as any,
       mineCount: increment(1) as any,
     };
@@ -159,6 +167,11 @@ export async function upsertToMarketplace(
     if (product.shipping != null) updates.shipping = product.shipping;
     if (product.pictures?.length) updates.pictures = product.pictures;
     if (product.description) updates.description = product.description;
+    if (product.pix_price != null) updates.pix_price = product.pix_price;
+    if (product.free_shipping != null) updates.free_shipping = product.free_shipping;
+    if (product.stars != null) updates.stars = product.stars;
+    if (product.sales_count != null) updates.sales_count = product.sales_count;
+    if (product.discount_pct != null) updates.discount_pct = product.discount_pct;
 
     await updateDoc(productRef, updates);
 
@@ -231,6 +244,75 @@ export const PLAN_LIMITS = {
   free: 100,
   pro: 500,
 } as const;
+
+// ─── Calculadores de Comissão e Tendência de Vendas ─────────────────────────
+
+export const DEFAULT_COMMISSION_RATES: Record<string, number> = {
+  shopee: 15,
+  mercadolivre: 12,
+  amazon: 10,
+  aliexpress: 9,
+  shein: 14,
+};
+
+export function parsePriceNumber(priceStr?: string | null): number {
+  if (!priceStr) return 0;
+  // Limpar "R$", espaços, e converter vírgula para ponto se necessário
+  let clean = priceStr.replace(/[^\d.,]/g, '').trim();
+  if (clean.includes(',') && clean.includes('.')) {
+    clean = clean.replace(/\./g, '').replace(',', '.');
+  } else if (clean.includes(',')) {
+    clean = clean.replace(',', '.');
+  }
+  const val = parseFloat(clean);
+  return isNaN(val) ? 0 : val;
+}
+
+export function calculateCommission(
+  priceStr: string,
+  platform: string,
+  customRate?: number | null,
+  customAmount?: number | null
+): { amount: number; amountFormatted: string; ratePct: number } {
+  const price = parsePriceNumber(priceStr);
+  
+  if (customAmount && customAmount > 0) {
+    const ratePct = price > 0 ? Math.round((customAmount / price) * 100) : (customRate || 10);
+    return {
+      amount: customAmount,
+      amountFormatted: `+R$ ${customAmount.toFixed(2).replace('.', ',')}`,
+      ratePct,
+    };
+  }
+
+  const ratePct = customRate || DEFAULT_COMMISSION_RATES[platform.toLowerCase()] || 12;
+  const amount = (price * ratePct) / 100;
+  const formatted = `+R$ ${amount.toFixed(2).replace('.', ',')}`;
+
+  return { amount, amountFormatted: formatted, ratePct };
+}
+
+export function calculateSalesTrend(product: GlobalProduct | ProductData): {
+  isUp: boolean;
+  pct: number | null;
+  formatted: string;
+} {
+  if (product.sales_trend_pct != null) {
+    const p = product.sales_trend_pct;
+    const isUp = p >= 0;
+    return {
+      isUp,
+      pct: Math.abs(p),
+      formatted: `${isUp ? '↗' : '↘'} ${isUp ? '+' : '-'}${Math.abs(p)}%`,
+    };
+  }
+
+  return {
+    isUp: true,
+    pct: null,
+    formatted: 'Sem informações suficientes',
+  };
+}
 
 /**
  * Verifica se o usuário ainda tem cota para minerar hoje.

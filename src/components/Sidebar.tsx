@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab, UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2 } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -33,31 +33,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems: { id: AppTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
-      id: 'new-product',
-      label: 'Novo Produto',
-      icon: <PlusCircle className="w-5 h-5 shrink-0 text-emerald-400" />,
-    },
-    {
-      id: 'saved-products',
-      label: 'Histórico Pessoal',
-      icon: <ShoppingBag className="w-5 h-5 shrink-0 text-amber-400" />,
-      badge: savedCount,
-    },
-    {
       id: 'marketplace',
       label: 'Marketplace Global',
-      icon: <Globe className="w-5 h-5 shrink-0 text-violet-400" />,
+      icon: <Globe className="w-5 h-5 shrink-0 text-sky-400" />,
     },
     {
       id: 'my-products',
-      label: 'Meus Minerados',
+      label: 'Meus Produtos',
       icon: <PackageCheck className="w-5 h-5 shrink-0 text-sky-400" />,
       badge: minedCount,
     },
     {
+      id: 'analytics',
+      label: 'Analytics',
+      icon: <BarChart2 className="w-5 h-5 shrink-0 text-sky-400" />,
+    },
+    {
+      id: 'new-product',
+      label: 'Novo Produto',
+      icon: <PlusCircle className="w-5 h-5 shrink-0 text-sky-400" />,
+    },
+    {
       id: 'settings',
       label: 'Configurações',
-      icon: <Settings className="w-5 h-5 shrink-0 text-blue-400" />,
+      icon: <Settings className="w-5 h-5 shrink-0 text-sky-400" />,
     },
   ];
 
@@ -128,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={item.label}
                   className={`w-full p-3 rounded-xl font-semibold text-xs transition-all flex items-center gap-3 relative group ${
                     isActive
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40 shadow-sm'
                       : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800/70 border border-transparent'
                   }`}
                 >

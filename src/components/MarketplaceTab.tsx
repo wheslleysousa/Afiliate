@@ -10,22 +10,49 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { GlobalProduct } from '../types';
+import type { GlobalProduct, ApiKeysConfig } from '../types';
 import { PriceHistoryModal } from './PriceHistoryModal';
+import { ProductDetailModal } from './ProductDetailModal';
+import { Badge, CommissionBadge } from './Badge';
+import { formatPrice } from '../utils/formatPrice';
+import { buildAffiliateLink } from '../utils/affiliateLink';
+import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import {
   Globe,
   Search,
   RefreshCw,
-  ExternalLink,
-  Users,
-  TrendingDown,
   Loader2,
   ChevronDown,
   Tag,
+  Share2,
+  ArrowUpDown,
+  Utensils,
+  Sparkle,
+  Gamepad2,
+  Home,
+  Tv,
+  Shirt,
+  Wrench,
+  HeartPulse,
+  Layers,
+  Check,
+  Copy,
 } from 'lucide-react';
 
 const PLATFORMS = ['mercadolivre', 'shopee', 'amazon', 'aliexpress', 'shein'] as const;
 const PAGE_SIZE = 24;
+
+const CATEGORIES = [
+  { id: '', label: 'Todas as Categorias', icon: Layers },
+  { id: 'Alimentos & Bebidas', label: 'Alimentos & Bebidas', icon: Utensils },
+  { id: 'Beleza', label: 'Beleza', icon: Sparkle },
+  { id: 'Brinquedos & Hobbies', label: 'Brinquedos & Hobbies', icon: Gamepad2 },
+  { id: 'Casa & Cozinha', label: 'Casa & Cozinha', icon: Home },
+  { id: 'Eletrônicos', label: 'Eletrônicos', icon: Tv },
+  { id: 'Moda', label: 'Moda', icon: Shirt },
+  { id: 'Ferramentas', label: 'Ferramentas', icon: Wrench },
+  { id: 'Saúde', label: 'Saúde', icon: HeartPulse },
+];
 
 const platformLabel: Record<string, string> = {
   mercadolivre: 'Mercado Livre',
@@ -36,26 +63,45 @@ const platformLabel: Record<string, string> = {
 };
 
 const platformColor: Record<string, string> = {
-  mercadolivre:  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  shopee:        'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  amazon:        'bg-sky-500/20 text-sky-300 border-sky-500/30',
-  aliexpress:    'bg-red-500/20 text-red-300 border-red-500/30',
-  shein:         'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  mercadolivre: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  shopee:       'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
+  shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
 };
 
 interface MarketplaceTabProps {
   currentUserId?: string;
+  apiKeys?: ApiKeysConfig;
+  sharedMap?: Record<string, number>;
+  onToggleShared?: (productId: string) => void;
+  onUseProduct?: (product: GlobalProduct) => void;
+  onNavigateToSettings?: () => void;
 }
 
-export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({ currentUserId }) => {
+export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
+  currentUserId,
+  apiKeys,
+  sharedMap,
+  onToggleShared,
+  onUseProduct,
+  onNavigateToSettings,
+}) => {
   const [products, setProducts] = useState<GlobalProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  
+  // Filtros & Ordenação
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'commission_amount' | 'commission_rate' | 'trend' | 'price_asc'>('commission_amount');
   const [error, setError] = useState<string | null>(null);
+
+  // Modal de Detalhes / Divulgação do Produto
+  const [selectedProductForModal, setSelectedProductForModal] = useState<GlobalProduct | null>(null);
 
   const fetchProducts = useCallback(async (reset = false) => {
     if (reset) {
@@ -90,7 +136,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({ currentUserId })
       const snap = await getDocs(q);
       const docs = snap.docs.map((d) => d.data() as GlobalProduct);
 
-      setProducts((prev) => reset ? docs : [...prev, ...docs]);
+      setProducts((prev) => (reset ? docs : [...prev, ...docs]));
       setLastDoc(snap.docs[snap.docs.length - 1] ?? null);
       setHasMore(snap.docs.length === PAGE_SIZE);
     } catch (e: any) {
@@ -107,144 +153,251 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({ currentUserId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformFilter]);
 
-  // Filtro de busca local (por título)
-  const visible = search.trim()
-    ? products.filter((p) =>
-        p.title.toLowerCase().includes(search.trim().toLowerCase())
-      )
-    : products;
+  // Filtro de busca local e categoria
+  let filtered = products.filter((p) => {
+    const matchesSearch = !search.trim() || p.title.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesCategory = !categoryFilter || (p.category && p.category.toLowerCase() === categoryFilter.toLowerCase());
 
-  const formatPrice = (price: string) => {
-    if (price.startsWith('R$')) return price;
-    return `R$ ${price}`;
-  };
+    return matchesSearch && matchesCategory;
+  });
+
+  // Ordenar produtos
+  filtered.sort((a, b) => {
+    const commA = calculateCommission(a.price_to, a.platform, a.commission_rate, a.commission_amount);
+    const commB = calculateCommission(b.price_to, b.platform, b.commission_rate, b.commission_amount);
+
+    if (sortBy === 'commission_amount') {
+      return commB.amount - commA.amount;
+    }
+    if (sortBy === 'commission_rate') {
+      return commB.ratePct - commA.ratePct;
+    }
+    if (sortBy === 'trend') {
+      const trendA = calculateSalesTrend(a);
+      const trendB = calculateSalesTrend(b);
+      return trendB.pct - trendA.pct;
+    }
+    if (sortBy === 'price_asc') {
+      const priceA = parseFloat(a.price_to.replace(',', '.')) || 0;
+      const priceB = parseFloat(b.price_to.replace(',', '.')) || 0;
+      return priceA - priceB;
+    }
+    return 0;
+  });
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="flex flex-col gap-5 sm:gap-6">
+      {/* Header com Estatísticas */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black border border-stone-800 p-5 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-400">
+          <div className="p-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400">
             <Globe className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Marketplace Global</h2>
-            <p className="text-xs text-stone-400">{products.length} produto{products.length !== 1 ? 's' : ''} carregado{products.length !== 1 ? 's' : ''}</p>
+            <h2 className="text-lg font-extrabold text-white">Marketplace Global de Afiliados</h2>
+            <p className="text-xs text-stone-400">
+              {filtered.length} produto{filtered.length !== 1 ? 's' : ''} disponível{filtered.length !== 1 ? 'eis' : ''} com comissão estimada em tempo real
+            </p>
           </div>
         </div>
+
         <button
           onClick={() => fetchProducts(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-sm font-medium border border-stone-700 transition-all"
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 text-xs font-semibold border border-stone-700 hover:border-blue-500/50 transition-all shrink-0"
         >
-          <RefreshCw className="w-4 h-4" />
-          Atualizar
+          <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
+          Atualizar Produtos
         </button>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Busca por título */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+      {/* Categorias (Filtro por Categoria) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const isActive = categoryFilter === cat.id;
+          return (
+            <button
+              key={cat.id || 'all'}
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                isActive
+                  ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+                  : 'bg-black text-stone-400 hover:text-stone-100 border-stone-800 hover:border-stone-700'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Controles: Busca, Menu Suspenso de Ordenação e Filtro por Plataforma */}
+      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+        {/* Busca */}
+        <div className="relative sm:col-span-5">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
           <input
             type="text"
-            placeholder="Buscar produto no marketplace..."
+            placeholder="Buscar por produto ou palavra-chave..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-stone-900 border border-stone-700 rounded-xl text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-violet-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-black border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
-        {/* Filtro de plataforma */}
-        <div className="relative">
+        {/* Filtro por Plataforma */}
+        <div className="relative sm:col-span-3">
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="appearance-none pl-3 pr-8 py-2.5 bg-stone-900 border border-stone-700 rounded-xl text-sm text-stone-200 focus:outline-none focus:border-violet-500 transition-colors cursor-pointer"
+            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-black border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
           >
-            <option value="">Todas as plataformas</option>
+            <option value="">Todas as Plataformas</option>
             {PLATFORMS.map((p) => (
               <option key={p} value={p}>
                 {platformLabel[p]}
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500 pointer-events-none" />
+        </div>
+
+        {/* Menu Suspenso de Ordenação */}
+        <div className="relative sm:col-span-4">
+          <select
+            value={sortBy}
+            onChange={(e: any) => setSortBy(e.target.value)}
+            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-black border border-blue-500/40 rounded-xl text-xs sm:text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer bg-blue-950/20"
+          >
+            <option value="commission_amount">Sort: Maior Valor de Comissão (R$)</option>
+            <option value="commission_rate">Sort: Maior Comissão % (%)</option>
+            <option value="trend">Sort: Vendas em Alta ↗</option>
+            <option value="price_asc">Sort: Menor Preço (R$)</option>
+          </select>
+          <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
         </div>
       </div>
 
-      {/* Estado de erro */}
+      {/* Erro */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 text-red-400 text-xs sm:text-sm">
           {error}
         </div>
       )}
 
-      {/* Loading inicial */}
+      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
         </div>
       )}
 
-      {/* Grade de produtos */}
+      {/* Grade de Produtos */}
       {!loading && (
         <>
-          {visible.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-stone-500">
-              <Globe className="w-12 h-12 mb-4 opacity-30" />
-              <p className="text-sm">Nenhum produto encontrado no marketplace.</p>
-              <p className="text-xs mt-1">Salve produtos para que apareçam aqui.</p>
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-stone-500 bg-black rounded-2xl border border-stone-800">
+              <Globe className="w-12 h-12 mb-3 opacity-30 text-blue-500" />
+              <p className="text-sm font-semibold text-stone-300">Nenhum produto encontrado com estes filtros.</p>
+              <p className="text-xs mt-1 text-stone-500">Tente buscar por outro termo ou limpar os filtros.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {visible.map((product) => (
-                <MarketplaceCard key={product.id} product={product} currentUserId={currentUserId} />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {filtered.map((product) => (
+                <MarketplaceCard
+                  key={product.id}
+                  product={product}
+                  currentUserId={currentUserId}
+                  apiKeys={apiKeys}
+                  onOpenDetail={() => setSelectedProductForModal(product)}
+                />
               ))}
             </div>
           )}
 
-          {/* Carregar mais */}
-          {hasMore && !search && (
-            <div className="flex justify-center pt-2">
+          {/* Botão Carregar Mais */}
+          {hasMore && !search && !categoryFilter && (
+            <div className="flex justify-center pt-3">
               <button
                 onClick={() => fetchProducts(false)}
                 disabled={loadingMore}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-sm font-medium border border-stone-700 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-black hover:bg-stone-900 text-stone-200 text-xs font-bold border border-stone-800 hover:border-blue-500/50 transition-all disabled:opacity-50"
               >
                 {loadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
                 ) : (
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-4 h-4 text-blue-400" />
                 )}
-                Carregar mais
+                Carregar mais produtos
               </button>
             </div>
           )}
         </>
       )}
+
+      {/* Modal Completo de Divulgação do Produto */}
+      {selectedProductForModal && (
+        <ProductDetailModal
+          product={selectedProductForModal}
+          apiKeys={apiKeys}
+          sharedMap={sharedMap}
+          onToggleShared={onToggleShared}
+          onClose={() => setSelectedProductForModal(null)}
+          onNavigateToSettings={onNavigateToSettings}
+        />
+      )}
     </div>
   );
 };
 
-// ─── Card do produto no marketplace ─────────────────────────────────────────
+// ─── Card Individual do Produto no Marketplace ─────────────────────────────────
 
 interface MarketplaceCardProps {
   product: GlobalProduct;
   currentUserId?: string;
+  apiKeys?: ApiKeysConfig;
+  onOpenDetail: () => void;
 }
 
-const MarketplaceCard: React.FC<MarketplaceCardProps> = ({ product, currentUserId }) => {
+const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
+  product,
+  currentUserId,
+  apiKeys,
+  onOpenDetail,
+}) => {
   const [imgError, setImgError] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const isMiner = currentUserId ? product.miners.includes(currentUserId) : false;
+  const [copied, setCopied] = useState(false);
 
-  const hasDiscount = product.price_from && product.price_from !== product.price_to;
+  const hasDiscount = !!(product.price_from && product.price_from !== product.price_to);
+
+  // Comissão Estimada
+  const commission = calculateCommission(
+    product.price_to,
+    product.platform,
+    product.commission_rate,
+    product.commission_amount
+  );
+
+  // Tendência de Vendas (Cresceu/Diminuiu)
+  const trend = calculateSalesTrend(product);
+
+  const handleCopyLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const link = buildAffiliateLink(product.original_link, product.platform, apiKeys || {});
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="group flex flex-col bg-stone-900 border border-stone-800 rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all hover:shadow-lg hover:shadow-violet-500/5">
-      {/* Imagem */}
-      <div className="relative aspect-square bg-stone-800 overflow-hidden">
+    <div
+      onClick={onOpenDetail}
+      className="group cursor-pointer flex flex-col bg-black border border-stone-800 hover:border-blue-500/60 rounded-2xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/10 relative"
+    >
+      {/* Imagem do Produto + Badges Integrados */}
+      <div className="relative aspect-square bg-stone-950 overflow-hidden">
         {product.image_url && !imgError ? (
           <img
             src={product.image_url}
@@ -253,75 +406,98 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({ product, currentUserI
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Tag className="w-10 h-10 text-stone-600" />
+          <div className="w-full h-full flex items-center justify-center bg-stone-900 text-stone-700">
+            <Tag className="w-10 h-10" />
           </div>
         )}
 
-        {/* Badge de plataforma */}
-        <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] ?? 'bg-stone-700 text-stone-300 border-stone-600'}`}>
+        {/* Badge da Plataforma (Canto Superior Esquerdo) */}
+        <span className={`absolute top-2 left-2 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md transition-all ${platformColor[product.platform] ?? 'bg-stone-800 text-stone-300'}`}>
           {platformLabel[product.platform] ?? product.platform}
         </span>
 
-        {/* Badge "minerado por mim" */}
-        {isMiner && (
-          <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            ✓ Meu
+        {/* Badge % de Comissão em Destaque Verde/Amarelo no Canto da Imagem */}
+        <div className="absolute bottom-2 right-2 z-10">
+          <Badge variant="green-yellow">
+            <span>+{commission.ratePct}% comissão</span>
+          </Badge>
+        </div>
+
+        {/* Badge de Tendência de Vendas */}
+        {trend.pct !== null && (
+          <span
+            className={`absolute top-2 right-2 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md flex items-center gap-0.5 transition-all ${
+              trend.isUp
+                ? 'bg-emerald-950/90 text-emerald-400 border-emerald-500/40'
+                : 'bg-red-950/90 text-red-400 border-red-500/40'
+            }`}
+          >
+            {trend.formatted}
           </span>
         )}
       </div>
 
-      {/* Informações */}
-      <div className="flex flex-col flex-1 p-3 gap-2">
-        <p className="text-xs text-stone-200 font-medium leading-snug line-clamp-2">
+      {/* Conteúdo do Card */}
+      <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
+        {/* Título do Produto */}
+        <h4 className="text-xs font-semibold text-stone-200 leading-snug line-clamp-2 group-hover:text-blue-400 transition-colors">
           {product.title}
-        </p>
+        </h4>
 
-        {/* Preços */}
-        <div className="mt-auto">
+        {/* Bloco de Preço e Desconto */}
+        <div className="mt-auto flex flex-col gap-0.5">
           {hasDiscount && (
-            <p className="text-[10px] text-stone-500 line-through">
-              R$ {product.price_from}
-            </p>
+            <span className="text-[10px] text-stone-500 line-through">
+              {formatPrice(product.price_from!)}
+            </span>
           )}
-          <p className="text-sm font-bold text-emerald-400">
-            R$ {product.price_to}
-          </p>
-          {product.installments && (
-            <p className="text-[10px] text-stone-400">{product.installments}</p>
-          )}
-        </div>
 
-        {/* Meta: mineradores + botão */}
-        <div className="flex items-center justify-between pt-2 border-t border-stone-800">
-          <div className="flex items-center gap-1 text-stone-500">
-            <Users className="w-3 h-3" />
-            <span className="text-[10px]">{product.mineCount} miner{product.mineCount !== 1 ? 's' : ''}</span>
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-sm sm:text-base font-extrabold text-white">
+              {formatPrice(product.price_to)}
+            </span>
+            {product.discount_pct && (
+              <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                -{product.discount_pct}%
+              </span>
+            )}
           </div>
-          <a
-            href={product.original_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] font-semibold text-violet-400 hover:text-violet-300 transition-colors"
+        </div>
+
+        {/* Componente de Badge nas cores Verde e Amarelo para destacar Porcentagem e Valor Estimado */}
+        <CommissionBadge
+          ratePct={commission.ratePct}
+          amountFormatted={commission.amountFormatted}
+        />
+
+        {/* Botões de Ação */}
+        <div className="flex items-center gap-1.5 mt-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetail();
+            }}
+            className="flex-1 py-2 sm:py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 truncate"
           >
-            Ver produto
-            <ExternalLink className="w-3 h-3" />
-          </a>
+            <Share2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Divulgar</span>
+          </button>
+
+          <button
+            onClick={handleCopyLink}
+            title={copied ? "Link Copiado!" : "Copiar Link de Afiliado"}
+            className="p-2 sm:py-2.5 rounded-xl bg-stone-900 text-stone-300 border border-stone-800 hover:text-white hover:bg-stone-800 hover:border-blue-500/40 transition-all shrink-0"
+          >
+            {copied ? (
+              <Check className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Botão para abrir histórico de preço */}
-      <div className="px-3 pb-3">
-        <button
-          onClick={() => setShowHistory(true)}
-          className="w-full py-1.5 rounded-xl text-[11px] font-semibold text-stone-400 hover:text-violet-300 hover:bg-violet-500/10 border border-stone-800 hover:border-violet-500/30 transition-all flex items-center justify-center gap-1"
-        >
-          <TrendingDown className="w-3 h-3" />
-          Ver histórico de preço
-        </button>
-      </div>
-
-      {/* Modal */}
+      {/* Modal Histórico de Preço individual se necessário */}
       {showHistory && (
         <PriceHistoryModal
           product={product}

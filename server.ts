@@ -2164,6 +2164,164 @@ DADOS DO PRODUTO:
   }
 });
 
+// ─── POST /api/gemini/video-script ───────────────────────────────────────────
+app.post("/api/gemini/video-script", async (req, res) => {
+  const { product, videoType, duration, geminiApiKey, geminiApiKeys } = req.body;
+
+  if (!product || !product.title) {
+    return res.status(400).json({ error: "Dados do produto são obrigatórios." });
+  }
+
+  const candidateKeys: string[] = [];
+  if (geminiApiKey && typeof geminiApiKey === 'string' && geminiApiKey.trim()) {
+    candidateKeys.push(geminiApiKey.trim());
+  }
+  if (Array.isArray(geminiApiKeys)) {
+    for (const k of geminiApiKeys) {
+      if (typeof k === 'string' && k.trim() && !candidateKeys.includes(k.trim())) {
+        candidateKeys.push(k.trim());
+      }
+    }
+  }
+  if (process.env.GEMINI_API_KEY && !candidateKeys.includes(process.env.GEMINI_API_KEY.trim())) {
+    candidateKeys.push(process.env.GEMINI_API_KEY.trim());
+  }
+
+  const durationMap: Record<string, { label: string; chars: number; words: number }> = {
+    '30s': { label: '30 Segundos', chars: 420, words: 70 },
+    '1m': { label: '1 Minuto (140 palavras)', chars: 840, words: 140 },
+    '2m': { label: '2 Minutos (280 palavras)', chars: 1680, words: 280 },
+    '3m': { label: '3 Minutos (420 palavras)', chars: 2520, words: 420 },
+  };
+
+  const durInfo = durationMap[duration] || durationMap['1m'];
+
+  const typeMap: Record<string, string> = {
+    achadinho: 'Achadinho Viral / Descoberta Impressionante (Foco em curiosidade e efeito UAU)',
+    review: 'Review Honesto / UGC em Primeira Pessoa (Mostrando uso real do produto e satisfação)',
+    problema_solucao: 'Problema vs. Solução (Identifica uma dor comum do público e apresenta o produto como salvador)',
+    top_motivos: 'Top Motivos para Comprar Agora (Listagem dinâmica de 3 a 5 benefícios imbatíveis)',
+    oferta_urgencia: 'Oferta Relâmpago / Urgência Total (Foco em desconto surreal e poucas unidades)',
+  };
+
+  const typeDesc = typeMap[videoType] || typeMap['achadinho'];
+
+  const prompt = `Você é um roteirista profissional de vídeos virais para TikTok, Instagram Reels e YouTube Shorts focado em conversão de afiliados.
+Crie um ROTEIRO COMPLETO de vídeo no formato vertical (9:16).
+
+PRODUTO:
+- Título: ${product.title}
+- Preço Atual: R$ ${product.price_to}
+- Preço Anterior: ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
+- Cupom: ${product.coupon || 'Sem cupom extra'}
+- Plataforma: ${product.platform}
+
+ESTILO DO VÍDEO: ${typeDesc}
+DURAÇÃO ALVO: ${durInfo.label}
+METRAGEM DE PALAVRAS: Aproximadamente ${durInfo.words} palavras (${durInfo.chars} caracteres, respeitando a métrica de ~140 palavras por minuto).
+
+ESTRUTURA DO ROTEIRO:
+1. HOOK / GANCHO (Primeiros 3 segundos): Frase impactante para prender a atenção e parar o scroll.
+2. CENA A CENA (Divisão por cenas com indicação visual de câmera/edição e narração em áudio):
+   - Cenas visuais (o que aparece na tela / na gravação)
+   - Narração (fala exata do narrador/criador)
+3. CHAMADA PARA AÇÃO (CTA): Instruções claras para clicar no link da bio ou comentar 'EU QUERO' para receber o link.
+
+Responda em formato JSON válido e bem estruturado.`;
+
+  try {
+    const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              hook: { type: Type.STRING },
+              targetDuration: { type: Type.STRING },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    sceneNumber: { type: Type.INTEGER },
+                    timeRange: { type: Type.STRING },
+                    visualPrompt: { type: Type.STRING },
+                    narration: { type: Type.STRING }
+                  },
+                  required: ["sceneNumber", "timeRange", "visualPrompt", "narration"]
+                }
+              },
+              cta: { type: Type.STRING },
+              fullScriptText: { type: Type.STRING }
+            },
+            required: ["title", "hook", "scenes", "cta", "fullScriptText"]
+          },
+          temperature: 0.5
+        }
+      });
+    });
+
+    if (response.text) {
+      try {
+        const parsed = JSON.parse(response.text.trim());
+        return res.json(parsed);
+      } catch (e) {
+        console.error("Erro ao fazer parse do JSON do roteiro:", e);
+      }
+    }
+  } catch (err: any) {
+    console.error("Erro na chamada Gemini do Roteiro:", err);
+  }
+
+  // Fallback local robusto caso Gemini esteja indisponível
+  const scenesCount = duration === '30s' ? 3 : duration === '2m' ? 6 : duration === '3m' ? 8 : 4;
+  const scenes = [];
+  
+  scenes.push({
+    sceneNumber: 1,
+    timeRange: "00:00 - 00:03",
+    visualPrompt: `🎥 [GANCHO VIRAL] Mostre o produto (${product.title.slice(0, 30)}) de perto em ângulo dinâmico com zoom rápido. Textão chamativo na tela.`,
+    narration: `Para tudo que você tá fazendo! Se você não sabia que precisava desse ${product.title.slice(0, 30)}, você tá perdendo tempo!`
+  });
+
+  scenes.push({
+    sceneNumber: 2,
+    timeRange: "00:03 - 00:15",
+    visualPrompt: `📱 Mostre o produto em uso prático, detalhando acabamento e qualidade.`,
+    narration: `Olha a qualidade disso! Além de super prático, tá saindo por apenas R$ ${product.price_to}.`
+  });
+
+  if (scenesCount >= 4) {
+    scenes.push({
+      sceneNumber: 3,
+      timeRange: "00:15 - 00:40",
+      visualPrompt: `⚡️ Mostre o cupom ${product.coupon || 'secreto'} e destaque a economia em comparação com lojas físicas.`,
+      narration: `Na loja oficial tá bem mais caro, mas nesse link que eu achei você garante com super desconto e frete rápido!`
+    });
+  }
+
+  scenes.push({
+    sceneNumber: scenesCount,
+    timeRange: duration === '30s' ? "00:25 - 00:30" : "00:50 - 01:00",
+    visualPrompt: `👉 Aponta para a bio ou digite 'EU QUERO' nos comentários para o bot te enviar o link no direct!`,
+    narration: `Comente "EU QUERO" aqui nos comentários ou clica no link do meu perfil antes que acabe o estoque!`
+  });
+
+  const fullText = scenes.map(s => `[Cena ${s.sceneNumber} | ${s.timeRange}]\n🎬 VISUAL: ${s.visualPrompt}\n🎙️ FALA: "${s.narration}"`).join('\n\n');
+
+  return res.json({
+    title: `Roteiro: ${product.title.slice(0, 40)} (${durInfo.label})`,
+    hook: scenes[0].narration,
+    targetDuration: durInfo.label,
+    scenes,
+    cta: `Comente "EU QUERO" ou clique no link da Bio!`,
+    fullScriptText: fullText
+  });
+});
+
 // Endpoint to test and validate API keys before saving
 app.post("/api/test-key", async (req, res) => {
   try {

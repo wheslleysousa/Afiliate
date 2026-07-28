@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Afiliate</title>
+    <script>
+      (function() {
+        try {
+          var origFetch = window.fetch;
+          var desc = Object.getOwnPropertyDescriptor(window, 'fetch') || 
+                     (window.Window && Object.getOwnPropertyDescriptor(window.Window.prototype, 'fetch'));
+          if (!desc || !desc.set || !desc.writable) {
+            var _currentFetch = origFetch;
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return _currentFetch; },
+              set: function(v) { _currentFetch = v; },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {
+          console.warn('fetch setter polyfill warning:', e);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

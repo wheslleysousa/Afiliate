@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
 import { NewProductTab } from './components/NewProductTab';
 import { SavedProductsTab } from './components/SavedProductsTab';
 import { MarketplaceTab } from './components/MarketplaceTab';
 import { MinedProductsTab } from './components/MinedProductsTab';
+import { AnalyticsTab } from './components/AnalyticsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { ApiDocsModal } from './components/ApiDocsModal';
-import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef } from './types';
-import { Sparkles, Menu, ShieldCheck, Zap, Loader2 } from 'lucide-react';
+import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
+import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct } from './types';
+import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck } from 'lucide-react';
+import firebaseConfigJson from '../firebase-applet-config.json';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -19,6 +23,19 @@ import {
   PLAN_LIMITS,
   getDailyMineCount,
 } from './utils/marketplaceUtils';
+import {
+  getSharedProductsMap,
+  toggleProductShared,
+  markProductAsShared,
+} from './utils/sharingLogUtils';
+import {
+  AlarmSettings,
+  getAlarmSettings,
+  saveAlarmSettings,
+  shouldTriggerAlarm,
+  playAlarmSound,
+  sendBrowserNotification,
+} from './utils/alarmUtils';
 
 // Helper function to resolve the registered redirect URI for Mercado Livre OAuth dynamically
 export const getMlRedirectUri = () => {
@@ -46,6 +63,61 @@ export default function App() {
 
   // API Keys State
   const [apiKeys, setApiKeys] = useState<ApiKeysConfig>({});
+
+  // Shared Products 24h State
+  const [sharedMap, setSharedMap] = useState<Record<string, number>>(() => getSharedProductsMap());
+
+  // Alarm & Lembretes State
+  const [alarmSettings, setAlarmSettings] = useState<AlarmSettings>(() => getAlarmSettings());
+  const [showAlarmModal, setShowAlarmModal] = useState<boolean>(false);
+
+  // Selected product to copy state
+  const [selectedProductForCopy, setSelectedProductForCopy] = useState<GlobalProduct | null>(null);
+
+  // Alternar Status de Divulgação 24h
+  const handleToggleSharedProduct = (productId: string) => {
+    const res = toggleProductShared(productId);
+    setSharedMap(res.newMap);
+  };
+
+  // Salvar Configurações de Alarme
+  const handleSaveAlarmSettings = (updated: AlarmSettings) => {
+    setAlarmSettings(updated);
+    saveAlarmSettings(updated);
+  };
+
+  // Ações de confirmação do Alarme
+  const handleAlarmAction = (navigateToMarketplace: boolean) => {
+    const now = Date.now();
+    const updated = { ...alarmSettings, lastTriggeredAt: now };
+    setAlarmSettings(updated);
+    saveAlarmSettings(updated);
+    setShowAlarmModal(false);
+    if (navigateToMarketplace) {
+      setActiveTab('marketplace');
+    }
+  };
+
+  // Loop em segundo plano para verificar disparo do alarme de divulgação
+  useEffect(() => {
+    const checkAlarmLoop = () => {
+      if (shouldTriggerAlarm(alarmSettings)) {
+        setShowAlarmModal(true);
+        if (alarmSettings.soundEnabled) {
+          playAlarmSound();
+        }
+        sendBrowserNotification(
+          '⏰ HORA DE DIVULGAR NOVO PRODUTO!',
+          `Lembrete programado de ${alarmSettings.intervalMinutes} minutos! Abra o app para divulgar uma oferta.`
+        );
+      }
+    };
+
+    // Verificar imediatamente e a cada 10 segundos
+    checkAlarmLoop();
+    const timer = setInterval(checkAlarmLoop, 10000);
+    return () => clearInterval(timer);
+  }, [alarmSettings]);
 
   // OAuth State
   const [oauthExchanging, setOauthExchanging] = useState(false);
@@ -372,20 +444,34 @@ export default function App() {
   // Loading indicator while checking Firebase Auth status
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 text-stone-100 space-y-3">
-        <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-        <p className="text-xs text-stone-400 font-medium">Carregando dados do Firebase...</p>
-      </div>
+      <ThemeProvider>
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white space-y-3">
+          <div className="p-3 rounded-2xl bg-blue-600/15 border border-blue-500/30 shadow-lg shadow-blue-600/10">
+            <Loader2 className="w-7 h-7 text-blue-400 animate-spin" />
+          </div>
+          <p className="text-xs font-bold text-stone-200 tracking-wider uppercase">Carregando dados</p>
+        </div>
+      </ThemeProvider>
     );
   }
 
+  const handleUseProduct = (product: GlobalProduct) => {
+    setSelectedProductForCopy(product);
+    setActiveTab('new-product');
+  };
+
   // If user is not logged in, show Auth Screen
   if (!currentUser) {
-    return <AuthModal onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <ThemeProvider>
+        <AuthModal onLoginSuccess={handleLoginSuccess} />
+      </ThemeProvider>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 font-sans selection:bg-emerald-500 selection:text-stone-950 flex flex-col md:flex-row">
+    <ThemeProvider>
+      <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-600 selection:text-white flex flex-col md:flex-row">
       
       {/* Left Collapsible Sidebar Navigation */}
       <Sidebar
@@ -426,10 +512,10 @@ export default function App() {
                 Painel do Afiliado /
               </span>
               <span className="text-xs sm:text-sm font-extrabold text-white">
-                {activeTab === 'new-product' && 'Cadastrar Novo Produto'}
-                {activeTab === 'saved-products' && 'Histórico Pessoal'}
+                {activeTab === 'new-product' && 'Novo Produto'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
-                {activeTab === 'my-products' && 'Meus Minerados'}
+                {activeTab === 'my-products' && 'Meus Produtos'}
+                {activeTab === 'analytics' && 'Analytics de Afiliado'}
                 {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
@@ -437,6 +523,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Daily Mine Counter Badge */}
+            <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+              dailyMineCount >= PLAN_LIMITS.free
+                ? 'bg-red-500/15 border-red-500/30 text-red-400 font-semibold'
+                : 'bg-stone-800 border-stone-700 text-stone-300 font-medium'
+            }`}>
+              <PackageCheck className="w-3.5 h-3.5 text-stone-400" />
+              <span>{dailyMineCount}/{PLAN_LIMITS.free} hoje</span>
+            </div>
+
             <div className="hidden sm:flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-full border border-stone-800 text-xs text-stone-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="font-semibold">{currentUser.name}</span>
@@ -473,6 +569,7 @@ export default function App() {
               apiKeys={apiKeys}
               onSaveApiKeys={handleSaveApiKeys}
               uid={currentUser.id}
+              selectedProductForCopy={selectedProductForCopy}
             />
           )}
 
@@ -486,7 +583,14 @@ export default function App() {
           )}
 
           {activeTab === 'marketplace' && (
-            <MarketplaceTab currentUserId={currentUser?.id} />
+            <MarketplaceTab
+              currentUserId={currentUser?.id}
+              apiKeys={apiKeys}
+              sharedMap={sharedMap}
+              onToggleShared={handleToggleSharedProduct}
+              onUseProduct={handleUseProduct}
+              onNavigateToSettings={() => setActiveTab('settings')}
+            />
           )}
 
           {activeTab === 'my-products' && (
@@ -494,13 +598,23 @@ export default function App() {
               uid={currentUser?.id || ''}
               dailyMineCount={dailyMineCount}
               dailyMineLimit={PLAN_LIMITS.free}
+              apiKeys={apiKeys}
+              sharedMap={sharedMap}
+              onToggleShared={handleToggleSharedProduct}
+              onUseProduct={handleUseProduct}
             />
+          )}
+
+          {activeTab === 'analytics' && (
+            <AnalyticsTab uid={currentUser?.id || ''} />
           )}
 
           {activeTab === 'settings' && (
             <SettingsTab
               user={currentUser}
               apiKeys={apiKeys}
+              alarmSettings={alarmSettings}
+              onSaveAlarmSettings={handleSaveAlarmSettings}
               onSaveApiKeys={handleSaveApiKeys}
               onUpdateProfile={handleUpdateProfile}
             />
@@ -509,22 +623,31 @@ export default function App() {
           {activeTab === 'api-docs' && <ApiDocsModal />}
         </main>
 
+        {/* Modal de Alarme / Lembrete de Divulgação */}
+        {showAlarmModal && (
+          <DisclosureAlarmModal
+            alarmSettings={alarmSettings}
+            onAcknowledge={() => handleAlarmAction(true)}
+            onSnooze={() => handleAlarmAction(false)}
+          />
+        )}
+
         {/* Footer */}
         <footer className="border-t border-stone-900 bg-stone-950 py-5 text-center text-xs text-stone-500 mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-emerald-500" />
-              <span className="font-semibold text-stone-300">afiliate v2.0</span>
-              <span>— Suporte a Mercado Livre, Shopee, Amazon, AliExpress e Shein</span>
+              <span className="font-bold text-stone-300">Afiliate</span>
+              <span>— Todos os direitos reservados</span>
             </div>
-            <div className="flex items-center gap-2 text-emerald-500 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Conectado ao Firebase Firestore (ytdark-2026)</span>
+            <div className="flex items-center gap-2 text-stone-400 font-medium text-xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Conectado ao Firebase Firestore ({firebaseConfigJson.projectId})</span>
             </div>
           </div>
         </footer>
 
       </div>
     </div>
-  );
+  </ThemeProvider>
+);
 }

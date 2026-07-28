@@ -17,6 +17,13 @@ export interface ApiKeysConfig {
   sheinKey?: string;
   geminiApiKey?: string;
   geminiApiKeys?: string[];
+
+  // NOVOS — IDs de afiliado por plataforma:
+  mercadolivreTrackingId?: string;   // ML: ?tracking_id=XXX
+  amazonAssociatesTag?: string;       // Amazon: ?tag=XXX
+  shopeeTrackingId?: string;          // Shopee: ?smtt=XXX
+  aliexpressAffiliateId?: string;     // AliExpress: ?aff_id=XXX
+  sheinAffiliateToken?: string;       // Shein: ?url_from=XXX
 }
 
 export interface ProductData {
@@ -37,10 +44,23 @@ export interface ProductData {
   installments?: string | null;
   max_installments_interest_free?: string | null;
   coupon: string | null;
+  coupon_text?: string | null;
   original_link: string;
+  affiliate_link?: string;
   extractedAt?: string;
   priceUncertain?: boolean;
   shipping?: string | null;
+
+  // NOVOS CAMPOS:
+  pix_price?: string | null;          // Preço específico no PIX (pode diferir do price_to)
+  free_shipping?: boolean;            // true = frete grátis confirmado
+  stars?: string | null;              // Avaliação média (ex: "4.8")
+  sales_count?: string | null;        // Número de vendas (ex: "1.2k", "500")
+  discount_pct?: number | null;       // % de desconto calculado
+  category?: string | null;           // Categoria do produto
+  commission_rate?: number | null;    // Taxa de comissão em % (ex: 15)
+  commission_amount?: number | null;  // Valor estimado da comissão em R$
+  sales_trend_pct?: number | null;    // Tendência de crescimento de vendas últimos 7 dias (+25, -10)
 }
 
 export type ScrapedProduct = ProductData;
@@ -90,6 +110,17 @@ export interface GlobalProduct {
   firstMinedAt: string;    // ISO timestamp
   lastMinedAt: string;     // ISO timestamp
   lastUpdatedAt: string;   // ISO timestamp (última atualização de preço)
+
+  // NOVOS CAMPOS:
+  pix_price?: string | null;
+  free_shipping?: boolean;
+  stars?: string | null;
+  sales_count?: string | null;
+  discount_pct?: number | null;
+  category?: string | null;
+  commission_rate?: number | null;
+  commission_amount?: number | null;
+  sales_trend_pct?: number | null;
 }
 
 /** Entrada no histórico de preço de um produto do marketplace */
@@ -122,5 +153,6 @@ export type AppTab =
   | "saved-products"
   | "marketplace"
   | "my-products"
+  | "analytics"
   | "settings"
   | "api-docs";

@@ -164,6 +164,66 @@ Link na bio! 🔗
 Corre que pode acabar! ⏰`,
   },
   {
+    id: 'whatsapp-pix-focus',
+    name: '💸 WhatsApp — Foco no PIX',
+    category: 'urgency',
+    description: 'Destaca o desconto via PIX com urgência',
+    template: `💸 *PAGANDO NO PIX É AINDA MAIS BARATO!*
+
+*{titulo}*
+
+💳 No cartão: ~~{precoAntigo}~~
+⚡ *PIX: {precoPix}* {desconto}
+
+{parcelamento}
+{cupom}
+{frete}
+
+🛒 Garanta agora: {linkAfiliado}
+
+⏰ _Promoção por tempo limitado!_`,
+  },
+  {
+    id: 'telegram-channel-v2',
+    name: '✈️ Canal Telegram — Completo',
+    category: 'group',
+    description: 'Template rico para canais de oferta no Telegram',
+    template: `🔥 **OFERTA DO DIA**
+
+📦 **{titulo}**
+
+{estrelas} {vendas}
+
+💰 ~~De {precoAntigo}~~
+⚡ **Por: {preco}** {desconto}
+{parcelamento}
+{cupom}
+{frete}
+
+🛒 [👆 CLIQUE AQUI PARA COMPRAR]({linkAfiliado})
+
+_Preços válidos enquanto durar o estoque_`,
+  },
+  {
+    id: 'review-style',
+    name: '⭐ Estilo Review',
+    category: 'review',
+    description: 'Tom de quem testou e recomenda o produto',
+    template: `✅ *Acabei de testar e recomendo!*
+
+*{titulo}*
+
+Tá com um preço INCRÍVEL: {preco}
+{desconto}
+{parcelamento}
+{cupom}
+{frete}
+
+Sem arrependimento, vale muito a pena!
+
+🔗 {linkAfiliado}`,
+  },
+  {
     id: 'minimalista',
     name: '✨ Minimalista',
     category: 'minimalist',
@@ -176,23 +236,46 @@ Corre que pode acabar! ⏰`,
 ];
 
 export function applyTemplate(template: string, product: ProductData, affiliateLink: string): string {
-  let lines = template
-    .replace("{precoAntigo ? `De ~~${precoAntigo}~~ por` : 'Por'}", product.price_from ? `De ~~${product.price_from}~~ por` : 'Por')
-    .replace("{precoAntigo ? `De R$ ${precoAntigo} por` : ''}", product.price_from ? `De R$ ${product.price_from} por` : '');
+  let text = template;
 
-  lines = lines
-    .replace(/{titulo}/g, product.title || '')
-    .replace(/{preco}/g, product.price_to || '')
-    .replace(/{precoAntigo}/g, product.price_from ?? '')
-    .replace(/{parcelamento}/g, product.installments ?? '')
-    .replace(/{cupom}/g, product.coupon ? `🎟 Cupom: ${product.coupon}` : '')
-    .replace(/{frete}/g, product.shipping ?? 'Consulte o frete')
-    .replace(/{descricao}/g, product.description ?? '')
-    .replace(/{linkAfiliado}/g, affiliateLink || product.original_link || '');
+  // Calcular % de desconto se não vier do produto
+  const discountPct = product.discount_pct ??
+    (() => {
+      try {
+        const from = parseFloat((product.price_from || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+        const to   = parseFloat((product.price_to  || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+        if (from > 0 && to > 0 && from > to) return Math.round((1 - to / from) * 100);
+      } catch { /**/ }
+      return null;
+    })();
 
-  // Remover linhas que ficaram completamente vazias após substituição
-  return lines
+  const replacements: Record<string, string> = {
+    '{titulo}':        product.title || '',
+    '{preco}':         product.price_to || '',
+    '{precoPix}':      product.pix_price || product.price_to || '',
+    '{precoCartao}':   product.price_to || '',
+    '{precoAntigo}':   product.price_from || '',
+    '{desconto}':      discountPct ? `-${discountPct}%` : '',
+    '{parcelamento}':  product.installments || '',
+    '{cupom}':         product.coupon ? `🎟 Cupom: ${product.coupon}` : (product.coupon_text ? `🎟 Cupom: ${product.coupon_text}` : ''),
+    '{frete}':         product.free_shipping ? '🚚 Frete GRÁTIS' : (product.shipping || 'Frete a calcular'),
+    '{descricao}':     (product.description || '').slice(0, 200),
+    '{linkAfiliado}':  affiliateLink || product.original_link || '',
+    '{plataforma}':    product.platform || '',
+    '{estrelas}':      product.stars ? `⭐ ${product.stars}` : '',
+    '{vendas}':        product.sales_count ? `📦 ${product.sales_count} vendas` : '',
+  };
+
+  // Substituir variáveis simples
+  for (const [key, val] of Object.entries(replacements)) {
+    text = text.replaceAll(key, val);
+  }
+
+  // Remover linhas vazias geradas por variáveis ausentes
+  text = text
     .split('\n')
-    .filter((line) => line.trim() !== '')
+    .filter(line => line.trim() !== '')
     .join('\n');
+
+  return text;
 }

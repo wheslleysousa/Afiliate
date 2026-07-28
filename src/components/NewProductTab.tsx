@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ProductData, GeminiCopyVariation, ApiKeysConfig } from '../types';
+import { ProductData, GeminiCopyVariation, ApiKeysConfig, GlobalProduct } from '../types';
 import { Link2, Sparkles, Loader2, Copy, Check, Share2, Save, ShoppingBag, Tag, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Wand2, Eye, TrendingDown } from 'lucide-react';
 import { getPlatformLabel } from '../utils/platformLabel';
 import { calculateDiscountPercent } from '../utils/copyHelper';
@@ -15,9 +15,17 @@ interface NewProductTabProps {
   apiKeys?: ApiKeysConfig;
   onSaveApiKeys?: (keys: ApiKeysConfig) => void;
   uid?: string;
+  selectedProductForCopy?: GlobalProduct | null;
 }
 
-export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, savedCount, apiKeys, onSaveApiKeys, uid }) => {
+export const NewProductTab: React.FC<NewProductTabProps> = ({
+  onSaveProduct,
+  savedCount,
+  apiKeys,
+  onSaveApiKeys,
+  uid,
+  selectedProductForCopy,
+}) => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -30,6 +38,42 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
     if (!uid) return;
     getDailyMineCount(uid).then(setDailyCount).catch(() => {});
   }, [uid]);
+
+  // Load selected product from Mined or Marketplace
+  useEffect(() => {
+    if (!selectedProductForCopy) return;
+
+    const prod: ProductData = {
+      id: selectedProductForCopy.id,
+      platform: selectedProductForCopy.platform,
+      title: selectedProductForCopy.title,
+      description: selectedProductForCopy.description || '',
+      image_url: selectedProductForCopy.image_url || null,
+      pictures: selectedProductForCopy.pictures || (selectedProductForCopy.image_url ? [selectedProductForCopy.image_url] : []),
+      video_url: selectedProductForCopy.video_url || null,
+      videos: selectedProductForCopy.videos || (selectedProductForCopy.video_url ? [selectedProductForCopy.video_url] : []),
+      original_link: selectedProductForCopy.original_link,
+      price_from: selectedProductForCopy.price_from || null,
+      price_to: selectedProductForCopy.price_to || '',
+      discount_pct: selectedProductForCopy.discount_pct || null,
+      pix_price: selectedProductForCopy.pix_price || null,
+      free_shipping: selectedProductForCopy.free_shipping || false,
+      installments: selectedProductForCopy.installments || null,
+      coupon: selectedProductForCopy.coupon_text || null,
+      coupon_text: selectedProductForCopy.coupon_text || null,
+      stars: selectedProductForCopy.stars || null,
+      sales_count: selectedProductForCopy.sales_count || null,
+      affiliate_link: selectedProductForCopy.original_link,
+    };
+
+    setExtractedProduct(prod);
+    setUrlInput(selectedProductForCopy.original_link);
+    const localVars = generateVariationsForProduct(prod);
+    setVariations(localVars);
+    setSelectedVariationIndex(0);
+    setEditedCopyText(localVars[0]?.copy || '');
+    setIsSaved(false);
+  }, [selectedProductForCopy]);
 
   // Extracted product state
   const [extractedProduct, setExtractedProduct] = useState<ProductData | null>(null);
@@ -292,7 +336,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
               <Sparkles className="w-3.5 h-3.5" />
               <span>Extrator Automático de Afiliados</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">Cadastrar Novo Produto</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-white">Pesquisar Produto por Link</h2>
             <p className="text-xs text-stone-400">
               Insira o link de produto do Mercado Livre, Shopee, Amazon, AliExpress ou Shein
             </p>
@@ -360,7 +404,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({ onSaveProduct, sav
             ) : (
               <>
                 <Wand2 className="w-4 h-4" />
-                <span>Extrair & Gerar Copies</span>
+                <span>Pesquisar Produto</span>
               </>
             )}
           </button>
