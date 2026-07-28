@@ -29,7 +29,9 @@ import {
   Award,
   RotateCcw,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  Ticket
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -70,6 +72,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   const [imgError, setImgError] = useState(false);
 
@@ -272,8 +275,8 @@ ${affiliateLink}
                   {product.title || 'Produto sem título'}
                 </h2>
                 
-                {/* Meta badges: Avaliação e Vendas */}
-                <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-stone-400">
+                {/* Meta badges: Avaliação, Vendas, Frete e Cupom */}
+                <div className="flex items-center gap-2 mt-2 flex-wrap text-xs text-stone-400">
                   <span className="flex items-center gap-1 text-amber-400 font-semibold bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
                     <Star className="w-3.5 h-3.5 fill-amber-400" />
                     {product.stars ? product.stars : '—'}
@@ -291,15 +294,43 @@ ${affiliateLink}
                       📦 {product.shipping}
                     </span>
                   ) : null}
+                  {product.coupon && (
+                    <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-md font-bold text-[11px] shadow-sm">
+                      <Ticket className="w-3.5 h-3.5 text-amber-400" />
+                      Cupom: {product.coupon}
+                    </span>
+                  )}
                 </div>
+
+                {/* Seção Descrição do Produto */}
+                {product.description && (
+                  <div className="mt-3 p-3 rounded-xl bg-stone-900 border border-stone-800 text-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-blue-400" />
+                      Descrição do Produto
+                    </span>
+                    <p className={`text-stone-300 leading-relaxed whitespace-pre-line ${!showFullDescription ? 'line-clamp-3' : ''}`}>
+                      {product.description}
+                    </p>
+                    {product.description.length > 100 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowFullDescription(!showFullDescription)}
+                        className="text-[11px] font-semibold text-blue-400 hover:underline mt-1 focus:outline-none"
+                      >
+                        {showFullDescription ? 'ver menos' : 'ver mais'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Bloco de Preço & Comissão Estimada */}
               <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-stone-900 border border-stone-800">
                 {/* Preço do produto */}
-                <div className="flex flex-col">
+                <div className="flex flex-col justify-center">
                   <span className="text-[10px] text-stone-400 font-medium">Preço ao Consumidor</span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
                     <span className="text-lg font-extrabold text-white">
                       {formatPrice(product.price_to)}
                     </span>
@@ -309,8 +340,14 @@ ${affiliateLink}
                       </span>
                     )}
                   </div>
+                  {/* Preço à Vista no Pix (Destaque Verde) */}
+                  {product.pix_price && product.pix_price !== product.price_to && (
+                    <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs w-fit">
+                      <span>⚡ À vista no Pix: {formatPrice(product.pix_price)}</span>
+                    </div>
+                  )}
                   {product.installments && (
-                    <span className="text-[10px] text-stone-400 mt-0.5">{product.installments}</span>
+                    <span className="text-[10px] text-stone-400 mt-1 block">💳 {product.installments}</span>
                   )}
                 </div>
 

@@ -1,7 +1,8 @@
 import React from 'react';
-import { PackageCheck, Tag, DollarSign, CreditCard, Ticket, Image as ImageIcon, ExternalLink, FileText, Truck } from 'lucide-react';
+import { PackageCheck, Tag, DollarSign, CreditCard, Ticket, Image as ImageIcon, ExternalLink, FileText, Truck, Star, ShoppingBag, CheckCircle2 } from 'lucide-react';
 import { ScrapedProduct } from '../types';
 import { getPlatformInfo, calculateDiscountPercent } from '../utils/copyHelper';
+import { formatPrice } from '../utils/formatPrice';
 
 interface ProductEditorProps {
   product: ScrapedProduct;
@@ -224,25 +225,25 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
         {/* Product Fields (Read-Only Elegant Dashboard) */}
         <div className="md:col-span-7 space-y-4">
           {/* Title Card */}
-          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 shadow-sm">
-            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-emerald-500" />
+          <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-4 shadow-sm">
+            <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-blue-400" />
               Título do Produto Extraído
             </span>
-            <h3 className="text-sm font-bold text-stone-100 leading-relaxed">
+            <h3 className="text-sm font-bold text-white leading-relaxed">
               {product.title}
             </h3>
           </div>
 
           {/* Description Card */}
-          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 shadow-sm">
-            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+          <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-4 shadow-sm">
+            <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider block mb-1 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-blue-400" />
               Descrição Completa / Detalhes
             </span>
-            <div className="text-xs text-stone-300 max-h-40 overflow-y-auto pr-1 scrollbar-thin leading-relaxed space-y-1 whitespace-pre-line">
+            <div className="text-xs text-[#eef2f9] max-h-40 overflow-y-auto pr-1 scrollbar-thin leading-relaxed space-y-1 whitespace-pre-line">
               {product.description ? product.description : (
-                <span className="text-stone-600 italic">Nenhuma descrição disponível</span>
+                <span className="text-[#93a0b5] italic">Nenhuma descrição disponível</span>
               )}
             </div>
           </div>
@@ -251,63 +252,88 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Price To (Pix / À Vista) */}
             <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5 shadow-sm">
-              <span className="text-[10px] text-emerald-400/80 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
                 <DollarSign className="w-3 h-3 text-emerald-400" />
                 Preço À Vista (Pix / 1x)
               </span>
               <p className="text-xl font-black text-emerald-400">
-                R$ {product.price_to}
+                {formatPrice(product.pix_price || product.price_to)}
               </p>
-              {discountPercent && (
+              {(product.discount_pct || discountPercent) ? (
                 <span className="text-[10px] font-bold text-red-400 block mt-0.5">
-                  🔥 Economia de {discountPercent}% OFF
+                  🔥 Economia de {product.discount_pct || discountPercent}% OFF
                 </span>
-              )}
+              ) : null}
             </div>
 
             {/* Price From (Original / Crossed Out) */}
-            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3.5 shadow-sm">
-              <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
-                <DollarSign className="w-3 h-3 text-stone-500" />
+            <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3.5 shadow-sm">
+              <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-[#93a0b5]" />
                 Preço Original (Antes)
               </span>
-              <p className="text-lg font-bold text-stone-400 line-through">
-                {product.price_from ? `R$ ${product.price_from}` : "Não identificado"}
+              <p className="text-lg font-bold text-[#93a0b5] line-through">
+                {product.price_from ? formatPrice(product.price_from) : "Não identificado"}
               </p>
             </div>
           </div>
 
+          {/* Social Proof & Metrics (Stars & Sales) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Rating / Estrelas */}
+            <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                Avaliação (Estrelas)
+              </span>
+              <span className="text-xs font-bold text-amber-400">
+                {product.stars ? `⭐ ${product.stars}` : "Sem informações"}
+              </span>
+            </div>
+
+            {/* Sales Count / Vendas */}
+            <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <ShoppingBag className="w-3.5 h-3.5 text-blue-400" />
+                Nº de Vendas / Avaliações
+              </span>
+              <span className="text-xs font-bold text-[#eef2f9]">
+                {product.sales_count ? product.sales_count : "Sem informações"}
+              </span>
+            </div>
+          </div>
+
           {/* Installments & Payment Options */}
-          <div className="bg-stone-950 border border-stone-850 rounded-xl p-4 space-y-3 shadow-sm">
-            <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-sky-400" />
+          <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-4 space-y-3 shadow-sm">
+            <span className="text-[10px] text-[#93a0b5] font-bold uppercase tracking-wider block mb-0.5 flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-blue-400" />
               Opções de Parcelamento Extraídas
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Total Parcelado / Card Price */}
               <div>
-                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                <span className="text-[10px] text-[#93a0b5] font-medium block mb-0.5">
                   Total Parcelado no Cartão
                 </span>
-                <p className="text-sm font-semibold text-stone-200">
-                  {product.card_price ? `R$ ${product.card_price}` : (product.price_to ? `R$ ${product.price_to}` : "Não informado")}
+                <p className="text-sm font-semibold text-[#eef2f9]">
+                  {product.card_price ? formatPrice(product.card_price) : (product.price_to ? formatPrice(product.price_to) : "Não informado")}
                 </p>
               </div>
 
               {/* Installments info */}
               <div>
-                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                <span className="text-[10px] text-[#93a0b5] font-medium block mb-0.5">
                   Plano de Parcelas
                 </span>
-                <p className="text-sm font-semibold text-sky-400">
+                <p className="text-sm font-semibold text-blue-400">
                   {product.installments ? product.installments : "Apenas à vista"}
                 </p>
               </div>
 
               {/* Max Installments Interest Free */}
               <div>
-                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                <span className="text-[10px] text-[#93a0b5] font-medium block mb-0.5">
                   Parcelas Sem Juros
                 </span>
                 <p className="text-sm font-bold text-emerald-400">
@@ -317,7 +343,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
 
               {/* Coupon banner */}
               <div>
-                <span className="text-[10px] text-stone-400 font-medium block mb-0.5">
+                <span className="text-[10px] text-[#93a0b5] font-medium block mb-0.5">
                   Cupom de Desconto Ativo
                 </span>
                 {product.coupon ? (
@@ -326,7 +352,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
                     {product.coupon}
                   </span>
                 ) : (
-                  <p className="text-sm font-semibold text-stone-500 italic">Nenhum cupom detectado</p>
+                  <p className="text-sm font-semibold text-[#93a0b5] italic">Nenhum cupom detectado</p>
                 )}
               </div>
             </div>
@@ -334,18 +360,24 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
 
           {/* Shipping & Delivery */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3 shadow-sm flex items-center justify-between">
+            <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4 text-blue-400" />
-                <span className="text-xs text-stone-400 font-medium">Frete</span>
+                <span className="text-xs text-[#93a0b5] font-medium">Frete</span>
               </div>
-              <span className="text-xs font-semibold text-stone-200">
-                {product.shipping || "Consulte no link"}
+              <span className="text-xs font-semibold text-[#eef2f9]">
+                {product.free_shipping ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    <CheckCircle2 className="w-3 h-3" /> Frete Grátis
+                  </span>
+                ) : (
+                  product.shipping || "Consulte no link"
+                )}
               </span>
             </div>
 
-            <div className="bg-stone-950 border border-stone-850 rounded-xl p-3 shadow-sm flex items-center justify-between">
-              <span className="text-xs text-stone-400 font-medium flex items-center gap-2">
+            <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3 shadow-sm flex items-center justify-between">
+              <span className="text-xs text-[#93a0b5] font-medium flex items-center gap-2">
                 <ExternalLink className="w-4 h-4 text-emerald-400" />
                 Link do Produto
               </span>

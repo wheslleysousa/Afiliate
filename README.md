@@ -112,6 +112,20 @@ npm run dev
 4. Adicione a variável de ambiente:
    - `VITE_API_URL` = `https://seu-backend.onrender.com`
 
+### Deploy das Regras e Índices do Firebase (Firestore)
+Para implantar as regras de segurança e os índices compostos no projeto Firebase CLI:
+
+```bash
+# Implantar apenas os índices compostos (necessário para a aba Marketplace Global)
+firebase deploy --only firestore:indexes
+
+# Implantar apenas as regras de segurança do Firestore
+firebase deploy --only firestore:rules
+
+# Implantar ambos
+firebase deploy --only firestore
+```
+
 ---
 
 ## 🔑 Variáveis de Ambiente

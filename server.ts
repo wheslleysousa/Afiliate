@@ -61,6 +61,214 @@ function cleanPrice(val: any): string | null {
   return null;
 }
 
+// Helper to extract stars rating (e.g. "4.8")
+function extractStars($: any, html: string, jsonLd: any = null, apiData: any = null): string | null {
+  if (apiData) {
+    if (typeof apiData.rating_average === 'number') return apiData.rating_average.toFixed(1);
+    if (typeof apiData.reviews?.rating_average === 'number') return apiData.reviews.rating_average.toFixed(1);
+    if (typeof apiData.item_rating?.rating_star === 'number') return apiData.item_rating.rating_star.toFixed(1);
+    if (typeof apiData.rating_star === 'number') return apiData.rating_star.toFixed(1);
+    if (typeof apiData.eVAL_RATING === 'number') return apiData.eVAL_RATING.toFixed(1);
+    if (typeof apiData.averageStar === 'number') return apiData.averageStar.toFixed(1);
+  }
+
+  if (jsonLd) {
+    const agg = jsonLd.aggregateRating || (Array.isArray(jsonLd['@graph']) ? jsonLd['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
+    if (agg?.ratingValue) {
+      const val = parseFloat(String(agg.ratingValue).replace(',', '.'));
+      if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+    }
+  }
+
+  if ($) {
+    const selectors = [
+      '.ui-pdp-review__rating',
+      '.ui-pdp-reviews__rating__summary__average',
+      '.product-rating-overview__rating-score',
+      '#acrPopover .a-size-base',
+      '.overview-rating-average',
+      '.product-intro__head-reviews-rank',
+      '.rank-num',
+      'meta[itemprop="ratingValue"]'
+    ];
+    for (const sel of selectors) {
+      const txt = $(sel).first().attr('content') || $(sel).first().text().trim();
+      if (txt) {
+        const match = txt.match(/([345][\.,]\d|[12345](?:[\.,]\d)?)/);
+        if (match) {
+          const val = parseFloat(match[1].replace(',', '.'));
+          if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+        }
+      }
+    }
+  }
+
+  if (html) {
+    const ratingMatch = html.match(/(?:ratingValue|rating_score|rating_star|ratingAverage|rating|nota|classificação)["']?\s*[:=]\s*["']?([345][\.,]\d|[12345])/i) ||
+                        html.match(/(?:aria-label|title)=["'][^"']*\b([345][\.,]\d)\s*(?:de\s*5|estrelas|stars|\/5)/i);
+    if (ratingMatch && ratingMatch[1]) {
+      const val = parseFloat(ratingMatch[1].replace(',', '.'));
+      if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+    }
+  }
+
+  return null;
+}
+
+// Helper to extract sales count or review count (e.g. "1.2k", "500", "500+ vendidos", "120 avaliações")
+function extractSalesCount($: any, html: string, jsonLd: any = null, apiData: any = null): string | null {
+  if (apiData) {
+    if (apiData.sold_quantity) return `+${apiData.sold_quantity} vendidos`;
+    if (apiData.historical_sold) return apiData.historical_sold >= 1000 ? `${(apiData.historical_sold / 1000).toFixed(1)}k vendidos` : `${apiData.historical_sold} vendidos`;
+    if (apiData.sold) return `${apiData.sold} vendidos`;
+    if (apiData.tradeCount) return `${apiData.tradeCount} vendidos`;
+  }
+
+  if (jsonLd) {
+    const agg = jsonLd.aggregateRating || (Array.isArray(jsonLd['@graph']) ? jsonLd['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
+    if (agg?.reviewCount || agg?.ratingCount) {
+      const count = agg.reviewCount || agg.ratingCount;
+      return `${count} avaliações`;
+    }
+  }
+
+  if ($) {
+    const selectors = [
+      '.ui-pdp-subtitle',
+      '#acrCustomerReviewText',
+      '#social-proofing-faceout-title-text',
+      '.product-reviewer-sold',
+      '.product-intro__head-reviews-num',
+      '[class*="sold"]',
+      '[class*="review-count"]'
+    ];
+    for (const sel of selectors) {
+      const txt = $(sel).first().text().replace(/\s+/g, ' ').trim();
+      if (txt) {
+        const match = txt.match(/(\+?\d+(?:[\.,]\d+)?\s*[kKmM]?\+?\s*(?:vendidos|comprados|vendas|pedidos|avaliações|avaliacoes|reviews))/i) ||
+                      txt.match(/(\d+(?:[\.,]\d+)?\s*avaliações)/i);
+        if (match) return match[1].trim();
+        if (txt.length < 35 && (txt.toLowerCase().includes('vendid') || txt.toLowerCase().includes('comprad') || txt.toLowerCase().includes('avaliaç'))) {
+          return txt;
+        }
+      }
+    }
+  }
+
+  if (html) {
+    const regexMatch = html.match(/(?:sold_quantity|historical_sold|sales_count|total_sold|sold_count)["']?\s*[:=]\s*["']?(\d+)/i) ||
+                       html.match(/(\+?\d+(?:[\.,]\d+)?\s*[kKmM]?\s*(?:vendidos|comprados|vendas|pedidos|avaliações|avaliacoes))/i);
+    if (regexMatch && regexMatch[1]) {
+      const raw = regexMatch[1].trim();
+      if (/^\d+$/.test(raw)) return `+${raw} vendidos`;
+      return raw;
+    }
+  }
+
+  return null;
+}
+
+// Helper to extract coupon text from Shopee, AliExpress, Shein, ML, Amazon
+function extractCouponText($: any, html: string, apiData: any = null): string | null {
+  if (apiData) {
+    if (typeof apiData.coupon === 'string' && apiData.coupon.trim()) return apiData.coupon.trim();
+    if (Array.isArray(apiData.vouchers) && apiData.vouchers[0]?.voucher_code) return apiData.vouchers[0].voucher_code;
+    if (Array.isArray(apiData.coupons) && apiData.coupons[0]?.code) return apiData.coupons[0].code;
+  }
+
+  if ($) {
+    const couponSelectors = [
+      '.ui-pdp-promotions-pill__label',
+      '.ui-pdp-vouchers__label',
+      '#couponBadge span',
+      '.vpc-coupon-badge',
+      '[class*="voucher"]',
+      '[class*="coupon"]',
+      '[class*="cupom"]'
+    ];
+    for (const sel of couponSelectors) {
+      const txt = $(sel).first().text().replace(/\s+/g, ' ').trim();
+      if (txt && txt.length < 100 && (
+        txt.toLowerCase().includes("cupom") ||
+        txt.toLowerCase().includes("voucher") ||
+        txt.toLowerCase().includes("coupon") ||
+        txt.toLowerCase().includes("off") ||
+        txt.toLowerCase().includes("desconto")
+      )) {
+        return txt;
+      }
+    }
+  }
+
+  if (html) {
+    const couponMatch = html.match(/(?:cupom|voucher|coupon)\s*[:=]?\s*["']?([A-Z0-9_\-]{3,20}|\d+%\s*OFF|R\$\s*\d+\s*OFF)/i) ||
+                        html.match(/(?:cupom de|voucher de|usar cupom)\s*[:=]?\s*["']?([^"'<>\n]{3,30})/i);
+    if (couponMatch && couponMatch[1]) {
+      return couponMatch[1].trim();
+    }
+  }
+
+  return null;
+}
+
+// Helper to check if free shipping is available
+function checkFreeShipping(shippingText: string | null | undefined, html: string = ""): boolean {
+  if (shippingText) {
+    const lower = shippingText.toLowerCase();
+    if (lower.includes("frete grátis") || lower.includes("frete gratis") || lower.includes("envio grátis") || lower.includes("envio gratis") || lower.includes("free shipping")) {
+      return true;
+    }
+  }
+  if (html) {
+    const htmlLower = html.toLowerCase();
+    return htmlLower.includes("frete grátis") || htmlLower.includes("frete gratis") || htmlLower.includes("envio grátis");
+  }
+  return false;
+}
+
+// Helper to extract Pix price
+function extractPixPrice($: any, html: string, priceTo: string | null = null): string | null {
+  if ($) {
+    const pixSelectors = [
+      '[data-feature-name="pixPrice"]',
+      '#price-pix',
+      '.pix-price',
+      '[class*="pix-price"]',
+      '[class*="price-pix"]'
+    ];
+    for (const sel of pixSelectors) {
+      const txt = $(sel).first().text().trim();
+      if (txt) {
+        const cleaned = cleanPrice(txt);
+        if (cleaned) return cleaned;
+      }
+    }
+  }
+
+  if (html) {
+    const pixMatch = html.match(/(?:pix|à\s*vista\s*no\s*pix|no\s*pix)\s*[:=]?\s*(?:R\$\s*)?([\d\.]+(?:,\d{2})?)/i) ||
+                     html.match(/R\$\s*([\d\.]+(?:,\d{2})?)\s*(?:no\s*pix|à\s*vista\s*no\s*pix|com\s*pix)/i);
+    if (pixMatch && pixMatch[1]) {
+      const cleaned = cleanPrice(pixMatch[1]);
+      if (cleaned) return cleaned;
+    }
+  }
+
+  return null;
+}
+
+// Helper to calculate discount percentage
+function calculateDiscountPct(priceFrom: string | null | undefined, priceTo: string | null | undefined): number | null {
+  if (!priceFrom || !priceTo) return null;
+  const numFrom = parseFloat(String(priceFrom).replace(/\./g, "").replace(",", "."));
+  const numTo = parseFloat(String(priceTo).replace(/\./g, "").replace(",", "."));
+  if (!isNaN(numFrom) && !isNaN(numTo) && numFrom > numTo && numFrom > 0) {
+    const pct = Math.round(((numFrom - numTo) / numFrom) * 100);
+    return pct > 0 ? pct : null;
+  }
+  return null;
+}
+
 // Detect Platform
 function detectPlatform(url: string): string {
   const urlLower = url.toLowerCase();
@@ -1117,6 +1325,11 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     const mergedVideos = Array.from(finalVideosSet);
     const mergedVideoUrl = mergedVideos[0] || null;
 
+    const stars = extractStars($, html, null, apiData);
+    const sales_count = extractSalesCount($, html, null, apiData);
+    const free_shipping = checkFreeShipping(mergedShipping, html);
+    const pix_price = extractPixPrice($, html, mergedPriceTo);
+
     return {
       title: mergedTitle,
       description: mergedDescription,
@@ -1131,6 +1344,10 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
       max_installments_interest_free: mergedMaxInstallments,
       coupon: mergedCoupon,
       shipping: mergedShipping,
+      stars,
+      sales_count,
+      free_shipping,
+      pix_price,
       ml_auth_error: (mergedPriceTo && mergedPriceTo !== "Consulte no link" && mergedTitle) ? false : ml_auth_error,
       updated_ml_keys
     };
@@ -1324,6 +1541,12 @@ async function scrapeShopee(url: string, shopeeKey?: string) {
       }
     }
 
+    const stars = extractStars($, html, null, apiData);
+    const sales_count = extractSalesCount($, html, null, apiData);
+    const coupon = extractCouponText($, html, apiData);
+    const free_shipping = checkFreeShipping(null, html);
+    const pix_price = extractPixPrice($, html, price_to);
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 500).trim() : null,
@@ -1335,7 +1558,11 @@ async function scrapeShopee(url: string, shopeeKey?: string) {
       price_to,
       installments,
       max_installments_interest_free,
-      coupon: null
+      coupon,
+      stars,
+      sales_count,
+      free_shipping,
+      pix_price
     };
   } catch (err: any) {
     console.error("[Shopee Scraper Error]", err);
@@ -1456,6 +1683,12 @@ async function scrapeAmazon(url: string, amazonKey?: string) {
       }
     }
 
+    const stars = extractStars($, html, null, null);
+    const sales_count = extractSalesCount($, html, null, null);
+    const free_shipping = checkFreeShipping(null, html);
+    const pix_price = extractPixPrice($, html, price_to);
+    const finalCoupon = coupon || extractCouponText($, html, null);
+
     return {
       title,
       description: description ? description.slice(0, 300).trim() : null,
@@ -1464,7 +1697,11 @@ async function scrapeAmazon(url: string, amazonKey?: string) {
       price_to: price_to || "Consulte no link",
       installments,
       max_installments_interest_free,
-      coupon: coupon || null
+      coupon: finalCoupon,
+      stars,
+      sales_count,
+      free_shipping,
+      pix_price
     };
   } catch (err: any) {
     console.error("[Amazon Scraper Error]", err);
@@ -1540,15 +1777,26 @@ async function scrapeAliExpress(url: string, aliExpressKey?: string) {
       }
     }
 
+    const price_to = cleanPrice(priceRaw) || "Consulte no link";
+    const stars = extractStars($, html, null, null);
+    const sales_count = extractSalesCount($, html, null, null);
+    const coupon = extractCouponText($, html, null);
+    const free_shipping = checkFreeShipping(null, html);
+    const pix_price = extractPixPrice($, html, price_to);
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 300).trim() : null,
       image_url: img,
       price_from: null,
-      price_to: cleanPrice(priceRaw) || "Consulte no link",
+      price_to,
       installments,
       max_installments_interest_free,
-      coupon: null
+      coupon,
+      stars,
+      sales_count,
+      free_shipping,
+      pix_price
     };
   } catch (err: any) {
     console.error("[AliExpress Scraper Error]", err);
@@ -1597,15 +1845,26 @@ async function scrapeShein(url: string, sheinKey?: string) {
       }
     }
 
+    const price_to = cleanPrice(price_to_raw) || "Consulte no link";
+    const stars = extractStars($, html, null, null);
+    const sales_count = extractSalesCount($, html, null, null);
+    const coupon = extractCouponText($, html, null);
+    const free_shipping = checkFreeShipping(null, html);
+    const pix_price = extractPixPrice($, html, price_to);
+
     return {
       title: finalTitle,
       description: description ? description.slice(0, 300).trim() : null,
       image_url,
       price_from: cleanPrice(price_from_raw),
-      price_to: cleanPrice(price_to_raw) || "Consulte no link",
+      price_to,
       installments,
       max_installments_interest_free,
-      coupon: null
+      coupon,
+      stars,
+      sales_count,
+      free_shipping,
+      pix_price
     };
   } catch (err: any) {
     console.error("[Shein Scraper Error]", err);
@@ -1961,6 +2220,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
     // Preferimos avisar o usuário a entregar um valor errado que vira copy publicada.
     const numericPrice = data.price_to ? parseFloat(String(data.price_to).replace(/\./g, "").replace(",", ".")) : NaN;
     const priceIsPlausible = !isNaN(numericPrice) && numericPrice > 0.5 && numericPrice < 500000;
+    const discount_pct = calculateDiscountPct(data.price_from, priceIsPlausible ? data.price_to : null);
 
     return res.json({
       platform,
@@ -1979,6 +2239,13 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       max_installments_interest_free: data.max_installments_interest_free || null,
       coupon: data.coupon || null,
       shipping: data.shipping || null,
+      stars: data.stars || null,
+      sales_count: data.sales_count || null,
+      free_shipping: data.free_shipping !== undefined 
+        ? Boolean(data.free_shipping) 
+        : (data.shipping ? (data.shipping.toLowerCase().includes('grátis') || data.shipping.toLowerCase().includes('gratis')) : false),
+      pix_price: data.pix_price || null,
+      discount_pct: data.discount_pct ?? discount_pct,
       original_link: finalLink,
       updated_ml_keys: data.updated_ml_keys || null
     });

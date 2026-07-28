@@ -637,6 +637,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
   isDeleting,
 }) => {
   const [imgError, setImgError] = useState(false);
+  const [showDesc, setShowDesc] = useState(false);
   const p = item.productData;
   const isArchived = item.status === 'archived';
 
@@ -760,6 +761,38 @@ const MinedCard: React.FC<MinedCardProps> = ({
           {p.title || 'Produto sem título'}
         </h4>
 
+        {/* Descrição do Produto com Ver mais / ver menos */}
+        {p.description && (
+          <div className="text-[11px] text-[#93a0b5] bg-[#07090f] p-2 rounded-lg border border-[#1e2636]/80 space-y-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 block">
+              Descrição
+            </span>
+            <p className={`leading-relaxed whitespace-pre-line ${!showDesc ? 'line-clamp-2' : ''}`}>
+              {p.description}
+            </p>
+            {p.description.length > 70 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDesc(!showDesc);
+                }}
+                className="text-[10px] font-bold text-blue-400 hover:underline block mt-0.5 focus:outline-none"
+              >
+                {showDesc ? 'ver menos' : 'ver mais'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Cupom Badge */}
+        {p.coupon && (
+          <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md w-fit">
+            <span>🎟️</span>
+            <span className="truncate">Cupom: {p.coupon}</span>
+          </div>
+        )}
+
         {/* Bloco de Preço */}
         <div className="mt-auto flex flex-col gap-0.5">
           {p.price_from && p.price_from !== p.price_to && (
@@ -778,6 +811,20 @@ const MinedCard: React.FC<MinedCardProps> = ({
               </span>
             )}
           </div>
+
+          {/* Preço à vista no Pix (Destaque Verde) */}
+          {p.pix_price && p.pix_price !== p.price_to && (
+            <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md w-fit">
+              <span>⚡ Pix: {formatPrice(p.pix_price)}</span>
+            </div>
+          )}
+
+          {/* Parcelamento */}
+          {p.installments && (
+            <span className="text-[10px] text-[#93a0b5] truncate mt-0.5">
+              💳 {p.installments}
+            </span>
+          )}
         </div>
 
         {/* Botões de Ação Empilhados (Divulgar e Marcar/Desfazer como enviado) */}
