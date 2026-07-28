@@ -144,11 +144,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 sm:p-6 text-stone-100 relative overflow-hidden selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#07090f] flex items-center justify-center p-4 sm:p-6 text-[#eef2f9] relative overflow-hidden selection:bg-blue-600 selection:text-white">
       {/* Ambient background glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-stone-950 border border-stone-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-md">
+      <div className="w-full max-w-md bg-[#0e1119] border border-[#1e2636] rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-md">
         
         {/* Header Branding */}
         <div className="text-center space-y-2 mb-6">

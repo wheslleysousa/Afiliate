@@ -64,7 +64,7 @@ const platformLabel: Record<string, string> = {
 const platformColor: Record<string, string> = {
   mercadolivre: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   shopee:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  amazon:       'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
   shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
 };
@@ -207,7 +207,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   // Filtrar localmente
   const visible = items.filter((item) => {
     const matchSearch = search.trim()
-      ? item.productData?.title.toLowerCase().includes(search.trim().toLowerCase())
+      ? (item.productData?.title || '').toLowerCase().includes(search.trim().toLowerCase())
       : true;
 
     const matchPlatform = platformFilter === 'all' || item.platform === platformFilter;
@@ -239,21 +239,21 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-900 border border-stone-800 p-5 rounded-2xl shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400">
+          <div className="p-2.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400">
             <PackageCheck className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-white">Meus Produtos Minerados</h2>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-[#93a0b5]">
               Sua lista exclusiva de produtos. Controle a divulgação de 24h, adicione a favoritos e organize suas copies.
             </p>
           </div>
         </div>
         <button
           onClick={handleRefresh}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold border border-stone-700 transition-all shrink-0"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-bold border border-[#1e2636] transition-all shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Atualizar
@@ -267,7 +267,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             ? 'bg-red-950/40 border-red-500/30 text-red-400'
             : dailyMineCount >= dailyMineLimit * 0.8
             ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
-            : 'bg-stone-900 border-stone-800 text-stone-400'
+            : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
         }`}>
           <span className="font-medium">
             {dailyMineCount >= dailyMineLimit
@@ -275,7 +275,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
               : `Minerados hoje: ${dailyMineCount} / ${dailyMineLimit}`}
           </span>
           <div className="flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-stone-700 rounded-full overflow-hidden">
+            <div className="w-24 h-1.5 bg-[#151a26] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
                   dailyMineCount >= dailyMineLimit
@@ -295,13 +295,13 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       )}
 
       {/* Filtros de Status & Anti-Duplicação 24h */}
-      <div className="flex items-center gap-2 p-1.5 bg-stone-950 border border-stone-800 rounded-2xl overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-2 p-1.5 bg-[#07090f] border border-[#1e2636] rounded-2xl overflow-x-auto scrollbar-none">
         <button
           onClick={() => setFilter('ready_24h')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             filter === 'ready_24h'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
@@ -313,7 +313,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             filter === 'shared_24h'
               ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'
-              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
           }`}
         >
           <Clock className="w-3.5 h-3.5 text-amber-300" />
@@ -324,8 +324,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           onClick={() => setFilter('all')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             filter === 'all'
-              ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
-              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
@@ -337,7 +337,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             filter === 'favorites'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
           }`}
         >
           <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
@@ -348,8 +348,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           onClick={() => setFilter('archived')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             filter === 'archived'
-              ? 'bg-stone-800 text-white border border-stone-700'
-              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900'
+              ? 'bg-[#151a26] text-white border border-[#1e2636]'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
           }`}
         >
           <Archive className="w-3.5 h-3.5" />
@@ -360,20 +360,20 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       {/* Controles de Busca e Plataforma */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5]" />
           <input
             type="text"
             placeholder="Buscar por título em Meus Produtos..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-sky-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
         <select
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
-          className="w-full sm:w-52 px-3 py-2.5 bg-stone-900 border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-200 font-semibold focus:outline-none focus:border-sky-500"
+          className="w-full sm:w-52 px-3 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] font-semibold focus:outline-none focus:border-blue-500"
         >
           <option value="all">Todas as Plataformas</option>
           <option value="mercadolivre">Mercado Livre</option>
@@ -642,13 +642,13 @@ const MinedCard: React.FC<MinedCardProps> = ({
 
   if (!p) {
     return (
-      <div className="flex flex-col bg-stone-900/50 border border-stone-800 rounded-2xl overflow-hidden opacity-50 p-3 gap-2">
-        <div className="aspect-square bg-stone-800 flex items-center justify-center rounded-xl">
-          <AlertCircle className="w-10 h-10 text-stone-600" />
+      <div className="flex flex-col bg-[#0e1119]/50 border border-[#1e2636] rounded-2xl overflow-hidden opacity-50 p-3 gap-2">
+        <div className="aspect-square bg-[#151a26] flex items-center justify-center rounded-xl">
+          <AlertCircle className="w-10 h-10 text-[#93a0b5]" />
         </div>
-        <p className="text-xs text-stone-500 font-medium">Produto indisponível</p>
+        <p className="text-xs text-[#93a0b5] font-medium">Produto indisponível</p>
         <div className="flex items-center gap-2 mt-auto">
-          <button onClick={onToggleArchive} className="text-[10px] text-sky-400 hover:underline">
+          <button onClick={onToggleArchive} className="text-[10px] text-blue-400 hover:underline">
             {isArchived ? 'Restaurar' : 'Arquivar'}
           </button>
           <button onClick={onDelete} disabled={isDeleting} className="text-[10px] text-red-400 hover:underline">
@@ -666,14 +666,14 @@ const MinedCard: React.FC<MinedCardProps> = ({
       onClick={() => onOpenDetail && onOpenDetail(p)}
       className={`group cursor-pointer flex flex-col border rounded-2xl overflow-hidden transition-all hover:shadow-xl relative ${
         sharedStatus.isShared
-          ? 'border-amber-500/30 bg-stone-950/90 grayscale-[25%] opacity-80'
+          ? 'border-amber-500/30 bg-[#0e1119]/90 grayscale-[25%] opacity-80'
           : isArchived
-          ? 'border-stone-800 opacity-60 bg-stone-900'
-          : 'border-stone-800 bg-stone-900 hover:border-sky-500/40 hover:shadow-sky-500/5'
+          ? 'border-[#1e2636] opacity-60 bg-[#0e1119]'
+          : 'border-[#1e2636] bg-[#0e1119] hover:border-blue-500/40 hover:shadow-blue-500/5'
       }`}
     >
       {/* Imagem do Produto + Badges Integrados */}
-      <div className="relative aspect-square bg-stone-950 overflow-hidden">
+      <div className="relative aspect-square bg-[#07090f] overflow-hidden">
         {p.image_url && !imgError ? (
           <img
             src={p.image_url}
@@ -684,7 +684,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
             }`}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-stone-900 text-stone-700">
+          <div className="w-full h-full flex items-center justify-center bg-[#151a26] text-[#93a0b5]">
             <Tag className="w-10 h-10" />
           </div>
         )}
@@ -703,24 +703,24 @@ const MinedCard: React.FC<MinedCardProps> = ({
         )}
 
         {/* Badge da Plataforma */}
-        <span className={`absolute ${sharedStatus.isShared ? 'top-7' : 'top-2'} left-2 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md transition-all ${platformColor[item.platform] ?? 'bg-stone-800 text-stone-300'}`}>
+        <span className={`absolute ${sharedStatus.isShared ? 'top-7' : 'top-2'} left-2 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md transition-all ${platformColor[item.platform] ?? 'bg-[#151a26] text-stone-300'}`}>
           {platformLabel[item.platform] ?? item.platform}
         </span>
 
         {/* Action icons no topo superior direito (Favoritar, Arquivar, Excluir) */}
-        <div className={`absolute ${sharedStatus.isShared ? 'top-7' : 'top-2'} right-2 flex items-center gap-1 bg-stone-950/80 p-1 rounded-full backdrop-blur-md border border-stone-800 z-10`}>
+        <div className={`absolute ${sharedStatus.isShared ? 'top-7' : 'top-2'} right-2 flex items-center gap-1 bg-[#07090f]/80 p-1 rounded-full backdrop-blur-md border border-[#1e2636] z-10`}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite();
             }}
             title={item.favorite ? 'Remover favorito' : 'Favoritar'}
-            className="p-1 hover:bg-stone-800 rounded-full transition-colors"
+            className="p-1 hover:bg-[#151a26] rounded-full transition-colors"
           >
             {item.favorite ? (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             ) : (
-              <StarOff className="w-3.5 h-3.5 text-stone-400 hover:text-amber-400" />
+              <StarOff className="w-3.5 h-3.5 text-[#93a0b5] hover:text-amber-400" />
             )}
           </button>
 
@@ -730,9 +730,9 @@ const MinedCard: React.FC<MinedCardProps> = ({
               onToggleArchive();
             }}
             title={isArchived ? 'Restaurar' : 'Arquivar'}
-            className="p-1 hover:bg-stone-800 rounded-full transition-colors"
+            className="p-1 hover:bg-[#151a26] rounded-full transition-colors"
           >
-            <Archive className={`w-3.5 h-3.5 ${isArchived ? 'text-sky-400' : 'text-stone-400 hover:text-sky-400'}`} />
+            <Archive className={`w-3.5 h-3.5 ${isArchived ? 'text-blue-400' : 'text-[#93a0b5] hover:text-blue-400'}`} />
           </button>
 
           <button
@@ -742,7 +742,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
             }}
             disabled={isDeleting}
             title="Excluir produto"
-            className="p-1 hover:bg-red-500/20 text-stone-400 hover:text-red-400 rounded-full transition-colors disabled:opacity-50"
+            className="p-1 hover:bg-red-500/20 text-[#93a0b5] hover:text-red-400 rounded-full transition-colors disabled:opacity-50"
           >
             {isDeleting ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
@@ -756,14 +756,14 @@ const MinedCard: React.FC<MinedCardProps> = ({
       {/* Conteúdo do Card */}
       <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
         {/* Título do Produto */}
-        <h4 className="text-xs font-semibold text-stone-200 leading-snug line-clamp-2 group-hover:text-sky-300 transition-colors">
-          {p.title}
+        <h4 className="text-xs font-semibold text-[#eef2f9] leading-snug line-clamp-2 group-hover:text-blue-300 transition-colors">
+          {p.title || 'Produto sem título'}
         </h4>
 
         {/* Bloco de Preço */}
         <div className="mt-auto flex flex-col gap-0.5">
           {p.price_from && p.price_from !== p.price_to && (
-            <span className="text-[10px] text-stone-500 line-through">
+            <span className="text-[10px] text-[#93a0b5] line-through">
               {formatPrice(p.price_from)}
             </span>
           )}
@@ -772,7 +772,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
             <span className="text-sm sm:text-base font-extrabold text-white">
               {formatPrice(p.price_to)}
             </span>
-            {p.discount_pct && (
+            {p.discount_pct != null && p.discount_pct > 0 && (
               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
                 -{p.discount_pct}%
               </span>
@@ -787,7 +787,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
               e.stopPropagation();
               if (onOpenDetail) onOpenDetail(p);
             }}
-            className="w-full py-2 sm:py-2.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5"
+            className="w-full py-2 sm:py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5"
           >
             <Share2 className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Quero divulgar esse produto</span>
@@ -797,9 +797,9 @@ const MinedCard: React.FC<MinedCardProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               if (sharedStatus.isShared) {
-                onRequestUndoShare(p.id, p.title);
+                onRequestUndoShare(p.id, p.title || 'Produto');
               } else {
-                onRequestShare(p.id, p.title);
+                onRequestShare(p.id, p.title || 'Produto');
               }
             }}
             className={`w-full py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${

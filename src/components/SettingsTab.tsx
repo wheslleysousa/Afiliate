@@ -452,14 +452,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     <div className="space-y-6 max-w-4xl mx-auto pb-10">
       
       {/* Header */}
-      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl">
+          <div className="p-3 bg-blue-600/15 border border-blue-500/30 text-blue-400 rounded-xl">
             <Settings className="w-6 h-6" />
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-white">Configurações do Usuário & APIs</h2>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-[#93a0b5]">
               Gerencie seus IDs de comissão, chaves do Gemini IA, alarmes de divulgação e perfil.
             </p>
           </div>
@@ -474,14 +474,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* Sub-Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-stone-950 border border-stone-800 rounded-2xl">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-[#07090f] border border-[#1e2636] rounded-2xl">
         <button
           type="button"
           onClick={() => setActiveSection('affiliates')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'affiliates'
-              ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-600/20'
-              : 'text-stone-400 hover:text-white hover:bg-stone-900 border-transparent'
+              ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
           }`}
         >
           <LinkIcon className="w-4 h-4" />
@@ -494,7 +494,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'gemini'
               ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-              : 'text-stone-400 hover:text-white hover:bg-stone-900 border-transparent'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -511,14 +511,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           onClick={() => setActiveSection('alarm')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'alarm'
-              ? 'bg-pink-600 text-white border-pink-500 shadow-md shadow-pink-600/20'
-              : 'text-stone-400 hover:text-white hover:bg-stone-900 border-transparent'
+              ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-600/20'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
           }`}
         >
           <Bell className="w-4 h-4" />
           <span>Alarme & Alertas</span>
           {alarm.enabled && (
-            <span className="w-2 h-2 rounded-full bg-pink-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
           )}
         </button>
 
@@ -527,8 +527,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           onClick={() => setActiveSection('profile')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'profile'
-              ? 'bg-stone-800 text-white border-stone-700 shadow-md'
-              : 'text-stone-400 hover:text-white hover:bg-stone-900 border-transparent'
+              ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
           }`}
         >
           <User className="w-4 h-4" />

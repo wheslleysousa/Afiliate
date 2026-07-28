@@ -35,28 +35,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'marketplace',
       label: 'Marketplace Global',
-      icon: <Globe className="w-5 h-5 shrink-0 text-sky-400" />,
+      icon: <Globe className="w-5 h-5 shrink-0 text-blue-400" />,
     },
     {
       id: 'my-products',
       label: 'Meus Produtos',
-      icon: <PackageCheck className="w-5 h-5 shrink-0 text-sky-400" />,
+      icon: <PackageCheck className="w-5 h-5 shrink-0 text-blue-400" />,
       badge: minedCount,
     },
     {
       id: 'analytics',
       label: 'Analytics',
-      icon: <BarChart2 className="w-5 h-5 shrink-0 text-sky-400" />,
+      icon: <BarChart2 className="w-5 h-5 shrink-0 text-blue-400" />,
     },
     {
       id: 'new-product',
       label: 'Novo Produto',
-      icon: <PlusCircle className="w-5 h-5 shrink-0 text-sky-400" />,
+      icon: <PlusCircle className="w-5 h-5 shrink-0 text-blue-400" />,
     },
     {
       id: 'settings',
       label: 'Configurações',
-      icon: <Settings className="w-5 h-5 shrink-0 text-sky-400" />,
+      icon: <Settings className="w-5 h-5 shrink-0 text-blue-400" />,
     },
   ];
 
@@ -72,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 bg-stone-900 border-r border-stone-800 transition-all duration-300 flex flex-col justify-between ${
+        className={`fixed top-0 left-0 bottom-0 z-50 bg-[#0e1119] border-r border-[#1e2636] transition-all duration-300 flex flex-col justify-between ${
           /* Mobile Drawer Positioning */
           mobileOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
         } ${
@@ -82,15 +82,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Top Header & Logo */}
         <div>
-          <div className="h-16 px-4 flex items-center justify-between border-b border-stone-800">
+          <div className="h-16 px-4 flex items-center justify-between border-b border-[#1e2636]">
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="p-2 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-400 shrink-0">
+              <div className="p-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
               {(isExpanded || mobileOpen) && (
                 <div className="animate-fadeIn truncate">
                   <h1 className="font-extrabold text-base text-white tracking-tight leading-none">afiliate</h1>
-                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Afiliado</span>
+                  <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Painel Afiliado</span>
                 </div>
               )}
             </div>
@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Collapse button on Desktop */}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="hidden md:flex p-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-400 hover:text-white border border-stone-700 transition-all"
+              className="hidden md:flex p-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-400 hover:text-white border border-[#1e2636] transition-all"
               title={isExpanded ? 'Recolher Menu' : 'Expandir Menu'}
             >
               {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -107,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Close button on Mobile */}
             <button
               onClick={() => setMobileOpen(false)}
-              className="md:hidden p-1.5 rounded-lg bg-stone-800 text-stone-400 hover:text-white"
+              className="md:hidden p-1.5 rounded-lg bg-[#151a26] text-stone-400 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -127,8 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={item.label}
                   className={`w-full p-3 rounded-xl font-semibold text-xs transition-all flex items-center gap-3 relative group ${
                     isActive
-                      ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40 shadow-sm'
-                      : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800/70 border border-transparent'
+                      ? 'bg-blue-600/15 text-blue-300 border border-blue-500/40 shadow-sm'
+                      : 'text-[#93a0b5] hover:text-white hover:bg-[#151a26] border border-transparent'
                   }`}
                 >
                   {item.icon}
@@ -141,8 +141,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         isActive
-                          ? 'bg-emerald-500 text-stone-950'
-                          : 'bg-stone-800 text-amber-400 border border-amber-400/30'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-[#151a26] text-amber-400 border border-amber-400/30'
                       }`}
                     >
                       {item.badge}

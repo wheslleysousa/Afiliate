@@ -192,12 +192,22 @@ export default function App() {
   // Listen to Firebase Auth state change and load user data from Firestore
   useEffect(() => {
     let unsubscribeKeys: (() => void) | null = null;
+    let unsubscribeMined: (() => void) | null = null;
+    let unsubscribeDailyStats: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
-      // Clean up previous keys listener if any
+      // Clean up previous listeners if any
       if (unsubscribeKeys) {
         unsubscribeKeys();
         unsubscribeKeys = null;
+      }
+      if (unsubscribeMined) {
+        unsubscribeMined();
+        unsubscribeMined = null;
+      }
+      if (unsubscribeDailyStats) {
+        unsubscribeDailyStats();
+        unsubscribeDailyStats = null;
       }
 
       if (fbUser) {
@@ -235,24 +245,50 @@ export default function App() {
           setSavedItems([]);
         }
 
-        // Set up real-time listener for user API Keys config from Firestore
+        // 1. Escutar minedProducts em tempo real
+        try {
+          const minedQuery = query(
+            collection(db, 'users', fbUser.uid, 'minedProducts'),
+            orderBy('minedAt', 'desc')
+          );
+          unsubscribeMined = onSnapshot(
+            minedQuery,
+            (snap) => {
+              setMinedItems(snap.docs.map((d) => d.data() as MinedProductRef));
+            },
+            (err) => {
+              console.error('Erro ao escutar minedProducts em tempo real:', err);
+            }
+          );
+        } catch (e) {
+          console.error('Erro ao iniciar listener de minedProducts:', e);
+        }
+
+        // 2. Escutar contador de mineração de HOJE em tempo real
+        const todayStr = new Date().toISOString().slice(0, 10);
+        try {
+          unsubscribeDailyStats = onSnapshot(
+            doc(db, 'users', fbUser.uid, 'dailyStats', todayStr),
+            (snap) => {
+              if (snap.exists()) {
+                setDailyMineCount((snap.data().count as number) || 0);
+              } else {
+                setDailyMineCount(0);
+              }
+            },
+            (err) => {
+              console.error('Erro ao escutar dailyStats em tempo real:', err);
+            }
+          );
+        } catch (e) {
+          console.error('Erro ao iniciar listener de dailyStats:', e);
+        }
+
+        // 3. Set up real-time listener for user API Keys config from Firestore
         const defaultKeys = {
           mercadoLivreAppId: '1096973158666349',
           mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
         };
-
-        try {
-          const minedSnap = await getDocs(
-            query(
-              collection(db, 'users', fbUser.uid, 'minedProducts'),
-              orderBy('minedAt', 'desc')
-            )
-          );
-          setMinedItems(minedSnap.docs.map((d) => d.data() as MinedProductRef));
-          getDailyMineCount(fbUser.uid).then(setDailyMineCount).catch(console.error);
-        } catch (e) {
-          console.error('Erro ao carregar minedProducts:', e);
-        }
 
         unsubscribeKeys = onSnapshot(
           doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'),
@@ -278,11 +314,6 @@ export default function App() {
           }
         );
 
-        const origUnsub = unsubscribeKeys;
-        unsubscribeKeys = () => {
-          origUnsub();
-        };
-
       } else {
         setCurrentUser(null);
         setSavedItems([]);
@@ -295,9 +326,9 @@ export default function App() {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeKeys) {
-        unsubscribeKeys();
-      }
+      if (unsubscribeKeys) unsubscribeKeys();
+      if (unsubscribeMined) unsubscribeMined();
+      if (unsubscribeDailyStats) unsubscribeDailyStats();
     };
   }, []);
 
@@ -471,7 +502,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-600 selection:text-white flex flex-col md:flex-row">
+      <div className="min-h-screen bg-[#07090f] text-[#eef2f9] font-sans selection:bg-blue-600 selection:text-white flex flex-col md:flex-row">
       
       {/* Left Collapsible Sidebar Navigation */}
       <Sidebar
@@ -496,19 +527,19 @@ export default function App() {
         }`}
       >
         {/* Top Navbar Header */}
-        <header className="h-16 px-4 sm:px-6 border-b border-stone-800 bg-stone-900/90 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between">
+        <header className="h-16 px-4 sm:px-6 border-b border-[#1e2636] bg-[#0e1119]/90 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Menu Toggle */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-stone-800 hover:bg-stone-750 text-stone-200 border border-stone-700"
+              className="md:hidden p-2 rounded-xl bg-[#151a26] hover:bg-stone-800 text-stone-200 border border-[#1e2636]"
               aria-label="Abrir menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-stone-400 uppercase tracking-wider hidden sm:inline">
+              <span className="text-xs font-bold text-[#93a0b5] uppercase tracking-wider hidden sm:inline">
                 Painel do Afiliado /
               </span>
               <span className="text-xs sm:text-sm font-extrabold text-white">
@@ -527,13 +558,13 @@ export default function App() {
             <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
               dailyMineCount >= PLAN_LIMITS.free
                 ? 'bg-red-500/15 border-red-500/30 text-red-400 font-semibold'
-                : 'bg-stone-800 border-stone-700 text-stone-300 font-medium'
+                : 'bg-[#151a26] border-[#1e2636] text-[#eef2f9] font-medium'
             }`}>
-              <PackageCheck className="w-3.5 h-3.5 text-stone-400" />
+              <PackageCheck className="w-3.5 h-3.5 text-[#93a0b5]" />
               <span>{dailyMineCount}/{PLAN_LIMITS.free} hoje</span>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-full border border-stone-800 text-xs text-stone-300">
+            <div className="hidden sm:flex items-center gap-2 bg-[#07090f] px-3 py-1.5 rounded-full border border-[#1e2636] text-xs text-[#eef2f9]">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="font-semibold">{currentUser.name}</span>
             </div>
@@ -633,13 +664,13 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className="border-t border-stone-900 bg-stone-950 py-5 text-center text-xs text-stone-500 mt-auto">
+        <footer className="border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-stone-300">Afiliate</span>
+              <span className="font-bold text-stone-200">Afiliate</span>
               <span>— Todos os direitos reservados</span>
             </div>
-            <div className="flex items-center gap-2 text-stone-400 font-medium text-xs">
+            <div className="flex items-center gap-2 text-[#93a0b5] font-medium text-xs">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>Conectado ao Firebase Firestore ({firebaseConfigJson.projectId})</span>
             </div>

@@ -329,15 +329,15 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     <div className="space-y-6 max-w-5xl mx-auto">
       
       {/* Top Banner Card */}
-      <div className="bg-gradient-to-r from-stone-900 via-stone-900 to-emerald-950/50 border border-emerald-500/30 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-[#0e1119] border border-[#1e2636] rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-600/15 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Extrator Automático de Afiliados</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">Pesquisar Produto por Link</h2>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-[#93a0b5]">
               Insira o link de produto do Mercado Livre, Shopee, Amazon, AliExpress ou Shein
             </p>
           </div>
@@ -348,8 +348,8 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
               dailyCount >= DAILY_LIMIT
                 ? 'bg-red-950/40 border-red-500/30 text-red-400'
                 : dailyCount >= DAILY_LIMIT * 0.8
-                ? 'bg-yellow-950/40 border-yellow-500/30 text-yellow-400'
-                : 'bg-stone-900 border-stone-800 text-stone-400'
+                ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                : 'bg-[#151a26] border-[#1e2636] text-[#93a0b5]'
             }`}>
               <span className="font-medium">
                 {dailyCount >= DAILY_LIMIT
@@ -357,13 +357,13 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
                   : `Minerados hoje: ${dailyCount} / ${DAILY_LIMIT}`}
               </span>
               <div className="flex items-center gap-2">
-                <div className="w-24 h-1.5 bg-stone-700 rounded-full overflow-hidden">
+                <div className="w-24 h-1.5 bg-[#07090f] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       dailyCount >= DAILY_LIMIT
                         ? 'bg-red-500'
                         : dailyCount >= DAILY_LIMIT * 0.8
-                        ? 'bg-yellow-500'
+                        ? 'bg-amber-500'
                         : 'bg-emerald-500'
                     }`}
                     style={{ width: `${Math.min((dailyCount / DAILY_LIMIT) * 100, 100)}%` }}
@@ -380,21 +380,21 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
         {/* Link Input Form */}
         <form onSubmit={handleScrapeProduct} className="mt-5 flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
-            <Link2 className="w-4 h-4 absolute left-4 top-3.5 text-stone-500" />
+            <Link2 className="w-4 h-4 absolute left-4 top-3.5 text-[#93a0b5]" />
             <input
               type="url"
               required
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Cole o link do produto aqui (ex: https://www.mercadolivre.com.br/...)"
-              className="w-full pl-11 pr-4 py-3 bg-stone-950 border border-stone-800 focus:border-emerald-500 text-stone-100 placeholder-stone-500 rounded-2xl text-xs sm:text-sm focus:outline-none transition-all shadow-inner"
+              className="w-full pl-11 pr-4 py-3 bg-[#07090f] border border-[#1e2636] focus:border-blue-500 text-[#eef2f9] placeholder-[#93a0b5] rounded-2xl text-xs sm:text-sm focus:outline-none transition-all shadow-inner"
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading || !urlInput.trim()}
-            className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs sm:text-sm rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-2xl transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
           >
             {isLoading ? (
               <>

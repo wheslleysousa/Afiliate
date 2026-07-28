@@ -188,14 +188,14 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   return (
     <div className="flex flex-col gap-5 sm:gap-6">
       {/* Header com Estatísticas */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black border border-stone-800 p-5 rounded-2xl shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400">
             <Globe className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-white">Marketplace Global de Afiliados</h2>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-[#93a0b5]">
               {filtered.length} produto{filtered.length !== 1 ? 's' : ''} disponível{filtered.length !== 1 ? 'eis' : ''} com comissão estimada em tempo real
             </p>
           </div>
@@ -203,7 +203,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
 
         <button
           onClick={() => fetchProducts(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 text-xs font-semibold border border-stone-700 hover:border-blue-500/50 transition-all shrink-0"
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#151a26] hover:bg-stone-800 text-stone-200 text-xs font-semibold border border-[#1e2636] hover:border-blue-500/50 transition-all shrink-0"
         >
           <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
           Atualizar Produtos
@@ -222,7 +222,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                 isActive
                   ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
-                  : 'bg-black text-stone-400 hover:text-stone-100 border-stone-800 hover:border-stone-700'
+                  : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636] hover:border-stone-700'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -236,13 +236,13 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
         {/* Busca */}
         <div className="relative sm:col-span-5">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5]" />
           <input
             type="text"
             placeholder="Buscar por produto ou palavra-chave..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-black border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
@@ -251,7 +251,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-black border border-stone-800 rounded-xl text-xs sm:text-sm text-stone-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
           >
             <option value="">Todas as Plataformas</option>
             {PLATFORMS.map((p) => (
@@ -260,7 +260,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5] pointer-events-none" />
         </div>
 
         {/* Menu Suspenso de Ordenação */}
@@ -268,7 +268,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
           <select
             value={sortBy}
             onChange={(e: any) => setSortBy(e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-black border border-blue-500/40 rounded-xl text-xs sm:text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer bg-blue-950/20"
+            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-[#0e1119] border border-blue-500/40 rounded-xl text-xs sm:text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer bg-blue-950/20"
           >
             <option value="commission_amount">Sort: Maior Valor de Comissão (R$)</option>
             <option value="commission_rate">Sort: Maior Comissão % (%)</option>
@@ -394,10 +394,10 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
   return (
     <div
       onClick={onOpenDetail}
-      className="group cursor-pointer flex flex-col bg-black border border-stone-800 hover:border-blue-500/60 rounded-2xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/10 relative"
+      className="group cursor-pointer flex flex-col bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/60 rounded-2xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/10 relative"
     >
       {/* Imagem do Produto + Badges Integrados */}
-      <div className="relative aspect-square bg-stone-950 overflow-hidden">
+      <div className="relative aspect-square bg-[#07090f] overflow-hidden">
         {product.image_url && !imgError ? (
           <img
             src={product.image_url}
@@ -406,7 +406,7 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-stone-900 text-stone-700">
+          <div className="w-full h-full flex items-center justify-center bg-[#151a26] text-[#93a0b5]">
             <Tag className="w-10 h-10" />
           </div>
         )}
@@ -441,7 +441,7 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
       <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
         {/* Título do Produto */}
         <h4 className="text-xs font-semibold text-stone-200 leading-snug line-clamp-2 group-hover:text-blue-400 transition-colors">
-          {product.title}
+          {product.title || 'Produto sem título'}
         </h4>
 
         {/* Bloco de Preço e Desconto */}
@@ -456,7 +456,7 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
             <span className="text-sm sm:text-base font-extrabold text-white">
               {formatPrice(product.price_to)}
             </span>
-            {product.discount_pct && (
+            {product.discount_pct != null && product.discount_pct > 0 && (
               <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
                 -{product.discount_pct}%
               </span>

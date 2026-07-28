@@ -71,6 +71,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
 
+  const [imgError, setImgError] = useState(false);
+
   // Status de divulgação 24h
   const sharedStatus = isProductSharedRecently(product.id, sharedMap);
 
@@ -238,19 +240,26 @@ ${affiliateLink}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 p-4 rounded-xl bg-stone-950/60 border border-stone-800">
             {/* Foto do Produto */}
             <div className="md:col-span-4 flex flex-col items-center justify-center">
-              <div className="relative w-full aspect-square rounded-xl bg-stone-900 overflow-hidden border border-stone-800">
-                <img
-                  src={product.image_url || ''}
-                  alt={product.title}
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative w-full aspect-square rounded-xl bg-stone-900 overflow-hidden border border-stone-800 flex items-center justify-center">
+                {product.image_url && !imgError ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.title || 'Produto'}
+                    onError={() => setImgError(true)}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-stone-900 text-stone-700">
+                    <Tag className="w-12 h-12" />
+                  </div>
+                )}
                 {trend.pct !== null ? (
                   <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${trend.isUp ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
                     {trend.formatted} em vendas
                   </div>
                 ) : (
                   <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-medium bg-stone-900/90 text-stone-400 border border-stone-800">
-                    Tendência: Sem informações suficientes
+                    Tendência: —
                   </div>
                 )}
               </div>
@@ -260,18 +269,18 @@ ${affiliateLink}
             <div className="md:col-span-8 flex flex-col justify-between gap-3">
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-white leading-snug line-clamp-2">
-                  {product.title}
+                  {product.title || 'Produto sem título'}
                 </h2>
                 
                 {/* Meta badges: Avaliação e Vendas */}
                 <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-stone-400">
                   <span className="flex items-center gap-1 text-amber-400 font-semibold bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
                     <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    {product.stars ? product.stars : 'Avaliação: Sem informações suficientes'}
+                    {product.stars ? product.stars : '—'}
                   </span>
                   <span className="flex items-center gap-1 bg-stone-800 px-2 py-0.5 rounded-md text-stone-300">
                     <ShoppingBag className="w-3.5 h-3.5 text-stone-400" />
-                    {product.sales_count ? `${product.sales_count} vendas` : 'Vendas: Sem informações suficientes'}
+                    {product.sales_count ? `${product.sales_count} vendas` : '—'}
                   </span>
                   {(product.free_shipping || (product.shipping && product.shipping.toLowerCase().includes('grátis'))) ? (
                     <span className="bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-md font-medium text-[11px] border border-emerald-500/20">

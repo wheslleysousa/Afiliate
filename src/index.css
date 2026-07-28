@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-bg-base: #07090f;
+    --color-bg-surface: #0e1119;
+    --color-bg-card: #151a26;
+    --color-border-subtle: #1e2636;
+  }
+
+  body {
+    background-color: #07090f;
+    color: #eef2f9;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Custom utility classes for official palette */
+.bg-app {
+  background-color: #07090f;
+}
+
+.bg-surface {
+  background-color: #0e1119;
+}
+
+.bg-card {
+  background-color: #151a26;
+}
+
+.border-subtle {
+  border-color: #1e2636;
+}

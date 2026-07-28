@@ -168,9 +168,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-stone-900 border border-stone-800 p-5 rounded-2xl shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400">
+          <div className="p-3 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400">
             <BarChart3 className="w-6 h-6" />
           </div>
           <div>
@@ -180,14 +180,14 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                 Ao Vivo
               </span>
             </h1>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-[#93a0b5]">
               Acompanhe cliques, vendas estimadas, comissões em R$ e métricas por produto divulgado.
             </p>
           </div>
         </div>
 
         {/* Period Selector */}
-        <div className="flex items-center gap-1 bg-stone-950 p-1 border border-stone-800 rounded-xl self-start sm:self-center">
+        <div className="flex items-center gap-1 bg-[#07090f] p-1 border border-[#1e2636] rounded-xl self-start sm:self-center">
           {[
             { id: '7d', label: '7 Dias' },
             { id: '30d', label: '30 Dias' },
@@ -199,8 +199,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
               onClick={() => setPeriod(p.id as any)}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 period === p.id
-                  ? 'bg-sky-600 text-white shadow-md'
-                  : 'text-stone-400 hover:text-white hover:bg-stone-900'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119]'
               }`}
             >
               {p.label}
@@ -212,9 +212,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Comissão Gerada */}
-        <div className="bg-stone-900 border border-emerald-500/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="bg-[#0e1119] border border-emerald-500/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-          <div className="flex items-center justify-between text-stone-400 text-xs font-bold mb-2">
+          <div className="flex items-center justify-between text-[#93a0b5] text-xs font-bold mb-2">
             <span>Comissão Estimada (R$)</span>
             <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400">
               <DollarSign className="w-4 h-4" />
@@ -230,41 +230,41 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         </div>
 
         {/* Card 2: Total de Vendas */}
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between text-stone-400 text-xs font-bold mb-2">
+        <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="flex items-center justify-between text-[#93a0b5] text-xs font-bold mb-2">
             <span>Vendas Realizadas</span>
-            <div className="p-2 rounded-lg bg-sky-500/15 text-sky-400">
+            <div className="p-2 rounded-lg bg-blue-600/15 text-blue-400">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-white">
-            {totals.totalSales} <span className="text-xs text-stone-400 font-normal">pedidos</span>
+            {totals.totalSales} <span className="text-xs text-[#93a0b5] font-normal">pedidos</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 mt-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-400 mt-2">
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Ticket Médio: {formatPrice(totals.avgTicket)}</span>
           </div>
         </div>
 
         {/* Card 3: Cliques Totais */}
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between text-stone-400 text-xs font-bold mb-2">
+        <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="flex items-center justify-between text-[#93a0b5] text-xs font-bold mb-2">
             <span>Cliques nos Links</span>
             <div className="p-2 rounded-lg bg-blue-500/15 text-blue-400">
               <MousePointerClick className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-white">
-            {totals.totalClicks.toLocaleString('pt-BR')} <span className="text-xs text-stone-400 font-normal">acessos</span>
+            {totals.totalClicks.toLocaleString('pt-BR')} <span className="text-xs text-[#93a0b5] font-normal">acessos</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-400 mt-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#93a0b5] mt-2">
             <span>{filteredData.length} produtos rastreados</span>
           </div>
         </div>
 
         {/* Card 4: Taxa de Conversão */}
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between text-stone-400 text-xs font-bold mb-2">
+        <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="flex items-center justify-between text-[#93a0b5] text-xs font-bold mb-2">
             <span>Taxa de Conversão</span>
             <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400">
               <Award className="w-4 h-4" />
@@ -273,16 +273,16 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           <div className="text-2xl font-black text-amber-400">
             {totals.avgConversion}%
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-400 mt-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#93a0b5] mt-2">
             <span>Média de mercado: ~3.5%</span>
           </div>
         </div>
       </div>
 
       {/* Platform Breakdown Bar */}
-      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 space-y-4 shadow-xl">
+      <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 space-y-4 shadow-xl">
         <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
-          <Layers className="w-4 h-4 text-sky-400" />
+          <Layers className="w-4 h-4 text-blue-400" />
           <span>Distribuição de Vendas por Plataforma</span>
         </h2>
 
@@ -292,21 +292,21 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
             return (
               <div
                 key={st.key}
-                className="p-3.5 bg-stone-950 border border-stone-800 rounded-xl space-y-2"
+                className="p-3.5 bg-[#07090f] border border-[#1e2636] rounded-xl space-y-2"
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-stone-200">{st.name}</span>
-                  <span className="text-[10px] font-extrabold text-sky-400">{pct}%</span>
+                  <span className="font-bold text-[#eef2f9]">{st.name}</span>
+                  <span className="text-[10px] font-extrabold text-blue-400">{pct}%</span>
                 </div>
 
-                <div className="w-full bg-stone-900 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-[#151a26] h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-sky-500 h-full rounded-full transition-all duration-500"
+                    className="bg-blue-600 h-full rounded-full transition-all duration-500"
                     style={{ width: `${Math.max(5, pct)}%` }}
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-stone-400 font-mono">
+                <div className="flex items-center justify-between text-[11px] text-[#93a0b5] font-mono">
                   <span>{st.sales} vendas</span>
                   <span className="text-emerald-400 font-bold">{formatPrice(st.commission)}</span>
                 </div>
@@ -317,17 +317,17 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
       </div>
 
       {/* Filter Controls & Search */}
-      <div className="bg-stone-900 border border-stone-800 p-4 rounded-2xl space-y-3 shadow-lg">
+      <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl space-y-3 shadow-lg">
         <div className="flex flex-col md:flex-row items-center gap-3">
           {/* Search Input */}
           <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[#93a0b5] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Buscar produto nos seus relatórios..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-white placeholder-stone-500 focus:outline-none focus:border-sky-500"
+              className="w-full pl-10 pr-4 py-2 bg-[#07090f] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -335,7 +335,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="w-full md:w-48 px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-200 font-semibold focus:outline-none focus:border-sky-500"
+            className="w-full md:w-48 px-3 py-2 bg-[#07090f] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] font-semibold focus:outline-none focus:border-blue-500"
           >
             <option value="all">Todas as Plataformas</option>
             <option value="mercadolivre">Mercado Livre</option>

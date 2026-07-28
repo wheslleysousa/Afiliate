@@ -31,10 +31,10 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
   };
 
   return (
-    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 sm:p-6 shadow-xl">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+          <div className="p-2 rounded-lg bg-blue-600/15 text-blue-400">
             <PackageCheck className="w-5 h-5" />
           </div>
           <h2 className="text-base sm:text-lg font-semibold text-white">2. Dados do Produto Extraído</h2>
@@ -48,7 +48,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
         {/* Product Image Preview & Gallery */}
         <div className="md:col-span-5 flex flex-col items-center">
-          <div className="w-full aspect-square bg-stone-950 rounded-xl border border-stone-800 p-2 flex items-center justify-center overflow-hidden relative group shadow-inner">
+          <div className="w-full aspect-square bg-[#07090f] rounded-xl border border-[#1e2636] p-2 flex items-center justify-center overflow-hidden relative group shadow-inner">
             {currentMediaType === 'video' && getYouTubeEmbedUrl(currentMediaUrl) ? (
               <iframe
                 src={getYouTubeEmbedUrl(currentMediaUrl)!}
