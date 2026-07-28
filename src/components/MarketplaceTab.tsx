@@ -477,22 +477,10 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
               e.stopPropagation();
               onOpenDetail();
             }}
-            className="flex-1 py-2 sm:py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 truncate"
+            className="w-full py-2 sm:py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5"
           >
             <Share2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Divulgar</span>
-          </button>
-
-          <button
-            onClick={handleCopyLink}
-            title={copied ? "Link Copiado!" : "Copiar Link de Afiliado"}
-            className="p-2 sm:py-2.5 rounded-xl bg-stone-900 text-stone-300 border border-stone-800 hover:text-white hover:bg-stone-800 hover:border-blue-500/40 transition-all shrink-0"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
+            <span>Divulgar</span>
           </button>
         </div>
       </div>

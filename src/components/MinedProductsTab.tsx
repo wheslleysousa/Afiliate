@@ -162,6 +162,20 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [productToShare, setProductToShare] = useState<{ id: string; title: string } | null>(null);
+  const [productToUndoShare, setProductToUndoShare] = useState<{ id: string; title: string } | null>(null);
+
+  const confirmShare = () => {
+    if (!productToShare || !onToggleShared) return;
+    onToggleShared(productToShare.id);
+    setProductToShare(null);
+  };
+
+  const confirmUndoShare = () => {
+    if (!productToUndoShare || !onToggleShared) return;
+    onToggleShared(productToUndoShare.id);
+    setProductToUndoShare(null);
+  };
 
   const confirmDelete = async () => {
     if (!productToDelete) return;
@@ -409,7 +423,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                   item={item}
                   apiKeys={apiKeys}
                   sharedMap={sharedMap}
-                  onToggleShared={onToggleShared}
+                  onRequestShare={(id, title) => setProductToShare({ id, title })}
+                  onRequestUndoShare={(id, title) => setProductToUndoShare({ id, title })}
                   onOpenDetail={(product) => setSelectedProductForModal(product)}
                   onUseProduct={onUseProduct}
                   onToggleFavorite={() => toggleFavorite(item.productId, item.favorite)}
@@ -479,6 +494,105 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
         </div>
       )}
 
+      {/* Modal Popup de Confirmação para Marcar como Enviado (24h) */}
+      {productToShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5">
+            <button
+              onClick={() => setProductToShare(null)}
+              className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-2xl shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Marcar como divulgado?</h3>
+                <p className="text-xs text-stone-400 mt-0.5">Ativação do ciclo de 24 horas</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800/80 space-y-2">
+              <p className="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Produto selecionado</p>
+              <p className="text-xs font-semibold text-stone-200 line-clamp-2">{productToShare.title}</p>
+              <p className="text-xs text-amber-300/90 pt-1 border-t border-stone-800/80">
+                ⚠ Este produto ficará pausado por 24 horas e só poderá ser enviado novamente após este período.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setProductToShare(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmShare}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirmar Envio</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup de Confirmação para Desfazer Envio (Zerar 24h) */}
+      {productToUndoShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5">
+            <button
+              onClick={() => setProductToUndoShare(null)}
+              className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-2xl shrink-0">
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Desfazer divulgação?</h3>
+                <p className="text-xs text-stone-400 mt-0.5">Reset de contagem de tempo</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800/80 space-y-2">
+              <p className="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Produto selecionado</p>
+              <p className="text-xs font-semibold text-stone-200 line-clamp-2">{productToUndoShare.title}</p>
+              <p className="text-xs text-emerald-300/90 pt-1 border-t border-stone-800/80">
+                ✓ Ao desfazer esta ação, o tempo de espera de 24 horas será zerado e o produto estará disponível imediatamente para novas divulgações.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setProductToUndoShare(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmUndoShare}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 transition-all"
+              >
+                <span>Sim, Zerar Tempo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Detalhes & Gerador de Copy / Roteiro */}
       {selectedProductForModal && (
         <ProductDetailModal
@@ -499,7 +613,8 @@ interface MinedCardProps {
   item: EnrichedMinedProduct;
   apiKeys?: ApiKeysConfig;
   sharedMap?: Record<string, number>;
-  onToggleShared?: (productId: string) => void;
+  onRequestShare: (id: string, title: string) => void;
+  onRequestUndoShare: (id: string, title: string) => void;
   onOpenDetail?: (product: GlobalProduct) => void;
   onUseProduct?: (product: GlobalProduct) => void;
   onToggleFavorite: () => void;
@@ -512,7 +627,8 @@ const MinedCard: React.FC<MinedCardProps> = ({
   item,
   apiKeys,
   sharedMap,
-  onToggleShared,
+  onRequestShare,
+  onRequestUndoShare,
   onOpenDetail,
   onUseProduct,
   onToggleFavorite,
@@ -521,7 +637,6 @@ const MinedCard: React.FC<MinedCardProps> = ({
   isDeleting,
 }) => {
   const [imgError, setImgError] = useState(false);
-  const [copied, setCopied] = useState(false);
   const p = item.productData;
   const isArchived = item.status === 'archived';
 
@@ -544,32 +659,17 @@ const MinedCard: React.FC<MinedCardProps> = ({
     );
   }
 
-  const affiliateUrl = buildAffiliateLink(p.original_link, item.platform, apiKeys || {});
   const sharedStatus = isProductSharedRecently(item.productId, sharedMap);
-
-  const handleQuickToggleShared = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onToggleShared) {
-      onToggleShared(item.productId);
-    }
-  };
-
-  const handleCopyLink = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(affiliateUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div
       onClick={() => onOpenDetail && onOpenDetail(p)}
-      className={`group cursor-pointer flex flex-col bg-stone-900 border rounded-2xl overflow-hidden transition-all hover:shadow-xl relative ${
+      className={`group cursor-pointer flex flex-col border rounded-2xl overflow-hidden transition-all hover:shadow-xl relative ${
         sharedStatus.isShared
-          ? 'border-emerald-500/50 bg-emerald-950/10'
+          ? 'border-amber-500/30 bg-stone-950/90 grayscale-[25%] opacity-80'
           : isArchived
-          ? 'border-stone-800 opacity-60'
-          : 'border-stone-800 hover:border-sky-500/40 hover:shadow-sky-500/5'
+          ? 'border-stone-800 opacity-60 bg-stone-900'
+          : 'border-stone-800 bg-stone-900 hover:border-sky-500/40 hover:shadow-sky-500/5'
       }`}
     >
       {/* Imagem do Produto + Badges Integrados */}
@@ -580,7 +680,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
             alt={p.title}
             onError={() => setImgError(true)}
             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
-              sharedStatus.isShared ? 'opacity-85 grayscale-[15%]' : ''
+              sharedStatus.isShared ? 'opacity-75' : ''
             }`}
           />
         ) : (
@@ -591,12 +691,12 @@ const MinedCard: React.FC<MinedCardProps> = ({
 
         {/* Ribbon de Produto Divulgado (24h) */}
         {sharedStatus.isShared && (
-          <div className="absolute inset-x-0 top-0 bg-emerald-600/95 text-white text-[10px] font-extrabold px-2 py-1 flex items-center justify-between backdrop-blur-md z-10">
+          <div className="absolute inset-x-0 top-0 bg-amber-600/95 text-stone-950 font-black text-[10px] px-2 py-1 flex items-center justify-between backdrop-blur-md z-10">
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 text-white" />
-              Divulgado ({sharedStatus.hoursAgoFormatted})
+              <Clock className="w-3 h-3 text-stone-950" />
+              Pausado ({sharedStatus.hoursAgoFormatted})
             </span>
-            <span className="text-[9px] opacity-90 font-mono">
+            <span className="text-[9px] font-mono font-bold">
               Libera {sharedStatus.remainingFormatted}
             </span>
           </div>
@@ -680,46 +780,44 @@ const MinedCard: React.FC<MinedCardProps> = ({
           </div>
         </div>
 
-        {/* Botões de Ação */}
-        <div className="flex items-center gap-1.5 mt-1">
+        {/* Botões de Ação Empilhados (Divulgar e Marcar/Desfazer como enviado) */}
+        <div className="flex flex-col gap-1.5 mt-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
               if (onOpenDetail) onOpenDetail(p);
             }}
-            className="flex-1 py-2 sm:py-2.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5 truncate"
+            className="w-full py-2 sm:py-2.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5"
           >
             <Share2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Divulgar</span>
+            <span className="truncate">Quero divulgar esse produto</span>
           </button>
 
-          {/* Toggle status de 24h */}
           <button
-            onClick={handleQuickToggleShared}
-            title={sharedStatus.isShared ? 'Desmarcar divulgação (Liberar produto)' : 'Marcar como divulgado por 24h'}
-            className={`p-2 sm:py-2.5 rounded-xl border text-xs font-bold transition-all shrink-0 flex items-center justify-center ${
+            onClick={(e) => {
+              e.stopPropagation();
+              if (sharedStatus.isShared) {
+                onRequestUndoShare(p.id, p.title);
+              } else {
+                onRequestShare(p.id, p.title);
+              }
+            }}
+            className={`w-full py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
               sharedStatus.isShared
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                : 'bg-stone-800 text-stone-400 border-stone-700 hover:text-white hover:bg-stone-700'
+                ? 'bg-amber-950/60 text-amber-300 border-amber-500/40 hover:bg-amber-900/80 hover:text-white'
+                : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/80 hover:text-white'
             }`}
           >
             {sharedStatus.isShared ? (
-              <Check className="w-4 h-4 text-emerald-400" />
+              <>
+                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                <span className="truncate">Desfazer (Zerar 24h)</span>
+              </>
             ) : (
-              <Check className="w-4 h-4 opacity-50 hover:opacity-100" />
-            )}
-          </button>
-
-          {/* Copiar Link de Afiliado */}
-          <button
-            onClick={handleCopyLink}
-            title={copied ? "Link Copiado!" : "Copiar Link de Afiliado"}
-            className="p-2 sm:py-2.5 rounded-xl bg-stone-800 text-stone-300 border border-stone-700 hover:text-white hover:bg-stone-700 transition-all shrink-0"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Copy className="w-4 h-4" />
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">Marcar como enviado</span>
+              </>
             )}
           </button>
         </div>
