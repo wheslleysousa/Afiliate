@@ -1,13 +1,12 @@
 /**
  * ==============================================================================
- * WORKER DE AUTOMACÃO WHATSAPP DA PLATAFORMA AFILIATE
+ * WORKER DE AUTOMAÇÃO MULTI-SESSÃO WHATSAPP DA PLATAFORMA AFILIATE
  * ==============================================================================
  * AVISO IMPORTANTE DE SEGURANÇA E TERMOS DE USO:
  * 1. Este worker utiliza a biblioteca não-oficial @whiskeysockets/baileys.
  * 2. O uso de automações não oficiais viola os Termos de Serviço do WhatsApp.
  * 3. RISCO DE BANIMENTO: Há risco real de bloqueio definitivo do número de telefone.
- * 4. RECOMENDAÇÃO ABSOLUTA: Use SEMPRE um NÚMERO EXCLUSIVO E DEDICADO para disparos,
- *    NUNCA utilize seu número pessoal ou principal de contatos/trabalho!
+ * 4. RECOMENDAÇÃO ABSOLUTA: Use SEMPRE NÚMEROS EXCLUSIVOS E DEDICADOS para disparos!
  * 5. CONFORMIDADE LGPD: Este script salva APENAS a contagem agregada de membros
  *    dos grupos, sem armazenar números de telefone ou dados pessoais de participantes.
  * ==============================================================================
@@ -39,10 +38,14 @@ if (!USER_UID) {
   process.exit(1);
 }
 
-const AUTH_DIR = process.env.AUTH_DIR || './auth';
+const AUTH_BASE_DIR = process.env.AUTH_DIR || './auth';
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || '';
 
-// Inicializar Firebase Admin SDK com suporte a Banco de Dados Nomeado
+// Garantir que diretório de autenticação exista
+if (!fs.existsSync(AUTH_BASE_DIR)) {
+  fs.mkdirSync(AUTH_BASE_DIR, { recursive: true });
+}
+
 function initFirebase() {
   let app;
   if (admin.apps.length > 0) {
@@ -78,27 +81,74 @@ function initFirebase() {
     app = admin.initializeApp(appConfig);
   }
 
-  // Corrigido: Usar getFirestore(app, databaseId) para bancos nomeados no Firestore
   return FIRESTORE_DATABASE_ID ? getFirestore(app, FIRESTORE_DATABASE_ID) : getFirestore(app);
 }
 
 const db = initFirebase();
-console.log(`\n🚀 Worker Afiliate iniciado para o Usuário UID: ${USER_UID}`);
+console.log(`\n🚀 Worker Multi-Sessão Afiliate iniciado para o Usuário UID: ${USER_UID}`);
 
-// Globais & Travas de Concorrência
-let sock = null;
-let isConnecting = false;
+// Globais & Estado Multi-Sessão
+// Map<sessionId, { sessionId, sock, isConnecting, reconnectTimer, status, label }>
+const sessionsMap = new Map();
+
 let isRunningCampaign = false;
 let isProcessingQueue = false;
-let commandListenerUnsub = null;
+let sessionsListenerUnsub = null;
 
 // ------------------------------------------------------------------------------
-// HELPER PARA ATUALIZAR STATUS DA SESSÃO NO FIRESTORE (users/{uid}/waSession/current)
+// MIGRACÃO E SUPORTE A SESSÕES LEGADAS (waSession/current)
 // ------------------------------------------------------------------------------
 
-async function updateSessionDoc(data) {
+async function checkAndMigrateLegacySession() {
   try {
-    const docRef = db.collection('users').doc(USER_UID).collection('waSession').doc('current');
+    const legacyDocRef = db.collection('users').doc(USER_UID).collection('waSession').doc('current');
+    const legacySnap = await legacyDocRef.get();
+
+    if (legacySnap.exists) {
+      const legacyData = legacySnap.data() || {};
+      const newDocRef = db.collection('users').doc(USER_UID).collection('waSessions').doc('current');
+      const newSnap = await newDocRef.get();
+
+      if (!newSnap.exists) {
+        console.log('📦 Migrando sessão legada "waSession/current" para "waSessions/current"...');
+        await newDocRef.set({
+          label: legacyData.label || 'Conta Principal (Migrada)',
+          status: legacyData.status || 'disconnected',
+          phoneNumber: legacyData.phoneNumber || null,
+          name: legacyData.name || null,
+          requestedConnect: legacyData.status === 'connecting' || legacyData.status === 'qr',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastConnectedAt: legacyData.lastConnectedAt || null,
+        });
+      }
+
+      // Se existirem arquivos de auth diretamente em ./auth/ sem subpasta, mover para ./auth/current/
+      const legacyCredsFile = path.join(AUTH_BASE_DIR, 'creds.json');
+      if (fs.existsSync(legacyCredsFile)) {
+        const currentAuthDir = path.join(AUTH_BASE_DIR, 'current');
+        if (!fs.existsSync(currentAuthDir)) {
+          fs.mkdirSync(currentAuthDir, { recursive: true });
+        }
+        const files = fs.readdirSync(AUTH_BASE_DIR);
+        for (const file of files) {
+          const filePath = path.join(AUTH_BASE_DIR, file);
+          if (fs.statSync(filePath).isFile()) {
+            const destPath = path.join(currentAuthDir, file);
+            fs.renameSync(filePath, destPath);
+          }
+        }
+        console.log('📂 Arquivos de sessão legada movidos para auth/current/');
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Aviso ao verificar migração de sessão legada:', err.message);
+  }
+}
+
+// Helper para atualizar status da sessão no Firestore (users/{uid}/waSessions/{sessionId})
+async function updateSessionDoc(sessionId, data) {
+  try {
+    const docRef = db.collection('users').doc(USER_UID).collection('waSessions').doc(sessionId);
     await docRef.set(
       {
         ...data,
@@ -107,70 +157,55 @@ async function updateSessionDoc(data) {
       { merge: true }
     );
   } catch (err) {
-    console.error('⚠️ Erro ao atualizar waSession/current no Firestore:', err.message);
+    console.error(`⚠️ Erro ao atualizar waSessions/${sessionId} no Firestore:`, err.message);
   }
 }
 
-// Escutar comandos enviados pela interface web (ex: pedido de logout/desconexão)
-function listenToSessionCommands() {
-  if (commandListenerUnsub) return;
-  const docRef = db.collection('users').doc(USER_UID).collection('waSession').doc('current');
-  commandListenerUnsub = docRef.onSnapshot(
-    (snap) => {
-      if (snap.exists) {
-        const data = snap.data();
-        if (data.requestedLogout) {
-          console.log('🚪 Solicitado logout do WhatsApp via aplicativo! Desconectando...');
-          if (sock) {
-            try {
-              sock.logout();
-            } catch (e) {
-              console.error('Erro ao chamar sock.logout():', e.message);
-            }
-          }
-          if (fs.existsSync(AUTH_DIR)) {
-            try {
-              fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-            } catch (rmErr) {
-              console.error('Erro ao limpar pasta de auth:', rmErr.message);
-            }
-          }
-          updateSessionDoc({
-            status: 'disconnected',
-            qr: null,
-            phoneNumber: null,
-            name: null,
-            requestedLogout: false,
-          });
-        }
-      }
-    },
-    (err) => {
-      console.error('⚠️ Erro no listener de comandos de sessão do WhatsApp:', err.message);
-    }
-  );
-}
-
 // ------------------------------------------------------------------------------
-// 2. LÓGICA DE CONEXÃO COM O BAILEYS (WHATSAPP)
+// 2. CONEXÃO BAILEYS POR SESSÃO
 // ------------------------------------------------------------------------------
 
-async function connectToWhatsApp() {
-  if (isConnecting) return;
-  isConnecting = true;
+async function connectToWhatsAppSession(sessionId, label) {
+  let sessionObj = sessionsMap.get(sessionId);
+
+  if (sessionObj && sessionObj.isConnecting) {
+    return;
+  }
+
+  if (!sessionObj) {
+    sessionObj = {
+      sessionId,
+      sock: null,
+      isConnecting: true,
+      reconnectTimer: null,
+      status: 'connecting',
+      label: label || 'Conta WhatsApp',
+    };
+    sessionsMap.set(sessionId, sessionObj);
+  } else {
+    sessionObj.isConnecting = true;
+    sessionObj.status = 'connecting';
+    if (label) sessionObj.label = label;
+  }
+
+  const sessionAuthDir = path.join(AUTH_BASE_DIR, sessionId);
+  if (!fs.existsSync(sessionAuthDir)) {
+    fs.mkdirSync(sessionAuthDir, { recursive: true });
+  }
 
   try {
-    await updateSessionDoc({
+    await updateSessionDoc(sessionId, {
       status: 'connecting',
       qr: null,
+      label: sessionObj.label,
     });
 
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionAuthDir);
     const { version, isLatest } = await fetchLatestBaileysVersion();
 
-    console.log(`\n📱 Iniciando WhatsApp Baileys (v${version.join('.')}, isLatest: ${isLatest})...`);
+    console.log(`\n📱 [Sessão: ${sessionObj.label} (${sessionId})] Iniciando Baileys v${version.join('.')}...`);
 
-    sock = makeWASocket({
+    const sock = makeWASocket({
       version,
       logger: pino({ level: 'silent' }),
       auth: state,
@@ -179,124 +214,220 @@ async function connectToWhatsApp() {
       syncFullHistory: false,
     });
 
+    sessionObj.sock = sock;
+
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log('\n================================================================');
-        console.log('📲 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP DEDICADO OU NO APP:');
-        console.log('================================================================\n');
+        console.log(`\n================================================================`);
+        console.log(`📲 QR CODE PARA CONTA "${sessionObj.label}" (${sessionId}):`);
+        console.log(`================================================================\n`);
         qrcode.generate(qr, { small: true });
-        console.log('\nAguardando leitura do QR Code...\n');
 
-        // Transmitir QR code bruto para o documento no Firestore
-        await updateSessionDoc({
+        await updateSessionDoc(sessionId, {
           status: 'qr',
           qr: qr,
+          label: sessionObj.label,
         });
       }
 
       if (connection === 'connecting') {
-        await updateSessionDoc({
+        sessionObj.status = 'connecting';
+        await updateSessionDoc(sessionId, {
           status: 'connecting',
         });
       }
 
       if (connection === 'close') {
-        isConnecting = false;
+        sessionObj.isConnecting = false;
+        sessionObj.status = 'disconnected';
+
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-        console.log(`⚠️ Conexão com o WhatsApp encerrada. Código: ${statusCode}. Reconectando: ${shouldReconnect}`);
+        console.log(`⚠️ [Sessão: ${sessionId}] Conexão encerrada (código: ${statusCode}). Reconectar: ${shouldReconnect}`);
 
         if (statusCode === DisconnectReason.loggedOut) {
-          console.error('❌ O número foi desconectado/deslogado. Limpando sessão e pedindo novo QR Code...');
-          if (fs.existsSync(AUTH_DIR)) {
-            fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+          console.error(`❌ [Sessão: ${sessionId}] Número deslogado. Limpando credenciais...`);
+          if (fs.existsSync(sessionAuthDir)) {
+            try {
+              fs.rmSync(sessionAuthDir, { recursive: true, force: true });
+            } catch (e) {
+              console.error('Erro ao remover diretório de auth:', e.message);
+            }
           }
-          await updateSessionDoc({
+          await updateSessionDoc(sessionId, {
             status: 'disconnected',
             qr: null,
             phoneNumber: null,
             name: null,
+            requestedConnect: false,
           });
+          sessionsMap.delete(sessionId);
         } else {
-          await updateSessionDoc({
+          await updateSessionDoc(sessionId, {
             status: shouldReconnect ? 'connecting' : 'disconnected',
             qr: null,
           });
-        }
 
-        if (shouldReconnect) {
-          setTimeout(connectToWhatsApp, 5000);
+          if (shouldReconnect) {
+            clearTimeout(sessionObj.reconnectTimer);
+            sessionObj.reconnectTimer = setTimeout(() => {
+              connectToWhatsAppSession(sessionId, sessionObj.label);
+            }, 5000);
+          }
         }
       } else if (connection === 'open') {
-        isConnecting = false;
+        sessionObj.isConnecting = false;
+        sessionObj.status = 'connected';
+
         const userJid = sock.user?.id || '';
         const phoneNum = userJid ? userJid.split(':')[0].split('@')[0] : null;
         const name = sock.user?.name || sock.user?.notify || null;
 
-        console.log(`\n✅ CONECTADO COM SUCESSO AO WHATSAPP! JID: ${userJid}`);
-        console.log('----------------------------------------------------------------\n');
+        console.log(`\n✅ [Sessão: ${sessionObj.label}] CONECTADO COM SUCESSO AO WHATSAPP! (${phoneNum})`);
+        console.log(`----------------------------------------------------------------\n`);
 
-        await updateSessionDoc({
+        await updateSessionDoc(sessionId, {
           status: 'connected',
           qr: null,
           phoneNumber: phoneNum,
           name: name,
+          requestedConnect: false,
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Executar sincronização inicial de grupos
-        await syncGroups();
-
-        // Iniciar loop periódico de execução
-        startWorkerLoops();
+        // Sincronizar grupos desta conta específica
+        await syncGroups(sessionId, sock);
       }
     });
   } catch (err) {
-    isConnecting = false;
-    console.error('❌ Erro durante a inicialização do Baileys:', err);
-    await updateSessionDoc({
+    sessionObj.isConnecting = false;
+    sessionObj.status = 'disconnected';
+    console.error(`❌ Erro ao conectar sessão ${sessionId}:`, err.message);
+
+    await updateSessionDoc(sessionId, {
       status: 'disconnected',
       qr: null,
     });
-    setTimeout(connectToWhatsApp, 10000);
   }
 }
 
 // ------------------------------------------------------------------------------
-// 3. SINCRONIZAÇÃO DE GRUPOS (users/{uid}/waGroups)
+// 3. LISTENERS DE SESSÕES EM TEMPO REAL (users/{uid}/waSessions)
 // ------------------------------------------------------------------------------
 
-async function syncGroups() {
+function startSessionsManager() {
+  // 1. Escanear pastas existentes em ./auth/ para reconectar contas prévias
+  if (fs.existsSync(AUTH_BASE_DIR)) {
+    const entries = fs.readdirSync(AUTH_BASE_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const sessionId = entry.name;
+        console.log(`📂 Sessão detectada no disco: ${sessionId}. Inicializando...`);
+        connectToWhatsAppSession(sessionId, 'Conta WhatsApp');
+      }
+    }
+  }
+
+  // 2. Escutar Firestore em tempo real
+  const sessionsColRef = db.collection('users').doc(USER_UID).collection('waSessions');
+
+  sessionsListenerUnsub = sessionsColRef.onSnapshot(
+    (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        const sessionId = change.doc.id;
+        const data = change.doc.data() || {};
+
+        if (change.type === 'removed') {
+          // Desconectar se o documento foi excluído
+          const sessionObj = sessionsMap.get(sessionId);
+          if (sessionObj) {
+            if (sessionObj.sock) {
+              try { sessionObj.sock.logout(); } catch (e) {}
+            }
+            sessionsMap.delete(sessionId);
+          }
+          const sessionAuthDir = path.join(AUTH_BASE_DIR, sessionId);
+          if (fs.existsSync(sessionAuthDir)) {
+            try { fs.rmSync(sessionAuthDir, { recursive: true, force: true }); } catch (e) {}
+          }
+          return;
+        }
+
+        // Se pediu logout
+        if (data.requestedLogout) {
+          console.log(`🚪 [Sessão: ${sessionId}] Solicitado logout via aplicativo...`);
+          const sessionObj = sessionsMap.get(sessionId);
+          if (sessionObj) {
+            if (sessionObj.sock) {
+              try { sessionObj.sock.logout(); } catch (e) {}
+            }
+            sessionsMap.delete(sessionId);
+          }
+
+          const sessionAuthDir = path.join(AUTH_BASE_DIR, sessionId);
+          if (fs.existsSync(sessionAuthDir)) {
+            try { fs.rmSync(sessionAuthDir, { recursive: true, force: true }); } catch (e) {}
+          }
+
+          updateSessionDoc(sessionId, {
+            status: 'disconnected',
+            qr: null,
+            phoneNumber: null,
+            name: null,
+            requestedLogout: false,
+            requestedConnect: false,
+          });
+          return;
+        }
+
+        // Se pediu conexão
+        if (data.requestedConnect) {
+          const sessionObj = sessionsMap.get(sessionId);
+          if (!sessionObj || sessionObj.status === 'disconnected') {
+            console.log(`📲 [Sessão: ${sessionId}] Solicitação de conexão recebida! Gerando QR...`);
+            connectToWhatsAppSession(sessionId, data.label || 'Conta WhatsApp');
+          }
+        }
+      });
+    },
+    (err) => {
+      console.error('⚠️ Erro no listener de waSessions:', err.message);
+    }
+  );
+}
+
+// ------------------------------------------------------------------------------
+// 4. SINCRONIZAÇÃO DE GRUPOS POR SESSÃO (users/{uid}/waGroups)
+// ------------------------------------------------------------------------------
+
+async function syncGroups(sessionId, sock) {
   if (!sock) return;
-  console.log('🔄 Sincronizando grupos do WhatsApp com o Firestore...');
+  console.log(`🔄 [Sessão: ${sessionId}] Sincronizando grupos do WhatsApp com o Firestore...`);
 
   try {
     const groupsMap = await sock.groupFetchAllParticipating();
     const groupList = Object.values(groupsMap);
 
-    console.log(`📋 ${groupList.length} grupo(s) detectado(s). Atualizando Firestore...`);
+    console.log(`📋 [Sessão: ${sessionId}] ${groupList.length} grupo(s) detectado(s). Atualizando Firestore...`);
 
     const botJid = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : '';
 
     for (const group of groupList) {
       if (!group.id.endsWith('@g.us')) continue;
 
-      // Pegar contagem de participantes (apenas contagem agregada para LGPD)
       const participants = group.participants || [];
       const participantsCount = participants.length;
 
-      // Verificar se o bot é administrador
       const isBotAdmin = participants.some((p) => {
         const pJid = p.id ? p.id.split(':')[0] + '@s.whatsapp.net' : '';
         return pJid === botJid && (p.admin === 'admin' || p.admin === 'superadmin');
       });
 
-      // Tentar buscar a foto do grupo
       let photoUrl = null;
       try {
         photoUrl = await sock.profilePictureUrl(group.id, 'image');
@@ -304,8 +435,12 @@ async function syncGroups() {
         photoUrl = null;
       }
 
+      // ID composto para suportar múltiplos sockets na mesma conta sem conflito
+      const docId = `${sessionId}_${group.id}`;
+
       const groupDocData = {
         groupId: group.id,
+        sessionId: sessionId,
         name: group.subject || 'Grupo sem nome',
         photoUrl: photoUrl || null,
         size: participantsCount,
@@ -315,23 +450,31 @@ async function syncGroups() {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      // Gravar na subcoleção do usuário no Firestore
       await db
         .collection('users')
         .doc(USER_UID)
         .collection('waGroups')
-        .doc(group.id)
+        .doc(docId)
         .set(groupDocData, { merge: true });
     }
 
-    console.log('✅ Sincronização de grupos concluída com sucesso!');
+    console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
   } catch (err) {
-    console.error('⚠️ Erro ao sincronizar grupos:', err.message);
+    console.error(`⚠️ [Sessão: ${sessionId}] Erro ao sincronizar grupos:`, err.message);
+  }
+}
+
+// Sincronizar grupos de todas as sessões conectadas periodicamente
+async function syncAllGroups() {
+  for (const [sessionId, sessionObj] of sessionsMap.entries()) {
+    if (sessionObj.status === 'connected' && sessionObj.sock) {
+      await syncGroups(sessionId, sessionObj.sock);
+    }
   }
 }
 
 // ------------------------------------------------------------------------------
-// 4. GERADOR DE LINK DE AFILIADO POR PLATAFORMA
+// 5. HELPER LINK DE AFILIADO E COPY
 // ------------------------------------------------------------------------------
 
 function buildAffiliateLink(rawUrl, platform, apiKeys) {
@@ -360,13 +503,9 @@ function buildAffiliateLink(rawUrl, platform, apiKeys) {
   }
 
   if (!tagParam || !tagValue) {
-    if (plat) {
-      console.warn(`⚠️ ID de afiliado não configurado para a plataforma "${platform}". Usando link original sem comissão.`);
-    }
     return rawUrl;
   }
 
-  // Anexar parâmetro de rastreamento na URL
   try {
     const urlObj = new URL(rawUrl);
     urlObj.searchParams.set(tagParam, tagValue);
@@ -377,7 +516,6 @@ function buildAffiliateLink(rawUrl, platform, apiKeys) {
   }
 }
 
-// Formatar Copy do Produto com o Link de Afiliado
 function formatProductCopy(product, affiliateLink) {
   const title = product.title || 'Produto de Oferta';
   const priceTo = product.price_to ? `R$ ${product.price_to}` : '';
@@ -394,10 +532,6 @@ function formatProductCopy(product, affiliateLink) {
     `⚡ *Aproveite antes que o estoque acabe!*`
   );
 }
-
-// ------------------------------------------------------------------------------
-// 5. CHECAGEM DE HORÁRIO ATIVO (HH:mm em minutos inteiros)
-// ------------------------------------------------------------------------------
 
 function parseTimeToMinutes(timeStr) {
   if (!timeStr || typeof timeStr !== 'string') return null;
@@ -417,7 +551,7 @@ function isScheduleActive(schedule) {
     const now = new Date();
 
     const localDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-    const dayOfWeek = localDate.getDay(); // 0 = Dom, 6 = Sáb
+    const dayOfWeek = localDate.getDay();
 
     if (Array.isArray(schedule.days) && schedule.days.length > 0) {
       if (!schedule.days.includes(dayOfWeek)) {
@@ -425,7 +559,6 @@ function isScheduleActive(schedule) {
       }
     }
 
-    // Checar intervalo de hora usando comparação de minutos inteiros
     if (schedule.startHour && schedule.endHour) {
       const currentHours = localDate.getHours();
       const currentMinutes = localDate.getMinutes();
@@ -440,7 +573,6 @@ function isScheduleActive(schedule) {
             return false;
           }
         } else {
-          // Atravessa meia-noite (ex: 22:00 até 06:00)
           if (currentTotalMin < startMin && currentTotalMin > endMin) {
             return false;
           }
@@ -450,28 +582,21 @@ function isScheduleActive(schedule) {
 
     return true;
   } catch (err) {
-    console.error('Erro ao verificar agendamento da campanha:', err);
     return true;
   }
 }
 
 // ------------------------------------------------------------------------------
-// 6. MOTOR DE DISPARO E PROCESSAMENTO DE CAMPANHAS
+// 6. MOTOR DE DISPARO DE CAMPANHAS (MULTI-SESSÃO)
 // ------------------------------------------------------------------------------
 
 async function runCampaignCycle() {
-  if (!sock) return;
-
-  // Trava de concorrência
-  if (isRunningCampaign) {
-    return;
-  }
+  if (isRunningCampaign) return;
   isRunningCampaign = true;
 
   try {
     console.log('\n⚙️ Executando ciclo de campanhas de disparo...');
 
-    // 1. Carregar chaves/tags de afiliados do usuário uma vez por ciclo
     let apiKeys = {};
     try {
       const apiKeysDoc = await db
@@ -488,7 +613,6 @@ async function runCampaignCycle() {
       console.warn('⚠️ Não foi possível carregar as chaves de API/Afiliado:', keyErr.message);
     }
 
-    // 2. Buscar campanhas ativas
     const campaignsSnap = await db
       .collection('users')
       .doc(USER_UID)
@@ -497,11 +621,9 @@ async function runCampaignCycle() {
       .get();
 
     if (campaignsSnap.empty) {
-      console.log('ℹ️ Nenhuma campanha ativa encontrada.');
       return;
     }
 
-    // 3. Buscar histórico dos últimos 24h para anti-duplicação
     const twentyFourHoursAgo = admin.firestore.Timestamp.fromDate(
       new Date(Date.now() - 24 * 60 * 60 * 1000)
     );
@@ -531,11 +653,17 @@ async function runCampaignCycle() {
       if (data.productId) recentlySentProductIds.add(data.productId);
     });
 
-    // 4. Processar cada campanha ativa
     for (const campaignDoc of campaignsSnap.docs) {
       const campaign = { id: campaignDoc.id, ...campaignDoc.data() };
 
-      // CHECAGEM DA CADÊNCIA DA CAMPANHA (windowMinutes)
+      const campaignSessionId = campaign.sessionId || 'current';
+      const sessionObj = sessionsMap.get(campaignSessionId);
+
+      if (!sessionObj || sessionObj.status !== 'connected' || !sessionObj.sock) {
+        console.log(`⏳ Campanha "${campaign.name}" aguardando conta WhatsApp (${campaignSessionId}) estar conectada. Pulando.`);
+        continue;
+      }
+
       const windowMin = campaign.windowMinutes || 30;
       if (campaign.lastRunAt) {
         let lastRunMs = 0;
@@ -554,7 +682,7 @@ async function runCampaignCycle() {
           const windowMs = windowMin * 60 * 1000;
           if (elapsedMs < windowMs) {
             const remainMin = Math.ceil((windowMs - elapsedMs) / 60000);
-            console.log(`⏳ Campanha "${campaign.name}" está dentro da janela de espera (${remainMin} min restantes). Pulando.`);
+            console.log(`⏳ Campanha "${campaign.name}" aguardando janela (${remainMin} min restantes). Pulando.`);
             continue;
           }
         }
@@ -570,23 +698,17 @@ async function runCampaignCycle() {
         continue;
       }
 
-      console.log(`🎯 Processando campanha ativa: "${campaign.name}"`);
+      console.log(`🎯 Processando campanha: "${campaign.name}" na conta "${sessionObj.label}" (${campaignSessionId})`);
 
-      // 5. Buscar produtos minerados do usuário
       const minedSnap = await db
         .collection('users')
         .doc(USER_UID)
         .collection('minedProducts')
         .get();
 
-      if (minedSnap.empty) {
-        console.log('ℹ️ Nenhum produto minerado no catálogo.');
-        continue;
-      }
+      if (minedSnap.empty) continue;
 
       const minedRefs = minedSnap.docs.map((d) => d.data());
-
-      // Buscar documentos completos em /products
       const candidateProducts = [];
       for (const ref of minedRefs) {
         if (!ref.productId) continue;
@@ -596,7 +718,6 @@ async function runCampaignCycle() {
         }
       }
 
-      // Aplicar filtros da campanha
       const filters = campaign.filters || {};
       let filtered = candidateProducts.filter((p) => {
         if (recentlySentProductIds.has(p.id)) return false;
@@ -626,7 +747,6 @@ async function runCampaignCycle() {
         return true;
       });
 
-      // Ordenar conforme o objetivo da campanha
       filtered.sort((a, b) => {
         if (campaign.objective === 'mais_vendidos') {
           const parseSales = (sc) => {
@@ -645,18 +765,16 @@ async function runCampaignCycle() {
         }
       });
 
-      // Selecionar até a quantidade configurada
       const qty = campaign.quantity || 30;
       const selectedProducts = filtered.slice(0, qty);
 
       if (selectedProducts.length === 0) {
-        console.log(`ℹ️ Nenhuns novos produtos para enfileirar para a campanha "${campaign.name}".`);
+        console.log(`ℹ️ Sem novos produtos elegíveis para a campanha "${campaign.name}".`);
         continue;
       }
 
-      console.log(`📦 ${selectedProducts.length} produto(s) elegíveis selecionado(s) para a campanha "${campaign.name}".`);
+      console.log(`📦 ${selectedProducts.length} produto(s) enfileirados para a campanha "${campaign.name}".`);
 
-      // Montar itens e agendar em sendQueue com Pacing
       let currentTimeMs = Date.now();
 
       for (let i = 0; i < selectedProducts.length; i++) {
@@ -678,17 +796,21 @@ async function runCampaignCycle() {
           currentTimeMs += gapMs;
         }
 
-        // Montar link de afiliado e copy personalizada
         const rawLink = product.original_link || product.affiliate_link || '';
         const affiliateLink = buildAffiliateLink(rawLink, product.platform, apiKeys);
         const copyText = formatProductCopy(product, affiliateLink);
 
-        // Agendar para cada grupo alvo
-        for (const groupId of campaign.targetGroupIds) {
+        for (const targetGId of campaign.targetGroupIds) {
+          // Extrair groupId real se for no formato sessionId_groupId
+          const realGroupId = targetGId.includes('_') && targetGId.endsWith('@g.us')
+            ? targetGId.split('_').slice(1).join('_')
+            : targetGId;
+
           const queueItemData = {
+            sessionId: campaignSessionId,
             productId: product.id,
             productTitle: product.title || 'Oferta Imperdível',
-            groupId: groupId,
+            groupId: realGroupId,
             campaignId: campaign.id,
             campaignName: campaign.name,
             copyText: copyText,
@@ -709,7 +831,6 @@ async function runCampaignCycle() {
         recentlySentProductIds.add(product.id);
       }
 
-      // Atualizar lastRunAt na campanha
       await db
         .collection('users')
         .doc(USER_UID)
@@ -725,20 +846,16 @@ async function runCampaignCycle() {
 }
 
 // ------------------------------------------------------------------------------
-// 7. CONSUMIDOR DA FILA DE ENVIOS (sendQueue)
+// 7. CONSUMIDOR DA FILA DE ENVIOS (sendQueue) MULTI-SESSÃO
 // ------------------------------------------------------------------------------
 
 async function processSendQueue() {
-  if (!sock) return;
-
-  // Trava de concorrência
   if (isProcessingQueue) return;
   isProcessingQueue = true;
 
   try {
     const nowTimestamp = admin.firestore.Timestamp.now();
 
-    // Buscar itens pendentes onde scheduledAt <= agora
     const pendingSnap = await db
       .collection('users')
       .doc(USER_UID)
@@ -754,16 +871,56 @@ async function processSendQueue() {
 
     for (const queueDoc of pendingSnap.docs) {
       const item = { id: queueDoc.id, ...queueDoc.data() };
+      const itemSessionId = item.sessionId || 'current';
+
+      const sessionObj = sessionsMap.get(itemSessionId);
+
+      // Se a sessão estiver offline ou desconectada, marcar erro claro
+      if (!sessionObj || sessionObj.status !== 'connected' || !sessionObj.sock) {
+        const errorMsg = `Sessão do WhatsApp (${itemSessionId}) não está conectada ou disponível no worker.`;
+        console.error(`❌ Falha no disparo (${item.id}): ${errorMsg}`);
+
+        await db
+          .collection('users')
+          .doc(USER_UID)
+          .collection('sendQueue')
+          .doc(item.id)
+          .update({
+            status: 'failed',
+            error: errorMsg,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+        await db
+          .collection('users')
+          .doc(USER_UID)
+          .collection('sendLog')
+          .add({
+            sessionId: itemSessionId,
+            productId: item.productId || '',
+            productName: item.productTitle || '',
+            groupId: item.groupId,
+            groupName: item.groupName || item.groupId,
+            campaignId: item.campaignId || '',
+            campaignName: item.campaignName || '',
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: 'failed',
+            error: errorMsg,
+          });
+
+        continue;
+      }
+
+      const sock = sessionObj.sock;
 
       try {
-        console.log(`📤 Enviando oferta "${item.productTitle}" para o grupo ${item.groupId}...`);
+        console.log(`📤 [Sessão: ${sessionObj.label}] Enviando "${item.productTitle}" para ${item.groupId}...`);
 
-        // Simular presença "Digitando..." (composing) por 1.5 a 3.5 segundos (Recurso Anti-ban)
+        // Simulação de presença "composing"
         await sock.sendPresenceUpdate('composing', item.groupId);
         const typingDelay = Math.floor(Math.random() * 2000) + 1500;
         await new Promise((resolve) => setTimeout(resolve, typingDelay));
 
-        // Enviar mensagem no WhatsApp com Imagem ou Texto
         if (item.imageUrl) {
           await sock.sendMessage(item.groupId, {
             image: { url: item.imageUrl },
@@ -775,7 +932,6 @@ async function processSendQueue() {
           });
         }
 
-        // Marcar como 'sent' no sendQueue
         await db
           .collection('users')
           .doc(USER_UID)
@@ -786,12 +942,12 @@ async function processSendQueue() {
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-        // Registrar no histórico sendLog
         await db
           .collection('users')
           .doc(USER_UID)
           .collection('sendLog')
           .add({
+            sessionId: itemSessionId,
             productId: item.productId || '',
             productName: item.productTitle || '',
             groupId: item.groupId,
@@ -805,15 +961,13 @@ async function processSendQueue() {
             imageUrl: item.imageUrl || null,
           });
 
-        console.log(`✅ Disparo concluído com sucesso para ${item.groupId}!`);
+        console.log(`✅ [Sessão: ${sessionObj.label}] Disparo concluído para ${item.groupId}!`);
 
-        // Pausa aleatória de segurança entre envios de grupos (3 a 8 segundos)
         const interMessageDelay = Math.floor(Math.random() * 5000) + 3000;
         await new Promise((resolve) => setTimeout(resolve, interMessageDelay));
       } catch (sendErr) {
-        console.error(`❌ Erro ao enviar para o grupo ${item.groupId}:`, sendErr.message);
+        console.error(`❌ [Sessão: ${sessionObj.label}] Erro ao enviar para ${item.groupId}:`, sendErr.message);
 
-        // Marcar falha no sendQueue
         await db
           .collection('users')
           .doc(USER_UID)
@@ -825,12 +979,12 @@ async function processSendQueue() {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-        // Registrar falha no sendLog
         await db
           .collection('users')
           .doc(USER_UID)
           .collection('sendLog')
           .add({
+            sessionId: itemSessionId,
             productId: item.productId || '',
             productName: item.productTitle || '',
             groupId: item.groupId,
@@ -851,25 +1005,29 @@ async function processSendQueue() {
 }
 
 // ------------------------------------------------------------------------------
-// 8. INICIALIZAÇÃO DE TEMPORIZADORES (LOOPS)
+// 8. TEMPORIZADORES (LOOPS)
 // ------------------------------------------------------------------------------
 
-function startWorkerLoops() {
-  console.log('⏱️ Agendando tarefas do worker...');
+async function main() {
+  // 1. Migração se houver sessão legada
+  await checkAndMigrateLegacySession();
 
-  // 1. Sincronização periódica de grupos (a cada X minutos)
+  // 2. Iniciar gerenciador de sessões (carrega auth/ e escuta waSessions)
+  startSessionsManager();
+
+  // 3. Sincronização periódica de grupos (a cada X minutos)
   const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 15) * 60 * 1000;
-  setInterval(syncGroups, syncIntervalMs);
+  setInterval(syncAllGroups, syncIntervalMs);
 
-  // 2. Ciclo de geração de campanhas (a cada X minutos)
+  // 4. Ciclo de geração de campanhas (a cada 1 minuto)
   const campaignIntervalMs = (parseInt(process.env.CAMPAIGN_CYCLE_INTERVAL_MIN) || 1) * 60 * 1000;
   setInterval(runCampaignCycle, campaignIntervalMs);
-  runCampaignCycle(); // Executar primeiro ciclo imediatamente
+  runCampaignCycle();
 
-  // 3. Consumidor de fila em tempo real (a cada 15 segundos)
+  // 5. Consumidor de fila em tempo real (a cada 15 segundos)
   setInterval(processSendQueue, 15 * 1000);
 }
 
-// Iniciar escuta de comandos no Firestore e conexão com WhatsApp
-listenToSessionCommands();
-connectToWhatsApp();
+main().catch((err) => {
+  console.error('❌ Erro fatal no worker:', err);
+});

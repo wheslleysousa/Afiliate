@@ -166,6 +166,7 @@ export interface DailyStat {
 
 export interface WaGroup {
   groupId: string;
+  sessionId?: string;
   name: string;
   photoUrl?: string | null;
   size?: number;
@@ -195,6 +196,7 @@ export interface CampaignSchedule {
 
 export interface WaCampaign {
   id?: string;
+  sessionId?: string;
   name: string;
   enabled: boolean;
   targetGroupIds: string[];
@@ -214,6 +216,7 @@ export type QueueStatus = 'pending' | 'sent' | 'failed';
 
 export interface WaSendQueueItem {
   id?: string;
+  sessionId?: string;
   productId: string;
   productTitle?: string;
   groupId: string;
@@ -231,6 +234,7 @@ export interface WaSendQueueItem {
 
 export interface WaSendLogItem {
   id?: string;
+  sessionId?: string;
   productId: string;
   productName?: string;
   groupId: string;
@@ -246,14 +250,18 @@ export interface WaSendLogItem {
 }
 
 export interface WaSession {
+  id?: string;
+  sessionId?: string;
+  label?: string | null;
   status: 'disconnected' | 'connecting' | 'qr' | 'connected';
   qr?: string | null;
   phoneNumber?: string | null;
   name?: string | null;
-  label?: string | null;
+  requestedConnect?: boolean;
   requestedLogout?: boolean;
   updatedAt?: any;
   lastConnectedAt?: any;
+  createdAt?: any;
 }
 
 // ─── Navegação ───────────────────────────────────────────────────────────────

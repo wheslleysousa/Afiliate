@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { WaCampaign, WaGroup, CampaignObjective, CampaignPacing } from '../../types';
+import type { WaCampaign, WaGroup, WaSession, CampaignObjective, CampaignPacing } from '../../types';
 import {
   X,
   Target,
@@ -17,11 +17,13 @@ import {
   DollarSign,
   Tag,
   MessageSquare,
+  Smartphone,
 } from 'lucide-react';
 
 interface CampaignModalProps {
   campaign: WaCampaign | null; // null for new campaign
   waGroups: WaGroup[];
+  waSessions: WaSession[];
   isOpen: boolean;
   onClose: () => void;
   onSave: (campaignData: Partial<WaCampaign>) => Promise<void>;
@@ -48,11 +50,13 @@ const DAYS_OF_WEEK = [
 export const CampaignModal: React.FC<CampaignModalProps> = ({
   campaign,
   waGroups,
+  waSessions,
   isOpen,
   onClose,
   onSave,
 }) => {
   const [name, setName] = useState('');
+  const [sessionId, setSessionId] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [targetGroupIds, setTargetGroupIds] = useState<string[]>([]);
   const [objective, setObjective] = useState<CampaignObjective>('mais_vendidos');
@@ -82,9 +86,16 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Available groups filtered by selected sessionId
+  const availableGroups = waGroups.filter((g) => {
+    if (!sessionId) return true;
+    return !g.sessionId || g.sessionId === sessionId;
+  });
+
   useEffect(() => {
     if (campaign) {
       setName(campaign.name || '');
+      setSessionId(campaign.sessionId || (waSessions[0]?.sessionId || waSessions[0]?.id || ''));
       setEnabled(campaign.enabled ?? true);
       setTargetGroupIds(campaign.targetGroupIds || []);
       setObjective(campaign.objective || 'mais_vendidos');
@@ -109,8 +120,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     } else {
       // Default reset
       setName('');
+      const defaultSId = waSessions[0]?.sessionId || waSessions[0]?.id || '';
+      setSessionId(defaultSId);
       setEnabled(true);
-      setTargetGroupIds(waGroups.map(g => g.groupId)); // select all by default
+      
+      const filteredDefaults = waGroups
+        .filter((g) => !defaultSId || !g.sessionId || g.sessionId === defaultSId)
+        .map((g) => g.groupId);
+
+      setTargetGroupIds(filteredDefaults);
       setObjective('mais_vendidos');
       setMinSales('');
       setMinDiscount('');
@@ -128,7 +146,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTimezone('America/Sao_Paulo');
     }
     setError(null);
-  }, [campaign, waGroups, isOpen]);
+  }, [campaign, waGroups, waSessions, isOpen]);
 
   if (!isOpen) return null;
 
@@ -157,10 +175,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   };
 
   const handleSelectAllGroups = () => {
-    if (targetGroupIds.length === waGroups.length) {
+    if (targetGroupIds.length === availableGroups.length) {
       setTargetGroupIds([]);
     } else {
-      setTargetGroupIds(waGroups.map((g) => g.groupId));
+      setTargetGroupIds(availableGroups.map((g) => g.groupId));
     }
   };
 
@@ -168,6 +186,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     e.preventDefault();
     if (!name.trim()) {
       setError('Informe um nome para a campanha.');
+      return;
+    }
+    if (!sessionId) {
+      setError('Selecione obrigatoriamente a conta do WhatsApp que irá realizar os disparos.');
       return;
     }
     if (targetGroupIds.length === 0) {
@@ -186,6 +208,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     try {
       await onSave({
         name: name.trim(),
+        sessionId: sessionId,
         enabled,
         targetGroupIds,
         objective,
@@ -231,7 +254,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 {campaign ? 'Editar Campanha de Disparo' : 'Nova Campanha de Disparo'}
               </h3>
               <p className="text-xs text-stone-400">
-                Configure os grupos, filtros de produtos, volume e ritmo de envios automatizados.
+                Configure a conta de WhatsApp, grupos-alvo, filtros de produtos e ritmo de envios.
               </p>
             </div>
           </div>
@@ -252,6 +275,44 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Seleção de Conta de WhatsApp (MANDATÓRIO) */}
+          <div className="bg-[#151a26]/80 p-4 rounded-xl border border-emerald-500/30 space-y-2">
+            <label className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-emerald-400" />
+              Conta do WhatsApp de Disparo (Obrigatório) *
+            </label>
+            <select
+              required
+              value={sessionId}
+              onChange={(e) => {
+                const newSId = e.target.value;
+                setSessionId(newSId);
+                // Reset selected groups to match new session
+                const filtered = waGroups
+                  .filter((g) => !newSId || !g.sessionId || g.sessionId === newSId)
+                  .map((g) => g.groupId);
+                setTargetGroupIds(filtered);
+              }}
+              className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="">-- Selecione a Conta que fará os disparos --</option>
+              {waSessions.map((s) => {
+                const sId = s.sessionId || s.id || '';
+                const isConn = s.status === 'connected';
+                return (
+                  <option key={sId} value={sId}>
+                    {s.label || 'Conta WhatsApp'} {s.phoneNumber ? `(+${s.phoneNumber})` : ''} [{isConn ? 'Conectado' : s.status}]
+                  </option>
+                );
+              })}
+            </select>
+            {waSessions.length === 0 && (
+              <p className="text-[11px] text-amber-400">
+                Nenhuma conta de WhatsApp cadastrada. Adicione uma conta na aba "Automação Zap" antes de criar a campanha.
+              </p>
+            )}
+          </div>
+
           {/* Nome e Toggle Ativo */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
             <div className="sm:col-span-2 space-y-1.5">
@@ -296,47 +357,42 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 <Users className="w-4 h-4 text-emerald-400" />
                 Grupos do WhatsApp Alvo ({targetGroupIds.length} selecionados)
               </label>
-              {waGroups.length > 0 && (
+              {availableGroups.length > 0 && (
                 <button
                   type="button"
                   onClick={handleSelectAllGroups}
                   className="text-xs text-blue-400 hover:underline font-semibold"
                 >
-                  {targetGroupIds.length === waGroups.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                  {targetGroupIds.length === availableGroups.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
                 </button>
               )}
             </div>
 
-            {waGroups.length === 0 ? (
+            {availableGroups.length === 0 ? (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs rounded-xl">
-                Nenhum grupo encontrado no seu Firestore. Aguarde o worker sincronizar seus grupos do WhatsApp.
+                Nenhum grupo encontrado para a conta selecionada. Conecte o WhatsApp no worker para sincronizar os grupos.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto p-2 bg-[#151a26]/30 rounded-xl border border-[#1e2636]">
-                {waGroups.map((g) => {
+                {availableGroups.map((g) => {
                   const isChecked = targetGroupIds.includes(g.groupId);
                   return (
                     <div
                       key={g.groupId}
                       onClick={() => toggleGroup(g.groupId)}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
+                      className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all ${
                         isChecked
-                          ? 'bg-emerald-500/10 border-emerald-500/40 text-white'
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
                           : 'bg-[#0e1119] border-[#1e2636] text-stone-400 hover:border-stone-700'
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {}} // handled by div click
-                        className="rounded border-stone-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold truncate">{g.name}</div>
-                        <div className="text-[10px] text-stone-500">
-                          {g.size || g.participantsCount || 0} membros {g.isAdmin ? '• Admin' : ''}
-                        </div>
+                      <div className="flex items-center gap-2 truncate">
+                        <MessageSquare className="w-4 h-4 shrink-0 text-stone-500" />
+                        <span className="font-semibold truncate">{g.name}</span>
                       </div>
+                      <span className="text-[10px] text-stone-500 shrink-0">
+                        {g.size || g.participantsCount || 0} membros
+                      </span>
                     </div>
                   );
                 })}

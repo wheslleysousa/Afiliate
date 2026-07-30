@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { WaGroup, ApiKeysConfig } from '../types';
+import type { WaGroup, WaSession, ApiKeysConfig } from '../types';
 import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
 import { WhatsAppCampaignsView } from './WhatsAppAutomation/WhatsAppCampaignsView';
 import { WhatsAppQueueLogsView } from './WhatsAppAutomation/WhatsAppQueueLogsView';
@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Bot,
   RefreshCw,
+  Smartphone,
 } from 'lucide-react';
 
 interface WhatsAppAutomationTabProps {
@@ -27,8 +28,32 @@ interface WhatsAppAutomationTabProps {
 export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ uid, apiKeys }) => {
   const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'queue-logs'>('campaigns');
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
+  const [waSessions, setWaSessions] = useState<WaSession[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [preselectedGroupId, setPreselectedGroupId] = useState<string | null>(null);
+
+  // Subscribe to waSessions
+  useEffect(() => {
+    if (!uid) return;
+
+    const q = query(collection(db, 'users', uid, 'waSessions'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const list: WaSession[] = snap.docs.map((d) => ({
+          id: d.id,
+          sessionId: d.id,
+          ...d.data(),
+        })) as WaSession[];
+        setWaSessions(list);
+      },
+      (err) => {
+        console.error('Erro ao carregar waSessions:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
 
   // Subscribe to waGroups
   useEffect(() => {
@@ -61,6 +86,8 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
     setActiveSubTab('campaigns');
   };
 
+  const connectedSessionsCount = waSessions.filter((s) => s.status === 'connected').length;
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Top Banner Header */}
@@ -77,11 +104,11 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
                 </h2>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  WhatsApp Worker Sync
+                  Multi-Sessão Worker Sync
                 </span>
               </div>
               <p className="text-xs text-stone-400 mt-0.5">
-                Configure regras de disparo automático, ritmo antiban, horários e acompanhe a fila e logs em tempo real via Firestore.
+                Gerencie múltiplas contas do WhatsApp, crie campanhas com disparos direcionados por conta, ritmo antiban e acompanhe os envios.
               </p>
             </div>
           </div>
@@ -91,10 +118,11 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
         <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl text-xs text-stone-300 space-y-1 shrink-0 w-full md:w-auto">
           <div className="flex items-center gap-2 text-stone-200 font-bold">
             <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            Sincronização em Tempo Real
+            Sincronização Multi-Conta
           </div>
-          <div className="text-[11px] text-stone-400">
-            Grupos detectados: <strong className="text-emerald-400">{waGroups.length}</strong>
+          <div className="flex items-center gap-3 text-[11px] text-stone-400">
+            <span>Contas ativas: <strong className="text-emerald-400">{connectedSessionsCount}/{waSessions.length}</strong></span>
+            <span>Grupos: <strong className="text-blue-400">{waGroups.length}</strong></span>
           </div>
         </div>
 
@@ -102,7 +130,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* WhatsApp Connection Card (QR Code / Status) */}
+      {/* WhatsApp Connection Cards (Multi-Sessão) */}
       <WhatsAppSessionCard uid={uid} />
 
       {/* Subtab Selector */}
@@ -149,6 +177,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
         <WhatsAppCampaignsView
           uid={uid}
           waGroups={waGroups}
+          waSessions={waSessions}
           apiKeys={apiKeys}
           preselectedGroupId={preselectedGroupId}
         />
@@ -157,11 +186,14 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
       {activeSubTab === 'groups' && (
         <WhatsAppGroupsView
           uid={uid}
+          waSessions={waSessions}
           onSelectGroupForCampaign={handleSelectGroupForCampaign}
         />
       )}
 
-      {activeSubTab === 'queue-logs' && <WhatsAppQueueLogsView uid={uid} />}
+      {activeSubTab === 'queue-logs' && (
+        <WhatsAppQueueLogsView uid={uid} waSessions={waSessions} />
+      )}
     </div>
   );
 };

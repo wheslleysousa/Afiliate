@@ -11,7 +11,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { WaCampaign, WaGroup, ApiKeysConfig } from '../../types';
+import type { WaCampaign, WaGroup, WaSession, ApiKeysConfig } from '../../types';
 import { CampaignModal } from './CampaignModal';
 import { CampaignPreviewModal } from './CampaignPreviewModal';
 import {
@@ -29,11 +29,13 @@ import {
   CheckCircle2,
   BarChart2,
   Calendar,
+  Smartphone,
 } from 'lucide-react';
 
 interface WhatsAppCampaignsViewProps {
   uid: string;
   waGroups: WaGroup[];
+  waSessions: WaSession[];
   apiKeys?: ApiKeysConfig;
   preselectedGroupId?: string | null;
 }
@@ -41,6 +43,7 @@ interface WhatsAppCampaignsViewProps {
 export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   uid,
   waGroups,
+  waSessions,
   apiKeys,
   preselectedGroupId,
 }) => {
@@ -324,6 +327,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
       <CampaignModal
         campaign={editingCampaign}
         waGroups={waGroups}
+        waSessions={waSessions}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCampaignData}

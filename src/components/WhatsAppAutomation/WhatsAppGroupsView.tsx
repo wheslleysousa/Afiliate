@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { WaGroup } from '../../types';
-import { Users, ShieldCheck, RefreshCw, Search, MessageSquare, AlertTriangle, ExternalLink, ArrowRight, Info, Check } from 'lucide-react';
+import type { WaGroup, WaSession } from '../../types';
+import { Users, ShieldCheck, RefreshCw, Search, MessageSquare, AlertTriangle, ExternalLink, ArrowRight, Info, Check, Smartphone, Filter } from 'lucide-react';
 
 interface WhatsAppGroupsViewProps {
   uid: string;
+  waSessions?: WaSession[];
   onSelectGroupForCampaign?: (groupId: string) => void;
 }
 
 export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   uid,
+  waSessions = [],
   onSelectGroupForCampaign,
 }) => {
   const [groups, setGroups] = useState<WaGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
   const [selectedGroup, setSelectedGroup] = useState<WaGroup | null>(null);
 
   useEffect(() => {
@@ -48,34 +51,69 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     return () => unsubscribe();
   }, [uid]);
 
-  const filteredGroups = groups.filter((g) =>
-    (g.name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (g.groupId || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const sessionMap = new Map(waSessions.map((s) => [s.sessionId || s.id || '', s.label || 'Conta WhatsApp']));
+
+  const filteredGroups = groups.filter((g) => {
+    const matchesSearch =
+      (g.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (g.groupId || '').toLowerCase().includes(search.toLowerCase());
+
+    const matchesAccount =
+      accountFilter === 'all' ||
+      !g.sessionId ||
+      g.sessionId === accountFilter;
+
+    return matchesSearch && matchesAccount;
+  });
 
   return (
     <div className="space-y-6">
       {/* Top Bar with Info & Search */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0e1119] p-4 rounded-2xl border border-[#1e2636]">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#0e1119] p-4 rounded-2xl border border-[#1e2636]">
         <div>
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" />
-            Grupos Sincronizados ({groups.length})
+            Grupos Sincronizados ({filteredGroups.length})
           </h3>
           <p className="text-xs text-stone-400 mt-0.5">
-            Grupos detectados automaticamente pelo worker WhatsApp do seu usuário.
+            Grupos detectados automaticamente pelo worker do WhatsApp.
           </p>
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Buscar grupo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          {/* Account Filter */}
+          {waSessions.length > 0 && (
+            <div className="relative w-full sm:w-56">
+              <Smartphone className="w-4 h-4 text-emerald-400 absolute left-3 top-2.5" />
+              <select
+                value={accountFilter}
+                onChange={(e) => setAccountFilter(e.target.value)}
+                className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+              >
+                <option value="all">Todas as Contas ({groups.length})</option>
+                {waSessions.map((s) => {
+                  const sId = s.sessionId || s.id || '';
+                  return (
+                    <option key={sId} value={sId}>
+                      {s.label || 'Conta WhatsApp'}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Buscar grupo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+            />
+          </div>
         </div>
       </div>
 
@@ -164,11 +202,17 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-stone-400">
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-stone-400 flex-wrap">
                       <span className="flex items-center gap-1 bg-[#151a26] px-2 py-0.5 rounded-md border border-[#1e2636] text-[11px]">
                         <Users className="w-3 h-3 text-emerald-400" />
                         {memberCount} membros
                       </span>
+                      {group.sessionId && (
+                        <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[11px]">
+                          <Smartphone className="w-3 h-3 text-emerald-400" />
+                          {sessionMap.get(group.sessionId) || group.sessionId}
+                        </span>
+                      )}
                     </div>
 
                     {group.description && (

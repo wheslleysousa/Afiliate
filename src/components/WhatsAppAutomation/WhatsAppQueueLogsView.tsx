@@ -9,7 +9,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { WaSendQueueItem, WaSendLogItem } from '../../types';
+import type { WaSendQueueItem, WaSendLogItem, WaSession } from '../../types';
 import {
   Clock,
   List,
@@ -24,13 +24,15 @@ import {
   Users,
   Send,
   FileText,
+  Smartphone,
 } from 'lucide-react';
 
 interface WhatsAppQueueLogsViewProps {
   uid: string;
+  waSessions?: WaSession[];
 }
 
-export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ uid }) => {
+export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ uid, waSessions = [] }) => {
   const [subTab, setSubTab] = useState<'queue' | 'logs'>('queue');
   const [queueItems, setQueueItems] = useState<WaSendQueueItem[]>([]);
   const [logItems, setLogItems] = useState<WaSendLogItem[]>([]);
