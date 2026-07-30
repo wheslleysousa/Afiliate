@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -16,16 +16,20 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-const DB_ID = 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
+const DB_ID = firebaseConfigJson.firestoreDatabaseId || 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
 
 let firestoreInstance;
 try {
-  firestoreInstance = initializeFirestore(app, { experimentalForceLongPolling: true }, DB_ID);
+  firestoreInstance = getFirestore(app, DB_ID);
 } catch (e) {
   try {
-    firestoreInstance = getFirestore(app, DB_ID);
+    firestoreInstance = initializeFirestore(app, {}, DB_ID);
   } catch (e2) {
-    firestoreInstance = getFirestore(app);
+    try {
+      firestoreInstance = getFirestore(app);
+    } catch (e3) {
+      console.error("Erro ao inicializar Firestore:", e3);
+    }
   }
 }
 

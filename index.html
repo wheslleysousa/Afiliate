@@ -7,20 +7,22 @@
     <script>
       (function() {
         try {
-          var origFetch = window.fetch;
-          var desc = Object.getOwnPropertyDescriptor(window, 'fetch') || 
-                     (window.Window && Object.getOwnPropertyDescriptor(window.Window.prototype, 'fetch'));
-          if (!desc || !desc.set || !desc.writable) {
-            var _currentFetch = origFetch;
-            Object.defineProperty(window, 'fetch', {
-              get: function() { return _currentFetch; },
-              set: function(v) { _currentFetch = v; },
-              configurable: true,
-              enumerable: true
-            });
+          if (typeof window !== 'undefined' && window.fetch) {
+            var origFetch = window.fetch;
+            var desc = Object.getOwnPropertyDescriptor(window, 'fetch') || 
+                       (window.Window && Object.getOwnPropertyDescriptor(window.Window.prototype, 'fetch'));
+            if (desc && desc.configurable && (!desc.set || !desc.writable)) {
+              var _currentFetch = origFetch;
+              Object.defineProperty(window, 'fetch', {
+                get: function() { return _currentFetch; },
+                set: function(v) { _currentFetch = v; },
+                configurable: true,
+                enumerable: true
+              });
+            }
           }
         } catch (e) {
-          console.warn('fetch setter polyfill warning:', e);
+          console.warn('fetch polyfill warning:', e);
         }
       })();
     </script>
