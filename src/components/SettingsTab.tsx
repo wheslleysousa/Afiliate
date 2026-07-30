@@ -1292,6 +1292,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               hint="Injeta ?smtt=XXX ou seu parâmetro de rastreio na Shopee"
             />
 
+            <AffiliateItemCard
+              label="Shopee API AppID"
+              labelColor="text-orange-300"
+              placeholder="ex: 18361171011"
+              value={apiKeys.shopeeAppId || ''}
+              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeAppId: newVal })}
+              onHowToObtain={() => setActiveHelpModal('shopee')}
+              hint="AppID obtido no console de Afiliados Shopee (Opcional)"
+            />
+
+            <AffiliateItemCard
+              label="Shopee API Senha / Secret"
+              labelColor="text-orange-300"
+              placeholder="ex: PQ2FO5P35ONW..."
+              value={apiKeys.shopeeSecret || ''}
+              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeSecret: newVal })}
+              onHowToObtain={() => setActiveHelpModal('shopee')}
+              hint="Senha de API obtida no console Shopee (Opcional)"
+            />
+
             {/* AliExpress */}
             <AffiliateItemCard
               label="AliExpress Affiliate ID"

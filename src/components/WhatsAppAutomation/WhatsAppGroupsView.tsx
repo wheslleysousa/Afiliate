@@ -1,0 +1,284 @@
+import React, { useState, useEffect } from 'react';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import type { WaGroup } from '../../types';
+import { Users, ShieldCheck, RefreshCw, Search, MessageSquare, AlertTriangle, ExternalLink, ArrowRight, Info, Check } from 'lucide-react';
+
+interface WhatsAppGroupsViewProps {
+  uid: string;
+  onSelectGroupForCampaign?: (groupId: string) => void;
+}
+
+export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
+  uid,
+  onSelectGroupForCampaign,
+}) => {
+  const [groups, setGroups] = useState<WaGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<WaGroup | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    setLoading(true);
+
+    const q = query(
+      collection(db, 'users', uid, 'waGroups')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: WaGroup[] = snapshot.docs.map((d) => ({
+          groupId: d.id,
+          ...d.data(),
+        })) as WaGroup[];
+        
+        // Sort by name
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setGroups(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Erro ao buscar grupos do WhatsApp:', err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
+
+  const filteredGroups = groups.filter((g) =>
+    (g.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (g.groupId || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Top Bar with Info & Search */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0e1119] p-4 rounded-2xl border border-[#1e2636]">
+        <div>
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-emerald-400" />
+            Grupos Sincronizados ({groups.length})
+          </h3>
+          <p className="text-xs text-stone-400 mt-0.5">
+            Grupos detectados automaticamente pelo worker WhatsApp do seu usuário.
+          </p>
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            placeholder="Buscar grupo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+          />
+        </div>
+      </div>
+
+      {/* Empty State Warning if no groups */}
+      {!loading && groups.length === 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl text-stone-200 space-y-4 animate-fadeIn">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl shrink-0">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-amber-300">
+                Nenhum grupo do WhatsApp sincronizado ainda
+              </h4>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Conecte o seu WhatsApp no <strong>worker externo (Baileys)</strong> para que ele leia seus grupos e atualize esta tela automaticamente via Firestore em tempo real!
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#0e1119]/80 p-4 rounded-xl border border-amber-500/20 text-xs text-stone-400 space-y-2">
+            <div className="flex items-center gap-2 text-stone-200 font-bold">
+              <Info className="w-4 h-4 text-amber-400 shrink-0" />
+              Como funciona o fluxo do Worker:
+            </div>
+            <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] text-stone-300">
+              <li>O worker escaneia o QR Code do seu WhatsApp de ofertas.</li>
+              <li>Ele salva a lista de grupos na coleção <code className="text-amber-300 font-mono">users/{'{uid}'}/waGroups</code>.</li>
+              <li>Assim que sincronizado, seus grupos aparecerão aqui para você selecionar nas Campanhas de disparo.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Skeleton */}
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-32 bg-[#0e1119] border border-[#1e2636] rounded-2xl animate-pulse p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-stone-800 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-stone-800 rounded w-3/4" />
+                  <div className="h-3 bg-stone-800/60 rounded w-1/2" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Groups Grid */}
+      {!loading && filteredGroups.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredGroups.map((group) => {
+            const memberCount = group.size || group.participantsCount || 0;
+            return (
+              <div
+                key={group.groupId}
+                onClick={() => setSelectedGroup(group)}
+                className="bg-[#0e1119] border border-[#1e2636] hover:border-emerald-500/50 p-4 rounded-2xl transition-all hover:shadow-lg hover:shadow-emerald-950/20 cursor-pointer flex flex-col justify-between group"
+              >
+                <div className="flex items-start gap-3">
+                  {group.photoUrl ? (
+                    <img
+                      src={group.photoUrl}
+                      alt={group.name}
+                      className="w-12 h-12 rounded-full object-cover border border-[#1e2636] shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 font-bold text-lg">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
+                        {group.name || 'Grupo sem nome'}
+                      </h4>
+                      {group.isAdmin && (
+                        <span className="shrink-0 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1" title="Você é Administrador neste grupo">
+                          <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                          Admin
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-stone-400">
+                      <span className="flex items-center gap-1 bg-[#151a26] px-2 py-0.5 rounded-md border border-[#1e2636] text-[11px]">
+                        <Users className="w-3 h-3 text-emerald-400" />
+                        {memberCount} membros
+                      </span>
+                    </div>
+
+                    {group.description && (
+                      <p className="text-[11px] text-stone-500 truncate mt-1">
+                        {group.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-stone-400">
+                  <span className="text-[10px] text-stone-500 font-mono truncate max-w-[140px]">
+                    ID: {group.groupId}
+                  </span>
+                  <span className="text-emerald-400 font-semibold group-hover:underline flex items-center gap-1 text-[11px]">
+                    Detalhes & Disparo
+                    <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Group Detail Modal */}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 animate-fadeIn relative">
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg bg-[#151a26]"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-4">
+              {selectedGroup.photoUrl ? (
+                <img
+                  src={selectedGroup.photoUrl}
+                  alt={selectedGroup.name}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500/40"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-2xl">
+                  <MessageSquare className="w-8 h-8" />
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {selectedGroup.name}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <Users className="w-3 h-3 text-emerald-400" />
+                    {selectedGroup.size || selectedGroup.participantsCount || 0} participantes
+                  </span>
+                  {selectedGroup.isAdmin && (
+                    <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      Admin
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {selectedGroup.description && (
+              <div className="bg-[#151a26] p-3 rounded-xl border border-[#1e2636] text-xs text-stone-300 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Descrição do Grupo</span>
+                <p className="leading-relaxed">{selectedGroup.description}</p>
+              </div>
+            )}
+
+            <div className="space-y-1.5 text-xs text-stone-400 font-mono bg-[#151a26]/50 p-3 rounded-xl border border-[#1e2636]">
+              <div><strong className="text-stone-300">ID do Grupo:</strong> {selectedGroup.groupId}</div>
+              {selectedGroup.updatedAt && (
+                <div>
+                  <strong className="text-stone-300">Última Sincronização:</strong>{' '}
+                  {typeof selectedGroup.updatedAt === 'object' && selectedGroup.updatedAt?.toDate
+                    ? selectedGroup.updatedAt.toDate().toLocaleString('pt-BR')
+                    : String(selectedGroup.updatedAt)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setSelectedGroup(null)}
+                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636]"
+              >
+                Fechar
+              </button>
+              {onSelectGroupForCampaign && (
+                <button
+                  onClick={() => {
+                    onSelectGroupForCampaign(selectedGroup.groupId);
+                    setSelectedGroup(null);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-950/50"
+                >
+                  <Check className="w-4 h-4" />
+                  Usar Neste Disparo
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

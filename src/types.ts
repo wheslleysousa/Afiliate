@@ -24,6 +24,8 @@ export interface ApiKeysConfig {
   mercadolivreTrackingId?: string;   // ML: ?tracking_id=XXX
   amazonAssociatesTag?: string;       // Amazon: ?tag=XXX
   shopeeTrackingId?: string;          // Shopee: ?smtt=XXX
+  shopeeAppId?: string;               // Shopee API AppID
+  shopeeSecret?: string;              // Shopee API Senha/Secret
   aliexpressAffiliateId?: string;     // AliExpress: ?aff_id=XXX
   sheinAffiliateToken?: string;       // Shein: ?url_from=XXX
 }
@@ -160,6 +162,89 @@ export interface DailyStat {
   count: number;
 }
 
+// ─── Automação de Disparos no WhatsApp ─────────────────────────────────────
+
+export interface WaGroup {
+  groupId: string;
+  name: string;
+  photoUrl?: string | null;
+  size?: number;
+  description?: string | null;
+  isAdmin?: boolean;
+  participantsCount?: number;
+  updatedAt?: any;
+}
+
+export type CampaignObjective = 'mais_vendidos' | 'maior_desconto' | 'maior_comissao' | 'mais_recentes';
+export type CampaignPacing = 'aleatorio' | 'uniforme';
+
+export interface CampaignFilters {
+  minSales?: number;
+  minDiscount?: number;
+  platforms?: string[];
+  categories?: string[];
+  maxPrice?: number;
+}
+
+export interface CampaignSchedule {
+  startHour: string; // ex: "09:00"
+  endHour: string;   // ex: "21:00"
+  days: number[];    // 0-6 (0 = Domingo, 6 = Sábado)
+  timezone: string;  // ex: "America/Sao_Paulo"
+}
+
+export interface WaCampaign {
+  id?: string;
+  name: string;
+  enabled: boolean;
+  targetGroupIds: string[];
+  objective: CampaignObjective;
+  filters: CampaignFilters;
+  quantity: number;
+  windowMinutes: number;
+  pacing: CampaignPacing;
+  minGapSec: number;
+  maxGapSec: number;
+  schedule: CampaignSchedule;
+  lastRunAt?: any;
+  createdAt?: any;
+}
+
+export type QueueStatus = 'pending' | 'sent' | 'failed';
+
+export interface WaSendQueueItem {
+  id?: string;
+  productId: string;
+  productTitle?: string;
+  groupId: string;
+  groupName?: string;
+  campaignId?: string;
+  campaignName?: string;
+  copyText: string;
+  imageUrl?: string | null;
+  affiliateLink: string;
+  scheduledAt: any;
+  status: QueueStatus;
+  sentAt?: any;
+  error?: string;
+}
+
+export interface WaSendLogItem {
+  id?: string;
+  productId: string;
+  productName?: string;
+  groupId: string;
+  groupName?: string;
+  campaignId?: string;
+  campaignName?: string;
+  sentAt: any;
+  status: 'sent' | 'failed';
+  error?: string;
+  affiliateLink?: string;
+  copyText?: string;
+  imageUrl?: string | null;
+}
+
 // ─── Navegação ───────────────────────────────────────────────────────────────
 
 export type AppTab =
@@ -168,5 +253,6 @@ export type AppTab =
   | "marketplace"
   | "my-products"
   | "analytics"
+  | "whatsapp-auto"
   | "settings"
   | "api-docs";

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab, UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2 } from 'lucide-react';
+import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -52,6 +52,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'analytics',
       label: 'Analytics',
       icon: <BarChart2 className="w-5 h-5 shrink-0 text-blue-400" />,
+    },
+    {
+      id: 'whatsapp-auto',
+      label: 'Automação Zap',
+      icon: <Bot className="w-5 h-5 shrink-0 text-emerald-400" />,
     },
     {
       id: 'settings',

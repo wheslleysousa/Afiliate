@@ -32,6 +32,9 @@ export function buildAffiliateLink(
         }
         break;
       case 'shopee':
+        if (originalLink.includes('shope.ee') || originalLink.includes('shopee.com.br/universal-link')) {
+          return originalLink;
+        }
         if (apiKeys.shopeeTrackingId) {
           url.searchParams.set('smtt', apiKeys.shopeeTrackingId);
         }

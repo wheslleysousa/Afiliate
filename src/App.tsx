@@ -8,6 +8,7 @@ import { MarketplaceTab } from './components/MarketplaceTab';
 import { MinedProductsTab } from './components/MinedProductsTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { SettingsTab } from './components/SettingsTab';
+import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
 import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct, CommissionRatesConfig, CopyTemplate } from './types';
@@ -751,6 +752,13 @@ export default function App() {
               currentUserId={currentUser?.id}
               apiKeys={apiKeys}
               commissionRates={commissionRates}
+            />
+          )}
+
+          {activeTab === 'whatsapp-auto' && currentUser && (
+            <WhatsAppAutomationTab
+              uid={currentUser.id}
+              apiKeys={apiKeys}
             />
           )}
 

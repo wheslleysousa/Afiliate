@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import * as cheerio from "cheerio";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -266,6 +267,77 @@ function calculateDiscountPct(priceFrom: string | null | undefined, priceTo: str
   if (!isNaN(numFrom) && !isNaN(numTo) && numFrom > numTo && numFrom > 0) {
     const pct = Math.round(((numFrom - numTo) / numFrom) * 100);
     return pct > 0 ? pct : null;
+  }
+  return null;
+}
+
+// Helper to generate Shopee Affiliate Promotion Link using GraphQL and HMAC-SHA256 signature
+async function generateShopeePromotionLink(originalUrl: string, appId?: string, secret?: string): Promise<string | null> {
+  try {
+    const finalAppId = appId?.trim() || "18361171011";
+    const finalSecret = secret?.trim() || "PQ2FO5P35ONWVQS2L5YEYWGLPKJFEHDS";
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    
+    // Shopee GraphQL API mutation body
+    const mutation = {
+      query: `mutation {
+        generatePromotionLink(originLines: ["${originalUrl}"]) {
+          errCode
+          errMsg
+          data {
+            promotionLinkList {
+              origin
+              promotionLink
+            }
+          }
+        }
+      }`
+    };
+
+    const bodyStr = JSON.stringify(mutation);
+    
+    // Concatenate message to sign: appId + timestamp + requestBody
+    const message = finalAppId + timestamp + bodyStr;
+    
+    // Calculate HMAC-SHA256 signature in hex
+    const signature = crypto
+      .createHmac("sha256", finalSecret)
+      .update(message)
+      .digest("hex");
+
+    const authorizationHeader = `SHA256 Credential=${finalAppId}, Signature=${signature}, Timestamp=${timestamp}`;
+
+    console.log(`[Shopee Affiliate API] Requesting link conversion for: ${originalUrl} with AppID: ${finalAppId}`);
+
+    const response = await fetch("https://open-api.affiliate.shopee.com/api/v1/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": authorizationHeader,
+      },
+      body: bodyStr,
+    });
+
+    if (response.ok) {
+      const result: any = await response.json();
+      console.log("[Shopee Affiliate API] API Response:", JSON.stringify(result));
+      const responseData = result?.data?.generatePromotionLink;
+      
+      if (responseData?.errCode === 0 || responseData?.errCode === "0") {
+        const promoList = responseData?.data?.promotionLinkList;
+        if (promoList && promoList.length > 0 && promoList[0]?.promotionLink) {
+          return promoList[0].promotionLink;
+        }
+      } else {
+        console.warn(`[Shopee Affiliate API] Erro retornado pela API. Código: ${responseData?.errCode}, Mensagem: ${responseData?.errMsg}`);
+      }
+    } else {
+      const text = await response.text();
+      console.error(`[Shopee Affiliate API] Erro HTTP ${response.status}:`, text);
+    }
+  } catch (err) {
+    console.error("[Shopee Affiliate API] Erro de execução:", err);
   }
   return null;
 }
@@ -1359,7 +1431,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
 }
 
 // Shopee Scraper & Official API Extractor
-async function scrapeShopee(url: string, shopeeKey?: string) {
+async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: string, shopeeSecret?: string) {
   try {
     const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
 
@@ -2159,6 +2231,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
 
     console.log(`[Scraper Endpoint] Extracting platform: ${platform} for URL: ${workingUrl} (with custom apiKeys: ${apiKeys ? 'Yes' : 'No'})`);
 
+    let finalLink = url;
     let data: any = {};
     if (platform === "mercadolivre") {
       data = await scrapeMercadoLivre(workingUrl, {
@@ -2169,7 +2242,25 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
         mercadoLivreExpiresAt: apiKeys?.mercadoLivreExpiresAt,
       });
     } else if (platform === "shopee") {
-      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey);
+      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey || apiKeys?.shopeeTrackingId, apiKeys?.shopeeAppId, apiKeys?.shopeeSecret);
+      
+      // Generate official Shopee Affiliate promotion short link via GraphQL with HMAC signature
+      try {
+        console.log(`[Shopee Scraper] Requesting official affiliate link conversion for resolved URL: ${workingUrl}`);
+        const promoLink = await generateShopeePromotionLink(
+          workingUrl,
+          apiKeys?.shopeeAppId,
+          apiKeys?.shopeeSecret
+        );
+        if (promoLink) {
+          console.log(`[Shopee Scraper] Successfully converted to official affiliate link: ${promoLink}`);
+          finalLink = promoLink;
+        } else {
+          console.log(`[Shopee Scraper] No official affiliate link could be generated. Falling back to original URL.`);
+        }
+      } catch (promoErr) {
+        console.error("[Shopee Scraper] Error during official affiliate link generation:", promoErr);
+      }
     } else if (platform === "amazon") {
       data = await scrapeAmazon(workingUrl, apiKeys?.amazonKey);
     } else if (platform === "aliexpress") {
@@ -2179,7 +2270,6 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
     }
 
     // Attach Amazon tracking tag if provided in apiKeys
-    let finalLink = url;
     if (platform === "amazon" && apiKeys?.amazonKey) {
       const cleanTag = apiKeys.amazonKey.trim();
       if (cleanTag && !finalLink.includes(`tag=${cleanTag}`)) {

@@ -1,0 +1,345 @@
+import React, { useState, useEffect } from 'react';
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import type { WaCampaign, WaGroup, ApiKeysConfig } from '../../types';
+import { CampaignModal } from './CampaignModal';
+import { CampaignPreviewModal } from './CampaignPreviewModal';
+import {
+  Zap,
+  Plus,
+  Play,
+  Pause,
+  Edit2,
+  Trash2,
+  Eye,
+  Target,
+  Clock,
+  Users,
+  AlertTriangle,
+  CheckCircle2,
+  BarChart2,
+  Calendar,
+} from 'lucide-react';
+
+interface WhatsAppCampaignsViewProps {
+  uid: string;
+  waGroups: WaGroup[];
+  apiKeys?: ApiKeysConfig;
+  preselectedGroupId?: string | null;
+}
+
+export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
+  uid,
+  waGroups,
+  apiKeys,
+  preselectedGroupId,
+}) => {
+  const [campaigns, setCampaigns] = useState<WaCampaign[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modals
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<WaCampaign | null>(null);
+
+  const [previewCampaign, setPreviewCampaign] = useState<WaCampaign | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    if (!uid) return;
+    setLoading(true);
+
+    const q = query(
+      collection(db, 'users', uid, 'campaigns')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: WaCampaign[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as WaCampaign[];
+        
+        // Sort by createdAt desc if possible
+        setCampaigns(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Erro ao buscar campanhas:', err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
+
+  // Handle preselected group from Groups tab
+  useEffect(() => {
+    if (preselectedGroupId) {
+      setEditingCampaign(null);
+      setIsModalOpen(true);
+    }
+  }, [preselectedGroupId]);
+
+  const handleCreateCampaign = () => {
+    setEditingCampaign(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditCampaign = (camp: WaCampaign) => {
+    setEditingCampaign(camp);
+    setIsModalOpen(true);
+  };
+
+  const handleToggleEnabled = async (camp: WaCampaign) => {
+    if (!camp.id || !uid) return;
+    try {
+      await updateDoc(doc(db, 'users', uid, 'campaigns', camp.id), {
+        enabled: !camp.enabled,
+      });
+    } catch (err) {
+      console.error('Erro ao atualizar status da campanha:', err);
+    }
+  };
+
+  const handleDeleteCampaign = async (campId: string) => {
+    if (!uid) return;
+    if (!window.confirm('Tem certeza de que deseja excluir esta campanha de disparo?')) return;
+
+    try {
+      await deleteDoc(doc(db, 'users', uid, 'campaigns', campId));
+    } catch (err) {
+      console.error('Erro ao excluir campanha:', err);
+    }
+  };
+
+  const handleSaveCampaignData = async (data: Partial<WaCampaign>) => {
+    if (!uid) return;
+
+    if (editingCampaign && editingCampaign.id) {
+      // Update
+      await updateDoc(doc(db, 'users', uid, 'campaigns', editingCampaign.id), {
+        ...data,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // Create
+      await addDoc(collection(db, 'users', uid, 'campaigns'), {
+        ...data,
+        createdAt: serverTimestamp(),
+      });
+    }
+  };
+
+  const groupMap = new Map(waGroups.map((g) => [g.groupId, g.name]));
+
+  return (
+    <div className="space-y-6">
+      {/* Top Action Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0e1119] p-4 rounded-2xl border border-[#1e2636]">
+        <div>
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <Zap className="w-5 h-5 text-amber-400" />
+            Campanhas de Disparo Automático ({campaigns.length})
+          </h3>
+          <p className="text-xs text-stone-400 mt-0.5">
+            O worker externo lerá estas campanhas e consumirá o catálogo para montar a fila de disparos.
+          </p>
+        </div>
+
+        <button
+          onClick={handleCreateCampaign}
+          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-950/50 transition-all shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Nova Campanha
+        </button>
+      </div>
+
+      {/* Loading Skeleton */}
+      {loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-44 bg-[#0e1119] border border-[#1e2636] rounded-2xl animate-pulse p-4" />
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && campaigns.length === 0 && (
+        <div className="bg-[#0e1119] border border-[#1e2636] p-10 rounded-2xl text-center space-y-4">
+          <div className="w-14 h-14 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto">
+            <Zap className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-white">Nenhuma campanha configurada</h4>
+            <p className="text-xs text-stone-400 max-w-md mx-auto">
+              Crie sua primeira regra de disparo automático escolhendo os grupos alvo, objetivo de ofertas e horários de envio.
+            </p>
+          </div>
+          <button
+            onClick={handleCreateCampaign}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Criar Minha Primeira Campanha
+          </button>
+        </div>
+      )}
+
+      {/* Campaign List Grid */}
+      {!loading && campaigns.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {campaigns.map((camp) => {
+            const targetNames = (camp.targetGroupIds || [])
+              .map((id) => groupMap.get(id) || id)
+              .join(', ');
+
+            return (
+              <div
+                key={camp.id}
+                className={`bg-[#0e1119] border p-5 rounded-2xl transition-all space-y-4 flex flex-col justify-between ${
+                  camp.enabled
+                    ? 'border-[#1e2636] hover:border-blue-500/50'
+                    : 'border-[#1e2636]/60 opacity-75'
+                }`}
+              >
+                {/* Header & Status Toggle */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white truncate">
+                        {camp.name}
+                      </h4>
+                      <span
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          camp.enabled
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : 'bg-stone-800 text-stone-400 border-stone-700'
+                        }`}
+                      >
+                        {camp.enabled ? 'Ativa' : 'Pausada'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-stone-400 truncate flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate" title={targetNames}>
+                        {camp.targetGroupIds?.length || 0} grupo(s): {targetNames || 'Nenhum'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleToggleEnabled(camp)}
+                    className={`p-2 rounded-xl border text-xs font-bold transition-all shrink-0 ${
+                      camp.enabled
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
+                        : 'bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700'
+                    }`}
+                    title={camp.enabled ? 'Pausar Campanha' : 'Ativar Campanha'}
+                  >
+                    {camp.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Details Badges Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-[#151a26]/50 p-3 rounded-xl border border-[#1e2636]">
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Objetivo</span>
+                    <span className="text-blue-300 font-bold capitalize">
+                      {camp.objective.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Qtd / Janela</span>
+                    <span className="text-stone-200 font-semibold">
+                      {camp.quantity} ofertas / {camp.windowMinutes} min
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Ritmo (Pacing)</span>
+                    <span className="text-amber-300 font-semibold capitalize">
+                      {camp.pacing} ({camp.minGapSec}s-{camp.maxGapSec}s)
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Horário</span>
+                    <span className="text-stone-300 font-mono text-[11px]">
+                      {camp.schedule?.startHour} - {camp.schedule?.endHour}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-[#1e2636]">
+                  <button
+                    onClick={() => {
+                      setPreviewCampaign(camp);
+                      setIsPreviewOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                    Ver Prévia de Envio
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditCampaign(camp)}
+                      className="p-1.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-lg border border-[#1e2636] transition-all"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => camp.id && handleDeleteCampaign(camp.id)}
+                      className="p-1.5 bg-[#151a26] hover:bg-red-500/20 text-red-400 rounded-lg border border-[#1e2636] hover:border-red-500/30 transition-all"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal CRUD Campanha */}
+      <CampaignModal
+        campaign={editingCampaign}
+        waGroups={waGroups}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveCampaignData}
+      />
+
+      {/* Modal Prévia Próximos Envios */}
+      {previewCampaign && (
+        <CampaignPreviewModal
+          campaign={previewCampaign}
+          uid={uid}
+          waGroups={waGroups}
+          apiKeys={apiKeys}
+          isOpen={isPreviewOpen}
+          onClose={() => setIsPreviewOpen(false)}
+        />
+      )}
+    </div>
+  );
+};
