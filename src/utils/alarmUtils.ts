@@ -7,10 +7,22 @@ export interface AlarmSettings {
   startHour: string;       // "08:00"
   endHour: string;         // "22:00"
   soundEnabled: boolean;
+  soundType?: string;      // 'chime', 'digital', 'radar', 'gong', 'energetic', 'ping', 'whistle', 'synth'
   lastTriggeredAt?: number;
 }
 
 const ALARM_STORAGE_KEY = 'affiliate_alarm_settings_v1';
+
+export const ALARM_SOUND_OPTIONS = [
+  { id: 'chime', label: '🔔 Chime Eletrônico', description: 'Sequência harmoniosa de 4 notas ascendentes' },
+  { id: 'digital', label: '⏰ Beep Digital', description: 'Som clássico de relógio digital com repetição' },
+  { id: 'radar', label: '📡 Pulso Radar', description: 'Sinal duplo pulsante com modulação de frequência' },
+  { id: 'gong', label: '🧘 Gong Suave', description: 'Tom grave e ressonante de baixa frequência' },
+  { id: 'energetic', label: '⚡ Alerta Energético', description: 'Arpejo rápido e marcante para ação imediata' },
+  { id: 'ping', label: '💧 Ping Minimalista', description: 'Nota única cristalina com atenuação suave' },
+  { id: 'whistle', label: '🎷 Apito Notificação', description: 'Grito melódico tipo notificação de mensagem' },
+  { id: 'synth', label: '🎹 Synth Wave', description: 'Acorde expansivo estilo sintetizador retrô' },
+];
 
 export const DEFAULT_ALARM_SETTINGS: AlarmSettings = {
   enabled: false,
@@ -18,6 +30,7 @@ export const DEFAULT_ALARM_SETTINGS: AlarmSettings = {
   startHour: '08:00',
   endHour: '22:00',
   soundEnabled: true,
+  soundType: 'chime',
   lastTriggeredAt: 0,
 };
 
@@ -49,34 +62,157 @@ export function saveAlarmSettings(settings: AlarmSettings): AlarmSettings {
 }
 
 /**
- * Toca um som de alarme agradável usando a Web Audio API nativa
+ * Toca um som de alarme configurado usando a Web Audio API nativa
  */
-export function playAlarmSound() {
+export function playAlarmSound(typeOverride?: string) {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
 
+    const settings = getAlarmSettings();
+    if (!typeOverride && !settings.soundEnabled) return;
+
+    const soundType = typeOverride || settings.soundType || 'chime';
     const ctx = new AudioContext();
     const now = ctx.currentTime;
 
-    // Tocar uma sequência de 3 bips ascendentes
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
-    notes.forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+    switch (soundType) {
+      case 'digital': {
+        // Double fast beep
+        [0, 0.12, 0.24].forEach((timeOffset) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(880, now + timeOffset); // A5
+          gain.gain.setValueAtTime(0.2, now + timeOffset);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + timeOffset + 0.08);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + timeOffset);
+          osc.stop(now + timeOffset + 0.09);
+        });
+        break;
+      }
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+      case 'radar': {
+        // Radar sweep synth
+        [0, 0.25].forEach((offset) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1200, now + offset);
+          osc.frequency.exponentialRampToValueAtTime(400, now + offset + 0.18);
+          gain.gain.setValueAtTime(0.3, now + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.18);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.2);
+        });
+        break;
+      }
 
-      gain.gain.setValueAtTime(0.3, now + idx * 0.15);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.15 + 0.2);
+      case 'gong': {
+        // Deep resonating gong
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(220, now); // A3
+        osc.frequency.exponentialRampToValueAtTime(110, now + 1.2);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.2);
+        break;
+      }
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      case 'energetic': {
+        // Fast energetic tri-tone arpeggio
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.07);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.15);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.07);
+          osc.stop(now + idx * 0.07 + 0.16);
+        });
+        break;
+      }
 
-      osc.start(now + idx * 0.15);
-      osc.stop(now + idx * 0.15 + 0.25);
-    });
+      case 'ping': {
+        // Single crystal clear ping
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1760, now); // A6
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.85);
+        break;
+      }
+
+      case 'whistle': {
+        // Upward whistle tone
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(1600, now + 0.2);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.26);
+        break;
+      }
+
+      case 'synth': {
+        // Multi-oscillator chord
+        [261.63, 329.63, 392.00, 523.25].forEach((freq) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.95);
+        });
+        break;
+      }
+
+      case 'chime':
+      default: {
+        // 4 Ascending sine notes
+        const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+          gain.gain.setValueAtTime(0.25, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.22);
+        });
+        break;
+      }
+    }
   } catch (e) {
     console.warn('Não foi possível reproduzir o áudio do alarme:', e);
   }

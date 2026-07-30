@@ -10,7 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { GlobalProduct, ApiKeysConfig } from '../types';
+import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { PriceHistoryModal } from './PriceHistoryModal';
 import { ProductDetailModal } from './ProductDetailModal';
 import { Badge, CommissionBadge } from './Badge';
@@ -73,19 +73,25 @@ const platformColor: Record<string, string> = {
 interface MarketplaceTabProps {
   currentUserId?: string;
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   sharedMap?: Record<string, number>;
   onToggleShared?: (productId: string) => void;
   onUseProduct?: (product: GlobalProduct) => void;
   onNavigateToSettings?: () => void;
+  onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
+  onAddCustomTemplate?: (template: CopyTemplate) => void;
 }
 
 export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   currentUserId,
   apiKeys,
+  commissionRates,
   sharedMap,
   onToggleShared,
   onUseProduct,
   onNavigateToSettings,
+  onUpdateProductCommission,
+  onAddCustomTemplate,
 }) => {
   const [products, setProducts] = useState<GlobalProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,8 +169,8 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
 
   // Ordenar produtos
   filtered.sort((a, b) => {
-    const commA = calculateCommission(a.price_to, a.platform, a.commission_rate, a.commission_amount);
-    const commB = calculateCommission(b.price_to, b.platform, b.commission_rate, b.commission_amount);
+    const commA = calculateCommission(a.price_to, a.platform, a, null, null, commissionRates);
+    const commB = calculateCommission(b.price_to, b.platform, b, null, null, commissionRates);
 
     if (sortBy === 'commission_amount') {
       return commB.amount - commA.amount;
@@ -310,6 +316,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
                   product={product}
                   currentUserId={currentUserId}
                   apiKeys={apiKeys}
+                  commissionRates={commissionRates}
                   onOpenDetail={() => setSelectedProductForModal(product)}
                 />
               ))}
@@ -341,10 +348,13 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
         <ProductDetailModal
           product={selectedProductForModal}
           apiKeys={apiKeys}
+          commissionRates={commissionRates}
           sharedMap={sharedMap}
           onToggleShared={onToggleShared}
+          onUpdateProductCommission={onUpdateProductCommission}
           onClose={() => setSelectedProductForModal(null)}
           onNavigateToSettings={onNavigateToSettings}
+          onAddCustomTemplate={onAddCustomTemplate}
         />
       )}
     </div>
@@ -357,6 +367,7 @@ interface MarketplaceCardProps {
   product: GlobalProduct;
   currentUserId?: string;
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   onOpenDetail: () => void;
 }
 
@@ -364,6 +375,7 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
   product,
   currentUserId,
   apiKeys,
+  commissionRates,
   onOpenDetail,
 }) => {
   const [imgError, setImgError] = useState(false);
@@ -376,8 +388,10 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
   const commission = calculateCommission(
     product.price_to,
     product.platform,
-    product.commission_rate,
-    product.commission_amount
+    product,
+    null,
+    null,
+    commissionRates
   );
 
   // Tendência de Vendas (Cresceu/Diminuiu)
@@ -464,11 +478,21 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
           </div>
         </div>
 
-        {/* Componente de Badge nas cores Verde e Amarelo para destacar Porcentagem e Valor Estimado */}
-        <CommissionBadge
-          ratePct={commission.ratePct}
-          amountFormatted={commission.amountFormatted}
-        />
+        {/* Bloco de Comissão Estimada e Categoria */}
+        <div className="bg-[#151a26]/40 border border-[#1e2636] p-2 rounded-xl flex flex-col gap-1 text-xs">
+          <div className="text-emerald-400 font-bold">
+            Comissão estimada: {commission.ratePct}% = R$ {commission.amount.toFixed(2).replace('.', ',')}
+          </div>
+          {product.category ? (
+            <div className="text-[10px] text-[#93a0b5] truncate" title={product.category}>
+              🏷️ estimativa (categoria: {product.category})
+            </div>
+          ) : (
+            <div className="text-[10px] text-amber-400 font-medium">
+              ⚠️ estimativa (categoria ausente - usando padrão)
+            </div>
+          )}
+        </div>
 
         {/* Botões de Ação */}
         <div className="flex items-center gap-1.5 mt-1">
@@ -477,10 +501,10 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
               e.stopPropagation();
               onOpenDetail();
             }}
-            className="w-full py-2 sm:py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5"
+            className="w-full py-2 sm:py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <Share2 className="w-3.5 h-3.5 shrink-0" />
-            <span>Divulgar</span>
+            <span>Divulgar este produto</span>
           </button>
         </div>
       </div>

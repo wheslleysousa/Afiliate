@@ -12,11 +12,13 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { MinedProductRef, GlobalProduct, ApiKeysConfig } from '../types';
+import type { MinedProductRef, GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { formatPrice } from '../utils/formatPrice';
 import { buildAffiliateLink } from '../utils/affiliateLink';
 import { isProductSharedRecently } from '../utils/sharingLogUtils';
 import { ProductDetailModal } from './ProductDetailModal';
+import { CommissionBadge } from './Badge';
+import { calculateCommission } from '../utils/marketplaceUtils';
 import {
   PackageCheck,
   Star,
@@ -44,9 +46,12 @@ interface MinedProductsTabProps {
   dailyMineCount?: number;
   dailyMineLimit?: number;
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   sharedMap?: Record<string, number>;
   onToggleShared?: (productId: string) => void;
   onUseProduct?: (product: GlobalProduct) => void;
+  onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
+  onAddCustomTemplate?: (template: CopyTemplate) => void;
 }
 
 interface EnrichedMinedProduct extends MinedProductRef {
@@ -74,9 +79,12 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   dailyMineCount,
   dailyMineLimit,
   apiKeys,
+  commissionRates,
   sharedMap,
   onToggleShared,
   onUseProduct,
+  onUpdateProductCommission,
+  onAddCustomTemplate,
 }) => {
   const [items, setItems] = useState<EnrichedMinedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -422,6 +430,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                   key={item.productId}
                   item={item}
                   apiKeys={apiKeys}
+                  commissionRates={commissionRates}
                   sharedMap={sharedMap}
                   onRequestShare={(id, title) => setProductToShare({ id, title })}
                   onRequestUndoShare={(id, title) => setProductToUndoShare({ id, title })}
@@ -598,9 +607,12 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
         <ProductDetailModal
           product={selectedProductForModal}
           apiKeys={apiKeys || {}}
+          commissionRates={commissionRates}
           sharedMap={sharedMap}
           onToggleShared={onToggleShared}
+          onUpdateProductCommission={onUpdateProductCommission}
           onClose={() => setSelectedProductForModal(null)}
+          onAddCustomTemplate={onAddCustomTemplate}
         />
       )}
     </div>
@@ -612,6 +624,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 interface MinedCardProps {
   item: EnrichedMinedProduct;
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   sharedMap?: Record<string, number>;
   onRequestShare: (id: string, title: string) => void;
   onRequestUndoShare: (id: string, title: string) => void;
@@ -626,6 +639,7 @@ interface MinedCardProps {
 const MinedCard: React.FC<MinedCardProps> = ({
   item,
   apiKeys,
+  commissionRates,
   sharedMap,
   onRequestShare,
   onRequestUndoShare,
@@ -640,6 +654,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
   const [showDesc, setShowDesc] = useState(false);
   const p = item.productData;
   const isArchived = item.status === 'archived';
+  const comm = p ? calculateCommission(p.price_to, p.platform, p, null, null, commissionRates) : null;
 
   if (!p) {
     return (
@@ -827,6 +842,24 @@ const MinedCard: React.FC<MinedCardProps> = ({
           )}
         </div>
 
+        {/* Bloco de Comissão Estimada e Categoria */}
+        {comm && (
+          <div className="bg-[#151a26]/40 border border-[#1e2636] p-2 rounded-xl flex flex-col gap-1 text-xs my-1">
+            <div className="text-emerald-400 font-bold text-[11px] sm:text-xs">
+              Comissão estimada: {comm.ratePct}% = R$ {comm.amount.toFixed(2).replace('.', ',')}
+            </div>
+            {p.category ? (
+              <div className="text-[10px] text-[#93a0b5] truncate" title={p.category}>
+                🏷️ estimativa (categoria: {p.category})
+              </div>
+            ) : (
+              <div className="text-[10px] text-amber-400 font-medium">
+                ⚠️ estimativa (categoria ausente - usando padrão)
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Botões de Ação Empilhados (Divulgar e Marcar/Desfazer como enviado) */}
         <div className="flex flex-col gap-1.5 mt-2">
           <button
@@ -834,10 +867,10 @@ const MinedCard: React.FC<MinedCardProps> = ({
               e.stopPropagation();
               if (onOpenDetail) onOpenDetail(p);
             }}
-            className="w-full py-2 sm:py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5"
+            className="w-full py-2 sm:py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <Share2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Quero divulgar esse produto</span>
+            <span>Divulgar Produto</span>
           </button>
 
           <button
@@ -849,7 +882,7 @@ const MinedCard: React.FC<MinedCardProps> = ({
                 onRequestShare(p.id, p.title || 'Produto');
               }
             }}
-            className={`w-full py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+            className={`w-full py-2 sm:py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 whitespace-nowrap ${
               sharedStatus.isShared
                 ? 'bg-amber-950/60 text-amber-300 border-amber-500/40 hover:bg-amber-900/80 hover:text-white'
                 : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/80 hover:text-white'
@@ -858,12 +891,12 @@ const MinedCard: React.FC<MinedCardProps> = ({
             {sharedStatus.isShared ? (
               <>
                 <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
-                <span className="truncate">Desfazer (Zerar 24h)</span>
+                <span>Desfazer Enviado</span>
               </>
             ) : (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">Marcar como enviado</span>
+                <span>Marcar como Enviado</span>
               </>
             )}
           </button>

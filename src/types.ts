@@ -3,6 +3,8 @@ export interface UserProfile {
   name: string;
   email: string;
   createdAt: string;
+  avatarUrl?: string;
+  role?: 'admin' | 'user';
 }
 
 export interface ApiKeysConfig {
@@ -25,6 +27,18 @@ export interface ApiKeysConfig {
   aliexpressAffiliateId?: string;     // AliExpress: ?aff_id=XXX
   sheinAffiliateToken?: string;       // Shein: ?url_from=XXX
 }
+
+// Configuração de Comissões por Categoria e Plataforma
+export interface CategoryCommissionMap {
+  [categoryName: string]: number;
+}
+
+export interface PlatformCommissionConfig {
+  default: number;
+  categories?: Record<string, number>;
+}
+
+export type CommissionRatesConfig = Record<string, PlatformCommissionConfig>;
 
 export interface ProductData {
   id?: string;

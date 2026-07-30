@@ -10,7 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { ProductData, GlobalProduct, MinedProductRef } from '../types';
+import type { ProductData, GlobalProduct, MinedProductRef, CommissionRatesConfig } from '../types';
 import { cleanAffiliateLink } from './affiliateLink';
 
 // ─── Extrair ID nativo do produto por plataforma ──────────────────────────────
@@ -247,16 +247,112 @@ export const PLAN_LIMITS = {
 
 // ─── Calculadores de Comissão e Tendência de Vendas ─────────────────────────
 
-export const DEFAULT_COMMISSION_RATES: Record<string, number> = {
-  shopee: 15,
-  mercadolivre: 12,
-  amazon: 10,
-  aliexpress: 9,
-  shein: 14,
+export const DEFAULT_COMMISSION_CONFIG: CommissionRatesConfig = {
+  mercadolivre: {
+    default: 4,
+    categories: {
+      esportes: 16,
+      ferramentas: 14,
+      saude: 12,
+      pet: 12,
+      livros: 10,
+      beleza: 8,
+      casa: 8,
+      moda: 8,
+      eletronicos: 7,
+      informatica: 6,
+      celulares: 5
+    }
+  },
+  shopee: {
+    default: 10,
+    categories: {
+      moda: 15,
+      beleza: 14,
+      casa: 10,
+      esportes: 8,
+      brinquedos: 7,
+      eletrodomesticos: 5,
+      eletronicos: 4,
+      celulares: 3
+    }
+  },
+  amazon: {
+    default: 4,
+    categories: {
+      moda: 10,
+      beleza: 10,
+      livros: 8,
+      casa: 8,
+      esportes: 8,
+      brinquedos: 6,
+      games: 4,
+      eletronicos: 3,
+      informatica: 3,
+      celulares: 2
+    }
+  },
+  aliexpress: {
+    default: 5,
+    categories: {
+      moda: 7,
+      casa: 6,
+      eletronicos: 3,
+      celulares: 3
+    }
+  },
+  shein: {
+    default: 10,
+    categories: {
+      moda: 12,
+      beleza: 12
+    }
+  }
 };
 
-export function parsePriceNumber(priceStr?: string | null): number {
-  if (!priceStr) return 0;
+// Mantido para compatibilidade simples
+export const DEFAULT_COMMISSION_RATES: Record<string, number> = {
+  shopee: 10,
+  mercadolivre: 4,
+  amazon: 4,
+  aliexpress: 5,
+  shein: 10,
+};
+
+export function normalizeCategoryText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .trim();
+}
+
+export function findMatchedCategoryKey(categoryText?: string | null): string | null {
+  if (!categoryText) return null;
+  const norm = normalizeCategoryText(categoryText);
+
+  // Match keyword rules
+  if (norm.includes('beleza')) return 'beleza';
+  if (norm.includes('esporte') || norm.includes('fitness')) return 'esportes';
+  if (norm.includes('celular') || norm.includes('smartphone')) return 'celulares';
+  if (norm.includes('eletrodom')) return 'eletrodomesticos';
+  if (norm.includes('eletron')) return 'eletronicos';
+  if (norm.includes('casa') || norm.includes('movel') || norm.includes('decor')) return 'casa';
+  if (norm.includes('moda') || norm.includes('roupa') || norm.includes('calcado') || norm.includes('vestuario')) return 'moda';
+  if (norm.includes('ferramenta') || norm.includes('construcao')) return 'ferramentas';
+  if (norm.includes('pet') || norm.includes('animal')) return 'pet';
+  if (norm.includes('livro')) return 'livros';
+  if (norm.includes('game') || norm.includes('console')) return 'games';
+  if (norm.includes('saude')) return 'saude';
+  if (norm.includes('informatica') || norm.includes('notebook') || norm.includes('computador')) return 'informatica';
+  if (norm.includes('brinquedo')) return 'brinquedos';
+
+  return null;
+}
+
+export function parsePriceNumber(priceStr?: string | number | null): number {
+  if (priceStr == null) return 0;
+  if (typeof priceStr === 'number') return isNaN(priceStr) ? 0 : priceStr;
   // Limpar "R$", espaços, e converter vírgula para ponto se necessário
   let clean = priceStr.replace(/[^\d.,]/g, '').trim();
   if (clean.includes(',') && clean.includes('.')) {
@@ -268,28 +364,106 @@ export function parsePriceNumber(priceStr?: string | null): number {
   return isNaN(val) ? 0 : val;
 }
 
+export interface CommissionResult {
+  amount: number;
+  amountFormatted: string;
+  ratePct: number;
+  isCategoryBased: boolean;
+  categoryUsed?: string | null;
+  isCustomOverride: boolean;
+  isDefaultFallback: boolean;
+}
+
 export function calculateCommission(
-  priceStr: string,
+  priceStr: string | number,
   platform: string,
-  customRate?: number | null,
-  customAmount?: number | null
-): { amount: number; amountFormatted: string; ratePct: number } {
+  productOrRate?: {
+    category?: string | null;
+    commission_rate?: number | null;
+    commission_amount?: number | null;
+  } | number | null,
+  customAmount?: number | null,
+  productCategory?: string | null,
+  userCommissionRates?: CommissionRatesConfig | null
+): CommissionResult {
   const price = parsePriceNumber(priceStr);
-  
-  if (customAmount && customAmount > 0) {
-    const ratePct = price > 0 ? Math.round((customAmount / price) * 100) : (customRate || 10);
+  const platKey = (platform || '').toLowerCase().trim();
+  const ratesConfig = userCommissionRates || DEFAULT_COMMISSION_CONFIG;
+
+  let explicitRate: number | null = null;
+  let explicitAmount: number | null = null;
+  let category: string | null = null;
+
+  if (typeof productOrRate === 'object' && productOrRate !== null) {
+    explicitRate = productOrRate.commission_rate ?? null;
+    explicitAmount = productOrRate.commission_amount ?? null;
+    category = productOrRate.category ?? productCategory ?? null;
+  } else {
+    explicitRate = typeof productOrRate === 'number' ? productOrRate : null;
+    explicitAmount = customAmount ?? null;
+    category = productCategory ?? null;
+  }
+
+  // 1. Explicit commission_amount
+  if (explicitAmount != null && explicitAmount > 0) {
+    const ratePct = price > 0 ? Number(((explicitAmount / price) * 100).toFixed(1)) : (explicitRate || 5);
     return {
-      amount: customAmount,
-      amountFormatted: `+R$ ${customAmount.toFixed(2).replace('.', ',')}`,
+      amount: explicitAmount,
+      amountFormatted: `+R$ ${explicitAmount.toFixed(2).replace('.', ',')}`,
       ratePct,
+      isCategoryBased: false,
+      isCustomOverride: true,
+      isDefaultFallback: false,
     };
   }
 
-  const ratePct = customRate || DEFAULT_COMMISSION_RATES[platform.toLowerCase()] || 12;
-  const amount = (price * ratePct) / 100;
-  const formatted = `+R$ ${amount.toFixed(2).replace('.', ',')}`;
+  // 2. Explicit commission_rate
+  if (explicitRate != null && explicitRate > 0) {
+    const amount = (price * explicitRate) / 100;
+    return {
+      amount,
+      amountFormatted: `+R$ ${amount.toFixed(2).replace('.', ',')}`,
+      ratePct: explicitRate,
+      isCategoryBased: false,
+      isCustomOverride: true,
+      isDefaultFallback: false,
+    };
+  }
 
-  return { amount, amountFormatted: formatted, ratePct };
+  // Obter configurações da plataforma
+  const platConfig = ratesConfig[platKey] || DEFAULT_COMMISSION_CONFIG[platKey];
+
+  // 3. Taxa por Categoria (se houver categoria no produto e regra na plataforma)
+  const matchedKey = findMatchedCategoryKey(category);
+  if (platConfig && platConfig.categories && matchedKey) {
+    const ratePct = platConfig.categories[matchedKey];
+    if (ratePct !== undefined) {
+      const amount = (price * ratePct) / 100;
+      return {
+        amount,
+        amountFormatted: `+R$ ${amount.toFixed(2).replace('.', ',')}`,
+        ratePct,
+        isCategoryBased: true,
+        categoryUsed: matchedKey,
+        isCustomOverride: false,
+        isDefaultFallback: false,
+      };
+    }
+  }
+
+  // 4 & 5. Taxa padrão da plataforma ou fallback global (5%)
+  const defaultRate = platConfig?.default ?? DEFAULT_COMMISSION_CONFIG[platKey]?.default ?? 5;
+  const amount = (price * defaultRate) / 100;
+
+  return {
+    amount,
+    amountFormatted: `+R$ ${amount.toFixed(2).replace('.', ',')}`,
+    ratePct: defaultRate,
+    isCategoryBased: false,
+    categoryUsed: null,
+    isCustomOverride: false,
+    isDefaultFallback: true,
+  };
 }
 
 export function calculateSalesTrend(product: GlobalProduct | ProductData): {

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { ApiKeysConfig, UserProfile } from '../types';
+import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
+import { DEFAULT_COMMISSION_CONFIG } from '../utils/marketplaceUtils';
 import { 
   AlarmSettings, 
   getAlarmSettings, 
   saveAlarmSettings, 
   playAlarmSound, 
-  requestNotificationPermission 
+  requestNotificationPermission,
+  ALARM_SOUND_OPTIONS
 } from '../utils/alarmUtils';
 import { 
   Settings, 
@@ -34,7 +36,10 @@ import {
   Volume2,
   VolumeX,
   Smartphone,
-  ShieldCheck
+  ShieldCheck,
+  Percent,
+  RotateCcw,
+  Tag
 } from 'lucide-react';
 
 import mlGuideImg from '../assets/images/ml_affiliate_guide_1785084147367.jpg';
@@ -47,8 +52,10 @@ interface SettingsTabProps {
   user: UserProfile;
   apiKeys: ApiKeysConfig;
   alarmSettings?: AlarmSettings;
+  commissionRates?: CommissionRatesConfig;
   onSaveAlarmSettings?: (settings: AlarmSettings) => void;
   onSaveApiKeys: (keys: ApiKeysConfig) => void;
+  onSaveCommissionRates?: (rates: CommissionRatesConfig) => void;
   onUpdateProfile: (updated: Partial<UserProfile>) => void;
 }
 
@@ -285,14 +292,93 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   user,
   apiKeys,
   alarmSettings: initialAlarmSettings,
+  commissionRates: initialCommissionRates,
   onSaveAlarmSettings,
   onSaveApiKeys,
+  onSaveCommissionRates,
   onUpdateProfile,
 }) => {
-  const [activeSection, setActiveSection] = useState<'affiliates' | 'gemini' | 'alarm' | 'profile'>('affiliates');
+  const [activeSection, setActiveSection] = useState<'affiliates' | 'commissions' | 'gemini' | 'alarm' | 'profile'>('affiliates');
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [scheduleSavedFeedback, setScheduleSavedFeedback] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState<string | null>(null);
+
+  // Estado das Configurações de Comissões por Categoria
+  const [commRates, setCommRates] = useState<CommissionRatesConfig>(
+    initialCommissionRates || DEFAULT_COMMISSION_CONFIG
+  );
+  const [selectedCommPlatform, setSelectedCommPlatform] = useState<string>('mercadolivre');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatRate, setNewCatRate] = useState<number | ''>('');
+
+  const handleUpdateDefaultRate = (platform: string, rate: number) => {
+    setCommRates((prev) => {
+      const currentPlat = prev[platform] || { default: 5, categories: {} };
+      return {
+        ...prev,
+        [platform]: {
+          ...currentPlat,
+          default: rate,
+        },
+      };
+    });
+  };
+
+  const handleAddCategoryOverride = (platform: string) => {
+    if (!newCatName.trim() || newCatRate === '' || isNaN(Number(newCatRate))) return;
+    const rateNum = Number(newCatRate);
+    setCommRates((prev) => {
+      const currentPlat = prev[platform] || { default: 5, categories: {} };
+      return {
+        ...prev,
+        [platform]: {
+          ...currentPlat,
+          categories: {
+            ...(currentPlat.categories || {}),
+            [newCatName.trim()]: rateNum,
+          },
+        },
+      };
+    });
+    setNewCatName('');
+    setNewCatRate('');
+  };
+
+  const handleRemoveCategoryOverride = (platform: string, categoryName: string) => {
+    setCommRates((prev) => {
+      const currentPlat = prev[platform];
+      if (!currentPlat || !currentPlat.categories) return prev;
+      const updatedCategories = { ...currentPlat.categories };
+      delete updatedCategories[categoryName];
+      return {
+        ...prev,
+        [platform]: {
+          ...currentPlat,
+          categories: updatedCategories,
+        },
+      };
+    });
+  };
+
+  const handleSaveCommissions = () => {
+    if (onSaveCommissionRates) {
+      onSaveCommissionRates(commRates);
+    }
+    setSavedSuccess('Taxas de comissão salvas com sucesso!');
+    setTimeout(() => setSavedSuccess(null), 3500);
+  };
+
+  const handleResetCommissions = () => {
+    setCommRates(DEFAULT_COMMISSION_CONFIG);
+    if (onSaveCommissionRates) {
+      onSaveCommissionRates(DEFAULT_COMMISSION_CONFIG);
+    }
+    setSavedSuccess('Taxas de comissão restauradas para os padrões oficiais!');
+    setTimeout(() => setSavedSuccess(null), 3500);
+  };
 
   // Estado das Configurações de Alarme & Lembrete
   const [alarm, setAlarm] = useState<AlarmSettings>(
@@ -490,6 +576,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveSection('commissions')}
+          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
+            activeSection === 'commissions'
+              ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/20'
+              : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
+          }`}
+        >
+          <Percent className="w-4 h-4" />
+          <span>Taxas de Comissão</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSection('gemini')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'gemini'
@@ -535,6 +634,190 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <span>Meu Perfil</span>
         </button>
       </div>
+
+      {/* Commission Rates Management Section */}
+      {activeSection === 'commissions' && (
+        <div className="bg-[#0e1119] border border-purple-500/30 rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden animate-fadeIn">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-purple-500/15 border border-purple-500/30 text-purple-400 rounded-xl shrink-0">
+                <Percent className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Taxas de Comissão por Categoria</h3>
+                <p className="text-xs text-[#93a0b5]">
+                  Configure as taxas de comissão padronizadas e específicas por categoria de cada marketplace.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetCommissions}
+                className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-stone-700"
+                title="Restaurar taxas padrão oficiais"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restaurar Padrões</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCommissions}
+                className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-purple-600/20"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Salvar Taxas</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-[#1b1511] border border-amber-500/20 text-amber-200 text-[11px] p-3 rounded-xl flex items-start gap-2.5 animate-fadeIn">
+            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Valores de Referência 2026 (Editáveis)</p>
+              <p className="opacity-80">As taxas de comissão abaixo são estimativas oficiais para o ano de 2026. Os valores reais da comissão podem variar dependendo do nível de sua conta de afiliado, campanhas temporárias da plataforma ou categorias específicas do produto.</p>
+            </div>
+          </div>
+
+          {/* Platform Selector Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'mercadolivre', label: 'Mercado Livre' },
+              { id: 'shopee', label: 'Shopee' },
+              { id: 'amazon', label: 'Amazon' },
+              { id: 'aliexpress', label: 'AliExpress' },
+              { id: 'shein', label: 'Shein' },
+            ].map((p) => {
+              const active = selectedCommPlatform === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedCommPlatform(p.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    active
+                      ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                      : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Platform Settings Box */}
+          {(() => {
+            const platformConfig = commRates[selectedCommPlatform] || { default: 5, categories: {} };
+            const categoriesMap = platformConfig.categories || {};
+            const categoryKeys = Object.keys(categoriesMap);
+
+            return (
+              <div className="space-y-5 bg-[#07090f] p-4 sm:p-5 rounded-xl border border-[#1e2636]">
+                {/* Default Rate */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-[#0e1119] rounded-xl border border-[#1e2636]">
+                  <div>
+                    <label className="text-xs font-bold text-stone-200 block">Taxa Padrão da Plataforma (%)</label>
+                    <p className="text-[11px] text-[#93a0b5]">
+                      Usada quando o produto não se encaixar em nenhuma categoria específica abaixo.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={platformConfig.default}
+                      onChange={(e) => handleUpdateDefaultRate(selectedCommPlatform, parseFloat(e.target.value) || 0)}
+                      className="w-24 bg-[#151a26] border border-[#1e2636] rounded-lg px-3 py-1.5 text-xs font-bold text-white text-right focus:outline-none focus:border-purple-500"
+                    />
+                    <span className="text-xs font-bold text-purple-400">%</span>
+                  </div>
+                </div>
+
+                {/* Categories Table */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-stone-300 flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Taxas por Categoria ({categoryKeys.length})</span>
+                    </h4>
+                  </div>
+
+                  {categoryKeys.length === 0 ? (
+                    <p className="text-xs text-stone-500 italic p-3 bg-[#0e1119] rounded-xl border border-[#1e2636]/50">
+                      Nenhuma categoria customizada cadastrada para este marketplace. O sistema utilizará a taxa padrão ({platformConfig.default}%).
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                      {categoryKeys.map((cat) => (
+                        <div
+                          key={cat}
+                          className="flex items-center justify-between p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl group hover:border-purple-500/40 transition-all"
+                        >
+                          <span className="text-xs font-medium text-stone-200 truncate max-w-[180px]" title={cat}>
+                            {cat}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-extrabold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/20">
+                              {categoriesMap[cat]}%
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCategoryOverride(selectedCommPlatform, cat)}
+                              className="text-stone-500 hover:text-red-400 p-1 rounded-md transition-colors"
+                              title="Remover regra de categoria"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Form for Adding Category */}
+                  <div className="pt-2 border-t border-[#1e2636]">
+                    <p className="text-[11px] font-bold text-stone-400 mb-2">Adicionar/Sobrescrever Categoria</p>
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: Eletrônicos, Celulares, Beleza..."
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        className="flex-1 w-full bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-purple-500"
+                      />
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <input
+                          type="number"
+                          step="0.5"
+                          placeholder="Taxa %"
+                          value={newCatRate}
+                          onChange={(e) => setNewCatRate(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-24 bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-purple-500 text-right font-bold"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddCategoryOverride(selectedCommPlatform)}
+                          disabled={!newCatName.trim() || newCatRate === ''}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Adicionar</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Dedicated Google Gemini API Keys Management Section */}
       {activeSection === 'gemini' && (
@@ -707,12 +990,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Seção: Alarme & Lembretes de Divulgação Programada */}
       {activeSection === 'alarm' && (
-        <div className="bg-stone-900 border border-pink-500/30 rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden animate-fadeIn">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden animate-fadeIn">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-800 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1e2636] pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-pink-500/10 border border-pink-500/30 text-pink-400 rounded-xl shrink-0">
+              <div className="p-3 bg-blue-600/15 border border-blue-500/30 text-blue-400 rounded-xl shrink-0">
                 <Bell className="w-6 h-6 animate-pulse" />
               </div>
               <div>
@@ -720,140 +1003,194 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <span>Alarme & Lembretes de Divulgação</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
                     alarm.enabled
-                      ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
-                      : 'bg-stone-800 text-stone-400 border-stone-700'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-[#151a26] text-[#93a0b5] border-[#1e2636]'
                   }`}>
-                    {alarm.enabled ? '🟢 Alarme Ativo' : '🔴 Desativado'}
+                    {alarm.enabled ? '🟢 LIGADO' : '🔴 DESLIGADO'}
                   </span>
                 </h3>
-                <p className="text-xs text-stone-400">
+                <p className="text-xs text-[#93a0b5]">
                   Programe alertas periódicos para lembrar de divulgar ofertas e manter seu ritmo de vendas diário.
                 </p>
               </div>
             </div>
 
-            {/* Master Toggle */}
+            {/* Master Toggle (Botão Único Ligar / Desligar) */}
             <button
+              type="button"
               onClick={() => handleUpdateAlarm({ enabled: !alarm.enabled })}
-              className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg ${
+              className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg ${
                 alarm.enabled
-                  ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-pink-600/20'
-                  : 'bg-stone-800 hover:bg-stone-750 text-stone-300 border border-stone-700'
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/20 border border-red-500'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20 border border-blue-500'
               }`}
             >
               <Bell className="w-4 h-4" />
-              <span>{alarm.enabled ? 'Alarme Ativado (Clique p/ Pausar)' : 'Ativar Alarme Programado'}</span>
+              <span>{alarm.enabled ? 'Desligar Alarme' : 'Ligar Alarme'}</span>
             </button>
           </div>
 
           {/* Configurações de Frequência e Janela de Horário */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Intervalo em Minutos */}
-            <div className="p-4 bg-stone-950 border border-stone-800 rounded-2xl space-y-3">
-              <label className="text-xs font-bold text-stone-200 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-pink-400" />
+            <div className="p-4 bg-[#07090f] border border-[#1e2636] rounded-2xl space-y-3">
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-400" />
                 Intervalo entre Lembretes:
               </label>
               <div className="grid grid-cols-5 gap-1.5">
                 {[5, 10, 15, 30, 60].map((mins) => (
                   <button
                     key={mins}
+                    type="button"
                     onClick={() => handleUpdateAlarm({ intervalMinutes: mins })}
                     className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all border ${
                       alarm.intervalMinutes === mins
-                        ? 'bg-pink-600 text-white border-pink-500 shadow-md shadow-pink-600/20'
-                        : 'bg-stone-900 text-stone-400 border-stone-800 hover:border-stone-700 hover:text-stone-200'
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
+                        : 'bg-[#0e1119] text-[#93a0b5] border-[#1e2636] hover:border-blue-500/50 hover:text-white'
                     }`}
                   >
                     {mins} min
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-stone-500">
-                O aplicativo emitirá um alerta visual/sonoro a cada {alarm.intervalMinutes} minutos.
+              <p className="text-[10px] text-[#93a0b5]">
+                O aplicativo emitirá um alerta a cada {alarm.intervalMinutes} minutos.
               </p>
             </div>
 
-            {/* Janela de Horários (Início e Fim) */}
-            <div className="p-4 bg-stone-950 border border-stone-800 rounded-2xl space-y-3">
-              <label className="text-xs font-bold text-stone-200 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-violet-400" />
+            {/* Janela de Horários (Início e Fim com Botão Salvar) */}
+            <div className="p-4 bg-[#07090f] border border-[#1e2636] rounded-2xl space-y-3">
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-400" />
                 Janela de Horário Diária (Início e Fim):
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] text-stone-400 font-medium block mb-1">Horário de Início:</span>
+                  <span className="text-[10px] text-[#93a0b5] font-medium block mb-1">Horário de Início:</span>
                   <input
                     type="time"
                     value={alarm.startHour}
                     onChange={(e) => handleUpdateAlarm({ startHour: e.target.value })}
-                    className="w-full px-3 py-2 bg-stone-900 border border-stone-800 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-pink-500"
+                    className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-stone-400 font-medium block mb-1">Horário de Término:</span>
+                  <span className="text-[10px] text-[#93a0b5] font-medium block mb-1">Horário de Término:</span>
                   <input
                     type="time"
                     value={alarm.endHour}
                     onChange={(e) => handleUpdateAlarm({ endHour: e.target.value })}
-                    className="w-full px-3 py-2 bg-stone-900 border border-stone-800 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-pink-500"
+                    className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-stone-500">
-                Alertas rodarão apenas entre {alarm.startHour} e {alarm.endHour}.
-              </p>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-[#93a0b5]">
+                  Alertas entre {alarm.startHour} e {alarm.endHour}.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdateAlarm({ startHour: alarm.startHour, endHour: alarm.endHour });
+                    setScheduleSavedFeedback(true);
+                    setTimeout(() => setScheduleSavedFeedback(false), 2500);
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{scheduleSavedFeedback ? 'Horários Salvos ✓' : 'Salvar Horários'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Som e Notificações Push */}
+          {/* Opções de Sons do Alarme (5 a 10 Tipos) */}
+          <div className="p-4 bg-[#07090f] border border-[#1e2636] rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-blue-400" />
+                <span>Escolha o Som do Alarme ({ALARM_SOUND_OPTIONS.length} Opções de Toques):</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => playAlarmSound(alarm.soundType || 'chime')}
+                className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Ouvir Som Selecionado</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {ALARM_SOUND_OPTIONS.map((snd) => {
+                const isSelected = (alarm.soundType || 'chime') === snd.id;
+                return (
+                  <button
+                    key={snd.id}
+                    type="button"
+                    onClick={() => {
+                      handleUpdateAlarm({ soundType: snd.id });
+                      playAlarmSound(snd.id);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-blue-600/20 border-blue-500 text-white shadow-md'
+                        : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5] hover:text-white hover:border-[#2a364f]'
+                    }`}
+                  >
+                    <div>
+                      <strong className="text-xs block text-white">{snd.label}</strong>
+                      <span className="text-[10px] opacity-75">{snd.description}</span>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-blue-400 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Som Ativo e Notificações Push */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Som de Alerta (Audio Beep) */}
-            <div className="p-3.5 bg-stone-950 border border-stone-800 rounded-xl flex items-center justify-between gap-3">
+            {/* Som de Alerta (Habilitado/Desabilitado) */}
+            <div className="p-3.5 bg-[#07090f] border border-[#1e2636] rounded-xl flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 {alarm.soundEnabled ? (
                   <Volume2 className="w-5 h-5 text-emerald-400 shrink-0" />
                 ) : (
-                  <VolumeX className="w-5 h-5 text-stone-500 shrink-0" />
+                  <VolumeX className="w-5 h-5 text-[#93a0b5] shrink-0" />
                 )}
                 <div>
-                  <strong className="text-xs text-white block">Sinal Sonoro (Beep)</strong>
-                  <span className="text-[10px] text-stone-400">Tocar som sintetizado ao alertar</span>
+                  <strong className="text-xs text-white block">Sinal Sonoro</strong>
+                  <span className="text-[10px] text-[#93a0b5]">Tocar som ao disparar lembrete</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => playAlarmSound()}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg border border-stone-700 transition-all"
-                >
-                  🔊 Testar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateAlarm({ soundEnabled: !alarm.soundEnabled })}
-                  className={`w-10 h-6 rounded-full transition-colors relative p-1 ${
-                    alarm.soundEnabled ? 'bg-emerald-500' : 'bg-stone-800'
+              <button
+                type="button"
+                onClick={() => handleUpdateAlarm({ soundEnabled: !alarm.soundEnabled })}
+                className={`w-10 h-6 rounded-full transition-colors relative p-1 ${
+                  alarm.soundEnabled ? 'bg-blue-600' : 'bg-[#151a26]'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                    alarm.soundEnabled ? 'translate-x-4' : 'translate-x-0'
                   }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                      alarm.soundEnabled ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
+                />
+              </button>
             </div>
 
-            {/* Notificação no Celular / Navegador */}
-            <div className="p-3.5 bg-stone-950 border border-stone-800 rounded-xl flex items-center justify-between gap-3">
+            {/* Notificação no Celular / Navegador (Permissão de Notificação) */}
+            <div className="p-3.5 bg-[#07090f] border border-[#1e2636] rounded-xl flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <Smartphone className="w-5 h-5 text-violet-400 shrink-0" />
+                <Smartphone className="w-5 h-5 text-blue-400 shrink-0" />
                 <div>
-                  <strong className="text-xs text-white block">Notificações Push</strong>
-                  <span className="text-[10px] text-stone-400">
-                    {notifPermission === 'granted' ? '🟢 Permissão concedida' : 'Alertar no celular / navegador'}
+                  <strong className="text-xs text-white block">Permissão de Notificação</strong>
+                  <span className="text-[10px] text-[#93a0b5]">
+                    {notifPermission === 'granted' ? '🟢 Notificações Ativadas' : 'Clique para solicitar permissão'}
                   </span>
                 </div>
               </div>
@@ -861,13 +1198,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <button
                 type="button"
                 onClick={handleRequestNotif}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   notifPermission === 'granted'
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default'
-                    : 'bg-violet-600 hover:bg-violet-500 text-white shadow-md'
+                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md'
                 }`}
               >
-                {notifPermission === 'granted' ? 'Concedido ✓' : 'Ativar'}
+                {notifPermission === 'granted' ? 'Concedido ✓' : 'Ativar Permissão'}
               </button>
             </div>
           </div>
@@ -984,43 +1321,184 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Profile Data Section */}
       {activeSection === 'profile' && (
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-stone-800 pb-3">
-            <User className="w-4 h-4 text-emerald-400" />
-            <span>Meus Dados do Perfil</span>
-          </h3>
-
-          <form onSubmit={handleSaveProfile} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">Nome Completo</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-2.5 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-emerald-500"
-              />
+        <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 space-y-6 shadow-xl animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-[#1e2636] pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-600/15 border border-blue-500/30 text-blue-400 rounded-xl shrink-0">
+                <User className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Meu Perfil de Usuário</h3>
+                <p className="text-xs text-[#93a0b5]">
+                  Visualize e atualize suas informações pessoais e foto de perfil.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">E-mail Cadastrado</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-2.5 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-100 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="sm:col-span-2 flex justify-end">
+            {!isEditingProfile && (
               <button
-                type="submit"
-                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold text-xs rounded-xl transition-all flex items-center gap-1.5"
+                type="button"
+                onClick={() => setIsEditingProfile(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Atualizar Perfil</span>
+                <Edit3 className="w-4 h-4" />
+                <span>Atualizar Informações</span>
               </button>
+            )}
+          </div>
+
+          {!isEditingProfile ? (
+            /* Modo de Exibição Limpo */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              {/* Avatar Box */}
+              <div className="flex flex-col items-center justify-center p-6 bg-[#07090f] border border-[#1e2636] rounded-2xl text-center space-y-3">
+                <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-blue-500/50 shadow-xl shadow-blue-500/10 bg-[#151a26] flex items-center justify-center">
+                  {avatarUrl || user.avatarUrl ? (
+                    <img
+                      src={avatarUrl || user.avatarUrl}
+                      alt={name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-black text-blue-400 uppercase">
+                      {name ? name.slice(0, 2) : 'US'}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-base font-extrabold text-white">{name || 'Usuário Afiliado'}</h4>
+                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-[10px] font-bold uppercase mt-1">
+                    {user.role === 'admin' ? '🛡️ Administrador' : '⚡ Afiliado Minerador'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Informações de Cadastro */}
+              <div className="md:col-span-2 space-y-4 bg-[#07090f] border border-[#1e2636] rounded-2xl p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#93a0b5] uppercase tracking-wider block mb-1">
+                      Nome Completo
+                    </span>
+                    <p className="text-sm font-semibold text-white bg-[#0e1119] p-3 rounded-xl border border-[#1e2636]">
+                      {name || 'Não informado'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-[#93a0b5] uppercase tracking-wider block mb-1">
+                      E-mail Cadastrado
+                    </span>
+                    <p className="text-sm font-semibold text-white bg-[#0e1119] p-3 rounded-xl border border-[#1e2636] truncate">
+                      {email || 'Não informado'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-[#93a0b5] uppercase tracking-wider block mb-1">
+                      ID de Rastreio Padrão
+                    </span>
+                    <p className="text-sm font-mono font-bold text-blue-400 bg-[#0e1119] p-3 rounded-xl border border-[#1e2636]">
+                      {apiKeys.mercadolivreTrackingId || 'Configurar IDs'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-[#93a0b5] uppercase tracking-wider block mb-1">
+                      Status da Conta
+                    </span>
+                    <p className="text-sm font-semibold text-emerald-400 bg-[#0e1119] p-3 rounded-xl border border-[#1e2636] flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Conta Ativa e Verificada</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingProfile(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span>Atualizar Informações</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          </form>
+          ) : (
+            /* Modo de Edição */
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                onUpdateProfile({ name, email, avatarUrl });
+                setIsEditingProfile(false);
+                setSavedSuccess('Perfil atualizado com sucesso!');
+                setTimeout(() => setSavedSuccess(null), 3000);
+              }}
+              className="space-y-4 bg-[#07090f] border border-[#1e2636] rounded-2xl p-5 animate-fadeIn"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-[#eef2f9] block mb-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#eef2f9] block mb-1">E-mail Cadastrado</label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-[#eef2f9] block mb-1">
+                    URL da Foto de Perfil (Link da imagem)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://exemplo.com/sua-foto.jpg"
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    className="w-full p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-[10px] text-[#93a0b5] mt-1">
+                    Cole o link direto para uma imagem na web para personalizar sua foto.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingProfile(false)}
+                  className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Informações</span>
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { GlobalProduct, ApiKeysConfig } from '../types';
+import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig } from '../types';
 import { formatPrice } from '../utils/formatPrice';
 import { buildAffiliateLink } from '../utils/affiliateLink';
+import { calculateCommission } from '../utils/marketplaceUtils';
 import {
   BarChart3,
   TrendingUp,
@@ -29,6 +30,7 @@ interface AnalyticsTabProps {
   currentUserId?: string;
   minedProducts?: GlobalProduct[];
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   onOpenProductDetail?: (product: GlobalProduct) => void;
 }
 
@@ -48,6 +50,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
   currentUserId,
   minedProducts = [],
   apiKeys,
+  commissionRates,
   onOpenProductDetail,
 }) => {
   const [period, setPeriod] = useState<'7d' | '30d' | 'month' | 'all'>('30d');
@@ -75,8 +78,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         (p.price_to || '100').replace(/[^0-9.,]/g, '').replace('.', '').replace(',', '.')
       ) || 99.90;
 
-      const commRatePct = p.commission_rate ?? (p.platform === 'shopee' ? 12 : p.platform === 'mercadolivre' ? 10 : 8);
-      const commissionPerUnit = p.commission_amount ?? (priceNum * (commRatePct / 100));
+      const commRes = calculateCommission(p.price_to, p.platform, p, null, null, commissionRates);
+      const commissionPerUnit = commRes.amount;
       const totalCommission = Number((salesCount * commissionPerUnit).toFixed(2));
       const totalRevenue = Number((salesCount * priceNum).toFixed(2));
 
@@ -97,7 +100,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
         performanceTrend,
       };
     });
-  }, [minedProducts]);
+  }, [minedProducts, commissionRates]);
 
   // Filtering
   const filteredData = useMemo(() => {

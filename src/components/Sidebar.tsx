@@ -33,6 +33,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems: { id: AppTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
+      id: 'new-product',
+      label: 'Novo Produto',
+      icon: <PlusCircle className="w-5 h-5 shrink-0 text-blue-400" />,
+    },
+    {
       id: 'marketplace',
       label: 'Marketplace Global',
       icon: <Globe className="w-5 h-5 shrink-0 text-blue-400" />,
@@ -47,11 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'analytics',
       label: 'Analytics',
       icon: <BarChart2 className="w-5 h-5 shrink-0 text-blue-400" />,
-    },
-    {
-      id: 'new-product',
-      label: 'Novo Produto',
-      icon: <PlusCircle className="w-5 h-5 shrink-0 text-blue-400" />,
     },
     {
       id: 'settings',

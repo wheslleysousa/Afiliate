@@ -1,4 +1,5 @@
 import type { CopyTemplate, ProductData } from '../types';
+import { calculateCommission } from '../utils/marketplaceUtils';
 
 export const DEFAULT_TEMPLATES: CopyTemplate[] = [
   // ─── WhatsApp ────────────────────────────────────────────────────────────
@@ -235,7 +236,12 @@ Sem arrependimento, vale muito a pena!
   },
 ];
 
-export function applyTemplate(template: string, product: ProductData, affiliateLink: string): string {
+export function applyTemplate(
+  template: string,
+  product: ProductData,
+  affiliateLink: string,
+  commissionRates?: any
+): string {
   let text = template;
 
   // Calcular % de desconto se não vier do produto
@@ -248,6 +254,16 @@ export function applyTemplate(template: string, product: ProductData, affiliateL
       } catch { /**/ }
       return null;
     })();
+
+  // Calcular comissão
+  const comm = calculateCommission(
+    product.price_to,
+    product.platform,
+    product,
+    null,
+    null,
+    commissionRates
+  );
 
   const replacements: Record<string, string> = {
     '{titulo}':        product.title || '',
@@ -264,6 +280,8 @@ export function applyTemplate(template: string, product: ProductData, affiliateL
     '{plataforma}':    product.platform || '',
     '{estrelas}':      product.stars ? `⭐ ${product.stars}` : '',
     '{vendas}':        product.sales_count ? `📦 ${product.sales_count} vendas` : '',
+    '{comissao}':      comm ? `R$ ${comm.amount.toFixed(2).replace('.', ',')}` : 'R$ 0,00',
+    '{comissaoPct}':   comm ? `${comm.ratePct}%` : '0%',
   };
 
   // Substituir variáveis simples

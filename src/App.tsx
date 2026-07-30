@@ -10,18 +10,19 @@ import { AnalyticsTab } from './components/AnalyticsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
-import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct } from './types';
+import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct, CommissionRatesConfig, CopyTemplate } from './types';
 import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck } from 'lucide-react';
 import firebaseConfigJson from '../firebase-applet-config.json';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore';
 import {
   upsertToMarketplace,
   incrementDailyMineCount,
   checkMiningLimit,
   PLAN_LIMITS,
   getDailyMineCount,
+  DEFAULT_COMMISSION_CONFIG,
 } from './utils/marketplaceUtils';
 import {
   getSharedProductsMap,
@@ -64,6 +65,57 @@ export default function App() {
   // API Keys State
   const [apiKeys, setApiKeys] = useState<ApiKeysConfig>({});
 
+  // Commission Rates Config State
+  const [commissionRates, setCommissionRates] = useState<CommissionRatesConfig>(DEFAULT_COMMISSION_CONFIG);
+
+  // Custom Templates State
+  const [customTemplates, setCustomTemplates] = useState<CopyTemplate[]>([]);
+
+  // CRUD de Templates Personalizados no Firestore
+  const handleAddCustomTemplate = async (template: CopyTemplate) => {
+    if (!currentUser?.id) return;
+    try {
+      const docRef = doc(db, 'users', currentUser.id, 'templates', template.id);
+      await setDoc(docRef, template);
+    } catch (e) {
+      console.error('Erro ao adicionar template no Firestore:', e);
+    }
+  };
+
+  const handleDeleteCustomTemplate = async (templateId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      const docRef = doc(db, 'users', currentUser.id, 'templates', templateId);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error('Erro ao excluir template no Firestore:', e);
+    }
+  };
+
+  // Salvar Configurações de Comissões
+  const handleSaveCommissionRates = async (updated: CommissionRatesConfig) => {
+    setCommissionRates(updated);
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id, 'userConfig', 'commissionRates'), updated);
+      } catch (e) {
+        console.error('Erro ao salvar taxas de comissão no Firestore:', e);
+      }
+    }
+  };
+
+  // Atualizar comissão de um produto específico (override manual)
+  const handleUpdateProductCommission = async (productId: string, ratePct: number | null, amountVal: number | null) => {
+    try {
+      await updateDoc(doc(db, 'products', productId), {
+        commission_rate: ratePct,
+        commission_amount: amountVal,
+      });
+    } catch (e) {
+      console.error('Erro ao atualizar comissão do produto no Firestore:', e);
+    }
+  };
+
   // Shared Products 24h State
   const [sharedMap, setSharedMap] = useState<Record<string, number>>(() => getSharedProductsMap());
 
@@ -87,14 +139,14 @@ export default function App() {
   };
 
   // Ações de confirmação do Alarme
-  const handleAlarmAction = (navigateToMarketplace: boolean) => {
+  const handleAlarmAction = (navigateToMyProducts: boolean) => {
     const now = Date.now();
     const updated = { ...alarmSettings, lastTriggeredAt: now };
     setAlarmSettings(updated);
     saveAlarmSettings(updated);
     setShowAlarmModal(false);
-    if (navigateToMarketplace) {
-      setActiveTab('marketplace');
+    if (navigateToMyProducts) {
+      setActiveTab('my-products');
     }
   };
 
@@ -192,14 +244,20 @@ export default function App() {
   // Listen to Firebase Auth state change and load user data from Firestore
   useEffect(() => {
     let unsubscribeKeys: (() => void) | null = null;
+    let unsubscribeCommRates: (() => void) | null = null;
     let unsubscribeMined: (() => void) | null = null;
     let unsubscribeDailyStats: (() => void) | null = null;
+    let unsubscribeTemplates: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       // Clean up previous listeners if any
       if (unsubscribeKeys) {
         unsubscribeKeys();
         unsubscribeKeys = null;
+      }
+      if (unsubscribeCommRates) {
+        unsubscribeCommRates();
+        unsubscribeCommRates = null;
       }
       if (unsubscribeMined) {
         unsubscribeMined();
@@ -208,6 +266,10 @@ export default function App() {
       if (unsubscribeDailyStats) {
         unsubscribeDailyStats();
         unsubscribeDailyStats = null;
+      }
+      if (unsubscribeTemplates) {
+        unsubscribeTemplates();
+        unsubscribeTemplates = null;
       }
 
       if (fbUser) {
@@ -314,12 +376,48 @@ export default function App() {
           }
         );
 
+        // 4. Set up real-time listener for user Commission Rates config from Firestore
+        unsubscribeCommRates = onSnapshot(
+          doc(db, 'users', fbUser.uid, 'userConfig', 'commissionRates'),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              setCommissionRates(snapshot.data() as CommissionRatesConfig);
+            } else {
+              setCommissionRates(DEFAULT_COMMISSION_CONFIG);
+            }
+          },
+          (err) => {
+            console.error('Erro ao escutar taxas de comissão no Firestore:', err);
+          }
+        );
+
+        // 5. Set up real-time listener for user Copy Templates from Firestore users/{uid}/templates
+        try {
+          unsubscribeTemplates = onSnapshot(
+            collection(db, 'users', fbUser.uid, 'templates'),
+            (snapshot) => {
+              const temps: CopyTemplate[] = [];
+              snapshot.forEach((docSnap) => {
+                temps.push({ id: docSnap.id, ...docSnap.data() } as CopyTemplate);
+              });
+              setCustomTemplates(temps);
+            },
+            (err) => {
+              console.error('Erro ao escutar templates do usuário no Firestore:', err);
+            }
+          );
+        } catch (e) {
+          console.error('Erro ao iniciar listener de templates personalizados:', e);
+        }
+
       } else {
         setCurrentUser(null);
         setSavedItems([]);
         setMinedItems([]);
         setDailyMineCount(0);
         setApiKeys({});
+        setCommissionRates(DEFAULT_COMMISSION_CONFIG);
+        setCustomTemplates([]);
       }
       setAuthLoading(false);
     });
@@ -327,8 +425,10 @@ export default function App() {
     return () => {
       unsubscribeAuth();
       if (unsubscribeKeys) unsubscribeKeys();
+      if (unsubscribeCommRates) unsubscribeCommRates();
       if (unsubscribeMined) unsubscribeMined();
       if (unsubscribeDailyStats) unsubscribeDailyStats();
+      if (unsubscribeTemplates) unsubscribeTemplates();
     };
   }, []);
 
@@ -601,6 +701,10 @@ export default function App() {
               onSaveApiKeys={handleSaveApiKeys}
               uid={currentUser.id}
               selectedProductForCopy={selectedProductForCopy}
+              commissionRates={commissionRates}
+              customTemplates={customTemplates}
+              onAddCustomTemplate={handleAddCustomTemplate}
+              onDeleteCustomTemplate={handleDeleteCustomTemplate}
             />
           )}
 
@@ -617,10 +721,13 @@ export default function App() {
             <MarketplaceTab
               currentUserId={currentUser?.id}
               apiKeys={apiKeys}
+              commissionRates={commissionRates}
               sharedMap={sharedMap}
               onToggleShared={handleToggleSharedProduct}
               onUseProduct={handleUseProduct}
+              onUpdateProductCommission={handleUpdateProductCommission}
               onNavigateToSettings={() => setActiveTab('settings')}
+              onAddCustomTemplate={handleAddCustomTemplate}
             />
           )}
 
@@ -630,14 +737,21 @@ export default function App() {
               dailyMineCount={dailyMineCount}
               dailyMineLimit={PLAN_LIMITS.free}
               apiKeys={apiKeys}
+              commissionRates={commissionRates}
               sharedMap={sharedMap}
               onToggleShared={handleToggleSharedProduct}
               onUseProduct={handleUseProduct}
+              onUpdateProductCommission={handleUpdateProductCommission}
+              onAddCustomTemplate={handleAddCustomTemplate}
             />
           )}
 
           {activeTab === 'analytics' && (
-            <AnalyticsTab uid={currentUser?.id || ''} />
+            <AnalyticsTab
+              currentUserId={currentUser?.id}
+              apiKeys={apiKeys}
+              commissionRates={commissionRates}
+            />
           )}
 
           {activeTab === 'settings' && (
@@ -645,8 +759,10 @@ export default function App() {
               user={currentUser}
               apiKeys={apiKeys}
               alarmSettings={alarmSettings}
+              commissionRates={commissionRates}
               onSaveAlarmSettings={handleSaveAlarmSettings}
               onSaveApiKeys={handleSaveApiKeys}
+              onSaveCommissionRates={handleSaveCommissionRates}
               onUpdateProfile={handleUpdateProfile}
             />
           )}

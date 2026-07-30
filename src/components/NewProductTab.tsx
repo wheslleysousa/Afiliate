@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ProductData, GeminiCopyVariation, ApiKeysConfig, GlobalProduct } from '../types';
+import { ProductData, GeminiCopyVariation, ApiKeysConfig, GlobalProduct, CopyTemplate } from '../types';
 import { Link2, Sparkles, Loader2, Copy, Check, Share2, Save, ShoppingBag, Tag, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Wand2, Eye, TrendingDown } from 'lucide-react';
 import { getPlatformLabel } from '../utils/platformLabel';
 import { calculateDiscountPercent } from '../utils/copyHelper';
 import { formatCopy } from '../utils/formatCopy';
 import { ProductEditor } from './ProductEditor';
 import { GeminiAiPanel } from './GeminiAiPanel';
+import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
+import { TemplateSelector } from './TemplateSelector';
+import { buildAffiliateLink } from '../utils/affiliateLink';
 
 import { getDailyMineCount, PLAN_LIMITS } from '../utils/marketplaceUtils';
 
@@ -16,6 +19,10 @@ interface NewProductTabProps {
   onSaveApiKeys?: (keys: ApiKeysConfig) => void;
   uid?: string;
   selectedProductForCopy?: GlobalProduct | null;
+  commissionRates?: any;
+  customTemplates?: CopyTemplate[];
+  onAddCustomTemplate?: (template: CopyTemplate) => void;
+  onDeleteCustomTemplate?: (id: string) => void;
 }
 
 export const NewProductTab: React.FC<NewProductTabProps> = ({
@@ -25,6 +32,10 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
   onSaveApiKeys,
   uid,
   selectedProductForCopy,
+  commissionRates,
+  customTemplates = [],
+  onAddCustomTemplate,
+  onDeleteCustomTemplate,
 }) => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -68,15 +79,25 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
 
     setExtractedProduct(prod);
     setUrlInput(selectedProductForCopy.original_link);
+    
+    const link = buildAffiliateLink(prod.original_link, prod.platform, apiKeys || {});
+    const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
+    const found = allT.find(t => t.id === 'whatsapp-urgency') || DEFAULT_TEMPLATES[0];
+    const formatted = applyTemplate(found.template, prod, link, commissionRates);
+
     const localVars = generateVariationsForProduct(prod);
     setVariations(localVars);
-    setSelectedVariationIndex(0);
-    setEditedCopyText(localVars[0]?.copy || '');
+    setSelectedVariationIndex(-1); // default to template copy
+    setSelectedTemplateId(found.id);
+    setEditedCopyText(formatted);
     setIsSaved(false);
   }, [selectedProductForCopy]);
 
   // Extracted product state
   const [extractedProduct, setExtractedProduct] = useState<ProductData | null>(null);
+
+  // Copy Template State
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('whatsapp-urgency');
 
   // 3 Copy Variations
   const [variations, setVariations] = useState<GeminiCopyVariation[]>([]);
@@ -97,30 +118,41 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     const updatedProduct = { ...extractedProduct, [field]: value };
     setExtractedProduct(updatedProduct);
 
-    // 2. If variations are local templates, automatically regenerate them in real-time
-    const isUsingLocal = variations.some(v => v.id.startsWith('var_'));
-    if (isUsingLocal) {
-      const localVars = generateVariationsForProduct(updatedProduct);
-      setVariations(localVars);
-      setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+    // 2. If using a template, automatically regenerate the copy in real-time
+    if (selectedTemplateId) {
+      const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
+      const found = allT.find(t => t.id === selectedTemplateId);
+      if (found) {
+        const link = buildAffiliateLink(updatedProduct.original_link, updatedProduct.platform, apiKeys || {});
+        const formatted = applyTemplate(found.template, updatedProduct, link, commissionRates);
+        setEditedCopyText(formatted);
+      }
     } else {
-      // If using AI-generated variations, perform a best-effort string replacement
-      const oldValue = extractedProduct[field];
-      if (oldValue !== undefined && oldValue !== null && oldValue !== "") {
-        const oldStr = String(oldValue).trim();
-        const newStr = String(value).trim();
-        if (oldStr && newStr && oldStr !== newStr) {
-          setVariations((prevVars) => {
-            const updatedVars = prevVars.map((v) => {
-              try {
-                return { ...v, copy: v.copy.replace(new RegExp(escapeRegExp(oldStr), 'g'), newStr) };
-              } catch (e) {
-                return v;
-              }
+      // If variations are local templates, automatically regenerate them in real-time
+      const isUsingLocal = variations.some(v => v.id.startsWith('var_'));
+      if (isUsingLocal) {
+        const localVars = generateVariationsForProduct(updatedProduct);
+        setVariations(localVars);
+        setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+      } else {
+        // If using AI-generated variations, perform a best-effort string replacement
+        const oldValue = extractedProduct[field];
+        if (oldValue !== undefined && oldValue !== null && oldValue !== "") {
+          const oldStr = String(oldValue).trim();
+          const newStr = String(value).trim();
+          if (oldStr && newStr && oldStr !== newStr) {
+            setVariations((prevVars) => {
+              const updatedVars = prevVars.map((v) => {
+                try {
+                  return { ...v, copy: v.copy.replace(new RegExp(escapeRegExp(oldStr), 'g'), newStr) };
+                } catch (e) {
+                  return v;
+                }
+              });
+              setEditedCopyText(updatedVars[selectedVariationIndex]?.copy || '');
+              return updatedVars;
             });
-            setEditedCopyText(updatedVars[selectedVariationIndex]?.copy || '');
-            return updatedVars;
-          });
+          }
         }
       }
     }
@@ -165,9 +197,19 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
 
   const handleRegenerateLocalCopies = () => {
     if (!extractedProduct) return;
-    const localVars = generateVariationsForProduct(extractedProduct);
-    setVariations(localVars);
-    setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+    if (selectedTemplateId) {
+      const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
+      const found = allT.find(t => t.id === selectedTemplateId);
+      if (found) {
+        const link = buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {});
+        const formatted = applyTemplate(found.template, extractedProduct, link, commissionRates);
+        setEditedCopyText(formatted);
+      }
+    } else {
+      const localVars = generateVariationsForProduct(extractedProduct);
+      setVariations(localVars);
+      setEditedCopyText(localVars[selectedVariationIndex]?.copy || '');
+    }
   };
   const generateVariationsForProduct = (prod: ProductData): GeminiCopyVariation[] => {
     return [
@@ -249,8 +291,14 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       // Generate initial 3 local variations immediately
       const defaultVars = generateVariationsForProduct(prod);
       setVariations(defaultVars);
-      setSelectedVariationIndex(0);
-      setEditedCopyText(defaultVars[0].copy);
+      
+      const link = buildAffiliateLink(prod.original_link, prod.platform, apiKeys || {});
+      const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
+      const found = allT.find(t => t.id === selectedTemplateId) || DEFAULT_TEMPLATES[0];
+      const formatted = applyTemplate(found.template, prod, link, commissionRates);
+      
+      setSelectedVariationIndex(-1); // template selected
+      setEditedCopyText(formatted);
 
       // Attempt background Gemini AI enhancement automatically
       setIsAiGenerating(true);
@@ -272,7 +320,11 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
               copy: (v.copy || '').replace(/\{LINK\}/g, prod.original_link),
             }));
             setVariations(formattedAiVars);
-            setEditedCopyText(formattedAiVars[0].copy);
+            
+            if (!selectedTemplateId) {
+              setEditedCopyText(formattedAiVars[0].copy);
+              setSelectedVariationIndex(0);
+            }
           } else {
             throw new Error('Retorno da IA vazio ou com formato inválido.');
           }
@@ -297,8 +349,22 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     }
   };
 
+  const handleSelectTemplate = (id: string) => {
+    setSelectedTemplateId(id);
+    setSelectedVariationIndex(-1); // deselect variation tabs
+    if (!extractedProduct) return;
+    const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
+    const found = allT.find(t => t.id === id);
+    if (found) {
+      const link = buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {});
+      const formatted = applyTemplate(found.template, extractedProduct, link, commissionRates);
+      setEditedCopyText(formatted);
+    }
+  };
+
   const handleSelectVariation = (index: number) => {
     setSelectedVariationIndex(index);
+    setSelectedTemplateId(''); // deselect template badges
     setEditedCopyText(variations[index].copy);
     setCopied(false);
   };
@@ -493,6 +559,16 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
                   </button>
                 ))}
               </div>
+
+              {/* Template Selector Section */}
+              <TemplateSelector
+                templates={DEFAULT_TEMPLATES}
+                selectedTemplateId={selectedTemplateId}
+                setSelectedTemplateId={handleSelectTemplate}
+                customTemplates={customTemplates}
+                onAddCustomTemplate={onAddCustomTemplate || (() => {})}
+                onDeleteCustomTemplate={onDeleteCustomTemplate || (() => {})}
+              />
 
               {/* Sync / Regenerate Actions */}
               <div className="flex flex-wrap gap-2 pt-1 pb-1">

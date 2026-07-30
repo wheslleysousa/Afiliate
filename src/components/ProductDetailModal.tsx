@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { GlobalProduct, ApiKeysConfig } from '../types';
+import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { buildAffiliateLink } from '../utils/affiliateLink';
-import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
+import { calculateCommission, calculateSalesTrend, normalizeCategoryText } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { isProductSharedRecently, toggleProductShared } from '../utils/sharingLogUtils';
 import {
@@ -31,16 +31,20 @@ import {
   ShieldCheck,
   CheckCircle2,
   FileText,
-  Ticket
+  Ticket,
+  Save
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: GlobalProduct;
   apiKeys?: ApiKeysConfig;
+  commissionRates?: CommissionRatesConfig;
   sharedMap?: Record<string, number>;
   onToggleShared?: (productId: string) => void;
+  onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
   onClose: () => void;
   onNavigateToSettings?: () => void;
+  onAddCustomTemplate?: (template: CopyTemplate) => void;
 }
 
 const platformLabel: Record<string, string> = {
@@ -62,10 +66,13 @@ const platformColor: Record<string, string> = {
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
   apiKeys,
+  commissionRates,
   sharedMap,
   onToggleShared,
+  onUpdateProductCommission,
   onClose,
   onNavigateToSettings,
+  onAddCustomTemplate,
 }) => {
   const keys: ApiKeysConfig = apiKeys || {};
   const [activeTab, setActiveTab] = useState<'share' | 'script'>('share');
@@ -73,6 +80,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
+
+  // Sobrescrever comissão manual do produto
+  const [isEditingCommOverride, setIsEditingCommOverride] = useState(false);
+  const [commOverrideRate, setCommOverrideRate] = useState('');
+  const [commOverrideAmount, setCommOverrideAmount] = useState('');
 
   const [imgError, setImgError] = useState(false);
 
@@ -104,8 +116,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const commission = calculateCommission(
     product.price_to,
     product.platform,
-    product.commission_rate,
-    product.commission_amount
+    product,
+    null,
+    null,
+    commissionRates
   );
   const trend = calculateSalesTrend(product);
 
@@ -152,6 +166,64 @@ ${affiliateLink}
     navigator.clipboard.writeText(message);
     setCopiedMessage(true);
     setTimeout(() => setCopiedMessage(false), 2000);
+  };
+
+  const escapeRegExp = (str: string) => {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
+  const handleSaveAsTemplate = () => {
+    let templateText = message;
+
+    // 1. Link
+    if (affiliateLink) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(affiliateLink), 'g'), '{linkAfiliado}');
+    } else if (product.original_link) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(product.original_link), 'g'), '{linkAfiliado}');
+    }
+
+    // 2. Title
+    if (product.title) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(product.title), 'g'), '{titulo}');
+    }
+
+    // 3. Price to
+    if (product.price_to) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(formatPrice(product.price_to)), 'g'), '{preco}');
+      templateText = templateText.replace(new RegExp(escapeRegExp(String(product.price_to)), 'g'), '{preco}');
+    }
+
+    // 4. Price from
+    if (product.price_from) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(formatPrice(product.price_from)), 'g'), '{precoAntigo}');
+      templateText = templateText.replace(new RegExp(escapeRegExp(String(product.price_from)), 'g'), '{precoAntigo}');
+    }
+
+    // 5. Installments
+    if (product.installments) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(product.installments), 'g'), '{parcelamento}');
+    }
+
+    // 6. Coupon
+    if (product.coupon_text) {
+      templateText = templateText.replace(new RegExp(escapeRegExp(product.coupon_text), 'g'), '{cupom}');
+    }
+
+    const name = prompt('Insira um nome para o seu novo template:', `Template Personalizado - ${product.title.slice(0, 20)}`);
+    if (!name) return;
+
+    const newTemplate: CopyTemplate = {
+      id: 'custom_' + Date.now(),
+      name: '✏️ ' + name,
+      category: 'custom',
+      description: `Criado a partir da IA para o produto: ${product.title.slice(0, 30)}`,
+      template: templateText,
+    };
+
+    if (onAddCustomTemplate) {
+      onAddCustomTemplate(newTemplate);
+      alert('Template de copy personalizado salvo com sucesso!');
+    }
   };
 
   // Gerar Copy com IA Gemini
@@ -352,16 +424,131 @@ ${affiliateLink}
                 </div>
 
                 {/* Comissão */}
-                <div className="flex flex-col bg-emerald-950/40 border border-emerald-500/30 p-2.5 rounded-lg justify-center">
-                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wide">
-                    Sua Comissão ({commission.ratePct}%)
-                  </span>
-                  <span className="text-lg sm:text-xl font-extrabold text-emerald-300">
-                    {commission.amountFormatted}
-                  </span>
-                  <span className="text-[9px] text-emerald-400/80 mt-0.5">
-                    Ganha automaticamente na compra
-                  </span>
+                <div className="flex flex-col bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl justify-between relative space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-xs text-emerald-400 font-extrabold uppercase tracking-wide">
+                        Comissão estimada: {commission.ratePct}% = R$ {commission.amount.toFixed(2).replace('.', ',')}
+                      </span>
+                      {product.category ? (
+                        <span className="text-[9px] text-[#93a0b5] bg-[#111622] border border-[#1e2636] px-2 py-0.5 rounded-md w-fit">
+                          🏷️ estimativa (categoria: {product.category}{commission.categoryUsed && normalizeCategoryText(product.category) !== commission.categoryUsed ? ` - match: ${commission.categoryUsed}` : ''})
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-amber-400 bg-amber-950/20 border border-amber-500/30 px-2 py-0.5 rounded-md w-fit">
+                          ⚠️ estimativa (categoria ausente - usando padrão)
+                        </span>
+                      )}
+                      {commission.isCustomOverride && (
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-semibold w-fit">
+                          ⚡ Personalizada
+                        </span>
+                      )}
+                    </div>
+
+                    {onUpdateProductCommission && !isEditingCommOverride && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCommOverrideRate(product.commission_rate ? String(product.commission_rate) : String(commission.ratePct));
+                          setCommOverrideAmount(product.commission_amount ? String(product.commission_amount) : '');
+                          setIsEditingCommOverride(true);
+                        }}
+                        className="text-[10px] text-emerald-400 hover:text-white bg-emerald-900/40 border border-emerald-500/40 px-2 py-0.5 rounded-lg flex items-center gap-1 font-bold transition-all"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Ajustar</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl sm:text-2xl font-black text-yellow-300 drop-shadow-sm font-mono">
+                      {commission.amountFormatted}
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] text-stone-400 italic leading-tight">
+                    * Estimativa baseada na categoria/configuração do aplicativo (não é valor oficial do marketplace).
+                  </p>
+
+                  {/* Form de Edição de Comissão Manual para este Produto */}
+                  {isEditingCommOverride && (
+                    <div className="mt-2 p-3 bg-stone-950 border border-emerald-500/50 rounded-xl space-y-2 animate-fadeIn text-xs">
+                      <div className="flex items-center justify-between border-b border-stone-800 pb-1.5">
+                        <span className="font-bold text-white text-[11px]">Sobrescrever Comissão do Produto</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingCommOverride(false)}
+                          className="text-stone-400 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-stone-300 block mb-0.5">Taxa (%)</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            placeholder="Ex: 15"
+                            value={commOverrideRate}
+                            onChange={(e) => {
+                              setCommOverrideRate(e.target.value);
+                              setCommOverrideAmount('');
+                            }}
+                            className="w-full p-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-stone-300 block mb-0.5">Ou Valor Fixo (R$)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Ex: 25.50"
+                            value={commOverrideAmount}
+                            onChange={(e) => {
+                              setCommOverrideAmount(e.target.value);
+                              setCommOverrideRate('');
+                            }}
+                            className="w-full p-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onUpdateProductCommission) {
+                              onUpdateProductCommission(product.id, null, null);
+                            }
+                            setIsEditingCommOverride(false);
+                          }}
+                          className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-[10px] font-semibold"
+                        >
+                          Resetar Padrão
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = commOverrideRate ? parseFloat(commOverrideRate) : null;
+                            const a = commOverrideAmount ? parseFloat(commOverrideAmount) : null;
+                            if (onUpdateProductCommission) {
+                              onUpdateProductCommission(product.id, isNaN(r!) ? null : r, isNaN(a!) ? null : a);
+                            }
+                            setIsEditingCommOverride(false);
+                          }}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold"
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -523,6 +710,16 @@ ${affiliateLink}
                     >
                       {copiedMessage ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       {copiedMessage ? 'Mensagem Copiada!' : 'Copiar Mensagem Pronta'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveAsTemplate}
+                      className="py-2.5 px-3 bg-stone-850 hover:bg-stone-800 text-amber-400 rounded-xl text-xs font-bold border border-amber-500/20 hover:border-amber-500/40 transition-all flex items-center justify-center gap-1.5"
+                      title="Salvar esta copy como um modelo próprio reutilizável"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Salvar como Template</span>
                     </button>
                   </div>
                 </div>
