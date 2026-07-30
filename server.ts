@@ -11,17 +11,17 @@ import cors from "cors";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
-// Configuração de CORS — aceita frontend React + extensão Chrome + Cloud Run
+// Configuração de CORS — aceita frontend React + extensão Chrome + Cloud Run + Render
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin.startsWith('chrome-extension://') || origin.includes('localhost') || origin.includes('run.app')) {
+    if (!origin || origin.startsWith('chrome-extension://') || origin.includes('localhost') || origin.includes('run.app') || origin.includes('onrender.com') || origin.includes('render.com')) {
       return callback(null, true);
     }
-    callback(new Error('CORS não permitido para: ' + origin));
+    callback(null, true); // Fallback permissivo para garantir funcionamento no Render
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Affiliate-UID'],

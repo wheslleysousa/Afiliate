@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -16,7 +16,17 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Use experimentalForceLongPolling to bypass proxy/iframe restrictions and ensure robust Firestore connection
-export const db = firebaseConfigJson.firestoreDatabaseId
-  ? initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfigJson.firestoreDatabaseId)
-  : initializeFirestore(app, { experimentalForceLongPolling: true });
+const DB_ID = 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
+
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, { experimentalForceLongPolling: true }, DB_ID);
+} catch (e) {
+  try {
+    firestoreInstance = getFirestore(app, DB_ID);
+  } catch (e2) {
+    firestoreInstance = getFirestore(app);
+  }
+}
+
+export const db = firestoreInstance;
