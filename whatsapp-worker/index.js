@@ -39,7 +39,8 @@ if (!USER_UID) {
 }
 
 const AUTH_BASE_DIR = process.env.AUTH_DIR || './auth';
-const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || '';
+const DEFAULT_APPLET_DB_ID = 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
+const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLET_DB_ID;
 
 // Garantir que diretório de autenticação exista
 if (!fs.existsSync(AUTH_BASE_DIR)) {
@@ -86,6 +87,7 @@ function initFirebase() {
 
 const db = initFirebase();
 console.log(`\n🚀 Worker Multi-Sessão Afiliate iniciado para o Usuário UID: ${USER_UID}`);
+console.log(`🗄️ Banco de Dados Firestore: ${FIRESTORE_DATABASE_ID || '(default)'}`);
 
 // Globais & Estado Multi-Sessão
 // Map<sessionId, { sessionId, sock, isConnecting, reconnectTimer, status, label }>
