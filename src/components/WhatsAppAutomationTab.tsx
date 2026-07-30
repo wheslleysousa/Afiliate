@@ -5,6 +5,7 @@ import type { WaGroup, ApiKeysConfig } from '../types';
 import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
 import { WhatsAppCampaignsView } from './WhatsAppAutomation/WhatsAppCampaignsView';
 import { WhatsAppQueueLogsView } from './WhatsAppAutomation/WhatsAppQueueLogsView';
+import { WhatsAppSessionCard } from './WhatsAppAutomation/WhatsAppSessionCard';
 import {
   MessageSquare,
   Users,
@@ -100,6 +101,9 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
         {/* Subtle Background Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
+
+      {/* WhatsApp Connection Card (QR Code / Status) */}
+      <WhatsAppSessionCard uid={uid} />
 
       {/* Subtab Selector */}
       <div className="flex items-center gap-2 border-b border-[#1e2636] pb-2 overflow-x-auto">

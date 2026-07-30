@@ -19,6 +19,7 @@ const fs = require('fs');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 
 const {
   default: makeWASocket,
@@ -41,52 +42,114 @@ if (!USER_UID) {
 const AUTH_DIR = process.env.AUTH_DIR || './auth';
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || '';
 
-// Inicializar Firebase Admin SDK
+// Inicializar Firebase Admin SDK com suporte a Banco de Dados Nomeado
 function initFirebase() {
-  if (admin.apps.length > 0) return admin.app();
-
-  let serviceAccount = null;
-
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    try {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    } catch (e) {
-      console.error('❌ Erro ao ler FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
-    }
+  let app;
+  if (admin.apps.length > 0) {
+    app = admin.apps[0];
   } else {
-    const serviceAccountPath = path.resolve(
-      process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json'
-    );
-    if (fs.existsSync(serviceAccountPath)) {
-      serviceAccount = require(serviceAccountPath);
+    let serviceAccount = null;
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      } catch (e) {
+        console.error('❌ Erro ao ler FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+      }
     } else {
-      console.warn(`⚠️ Arquivo de credenciais não encontrado em: ${serviceAccountPath}`);
+      const serviceAccountPath = path.resolve(
+        process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json'
+      );
+      if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = require(serviceAccountPath);
+      } else {
+        console.warn(`⚠️ Arquivo de credenciais não encontrado em: ${serviceAccountPath}`);
+      }
     }
+
+    const appConfig = {};
+    if (serviceAccount) {
+      appConfig.credential = admin.credential.cert(serviceAccount);
+    } else {
+      console.log('ℹ️ Usando credenciais padrão do ambiente Google Cloud / Application Default Credentials.');
+      appConfig.credential = admin.credential.applicationDefault();
+    }
+
+    app = admin.initializeApp(appConfig);
   }
 
-  const appConfig = {};
-  if (serviceAccount) {
-    appConfig.credential = admin.credential.cert(serviceAccount);
-  } else {
-    console.log('ℹ️ Usando credenciais padrão do ambiente Google Cloud / Application Default Credentials.');
-    appConfig.credential = admin.credential.applicationDefault();
-  }
-
-  const app = admin.initializeApp(appConfig);
-
-  // Selecionar banco se informado
-  if (FIRESTORE_DATABASE_ID) {
-    return admin.firestore(app, FIRESTORE_DATABASE_ID);
-  }
-  return admin.firestore(app);
+  // Corrigido: Usar getFirestore(app, databaseId) para bancos nomeados no Firestore
+  return FIRESTORE_DATABASE_ID ? getFirestore(app, FIRESTORE_DATABASE_ID) : getFirestore(app);
 }
 
 const db = initFirebase();
 console.log(`\n🚀 Worker Afiliate iniciado para o Usuário UID: ${USER_UID}`);
 
-// Globais
+// Globais & Travas de Concorrência
 let sock = null;
 let isConnecting = false;
+let isRunningCampaign = false;
+let isProcessingQueue = false;
+let commandListenerUnsub = null;
+
+// ------------------------------------------------------------------------------
+// HELPER PARA ATUALIZAR STATUS DA SESSÃO NO FIRESTORE (users/{uid}/waSession/current)
+// ------------------------------------------------------------------------------
+
+async function updateSessionDoc(data) {
+  try {
+    const docRef = db.collection('users').doc(USER_UID).collection('waSession').doc('current');
+    await docRef.set(
+      {
+        ...data,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('⚠️ Erro ao atualizar waSession/current no Firestore:', err.message);
+  }
+}
+
+// Escutar comandos enviados pela interface web (ex: pedido de logout/desconexão)
+function listenToSessionCommands() {
+  if (commandListenerUnsub) return;
+  const docRef = db.collection('users').doc(USER_UID).collection('waSession').doc('current');
+  commandListenerUnsub = docRef.onSnapshot(
+    (snap) => {
+      if (snap.exists) {
+        const data = snap.data();
+        if (data.requestedLogout) {
+          console.log('🚪 Solicitado logout do WhatsApp via aplicativo! Desconectando...');
+          if (sock) {
+            try {
+              sock.logout();
+            } catch (e) {
+              console.error('Erro ao chamar sock.logout():', e.message);
+            }
+          }
+          if (fs.existsSync(AUTH_DIR)) {
+            try {
+              fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+            } catch (rmErr) {
+              console.error('Erro ao limpar pasta de auth:', rmErr.message);
+            }
+          }
+          updateSessionDoc({
+            status: 'disconnected',
+            qr: null,
+            phoneNumber: null,
+            name: null,
+            requestedLogout: false,
+          });
+        }
+      }
+    },
+    (err) => {
+      console.error('⚠️ Erro no listener de comandos de sessão do WhatsApp:', err.message);
+    }
+  );
+}
 
 // ------------------------------------------------------------------------------
 // 2. LÓGICA DE CONEXÃO COM O BAILEYS (WHATSAPP)
@@ -97,6 +160,11 @@ async function connectToWhatsApp() {
   isConnecting = true;
 
   try {
+    await updateSessionDoc({
+      status: 'connecting',
+      qr: null,
+    });
+
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version, isLatest } = await fetchLatestBaileysVersion();
 
@@ -118,10 +186,22 @@ async function connectToWhatsApp() {
 
       if (qr) {
         console.log('\n================================================================');
-        console.log('📲 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP DEDICADO:');
+        console.log('📲 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP DEDICADO OU NO APP:');
         console.log('================================================================\n');
         qrcode.generate(qr, { small: true });
         console.log('\nAguardando leitura do QR Code...\n');
+
+        // Transmitir QR code bruto para o documento no Firestore
+        await updateSessionDoc({
+          status: 'qr',
+          qr: qr,
+        });
+      }
+
+      if (connection === 'connecting') {
+        await updateSessionDoc({
+          status: 'connecting',
+        });
       }
 
       if (connection === 'close') {
@@ -136,6 +216,17 @@ async function connectToWhatsApp() {
           if (fs.existsSync(AUTH_DIR)) {
             fs.rmSync(AUTH_DIR, { recursive: true, force: true });
           }
+          await updateSessionDoc({
+            status: 'disconnected',
+            qr: null,
+            phoneNumber: null,
+            name: null,
+          });
+        } else {
+          await updateSessionDoc({
+            status: shouldReconnect ? 'connecting' : 'disconnected',
+            qr: null,
+          });
         }
 
         if (shouldReconnect) {
@@ -143,9 +234,20 @@ async function connectToWhatsApp() {
         }
       } else if (connection === 'open') {
         isConnecting = false;
-        const userJid = sock.user?.id || 'Conectado';
+        const userJid = sock.user?.id || '';
+        const phoneNum = userJid ? userJid.split(':')[0].split('@')[0] : null;
+        const name = sock.user?.name || sock.user?.notify || null;
+
         console.log(`\n✅ CONECTADO COM SUCESSO AO WHATSAPP! JID: ${userJid}`);
         console.log('----------------------------------------------------------------\n');
+
+        await updateSessionDoc({
+          status: 'connected',
+          qr: null,
+          phoneNumber: phoneNum,
+          name: name,
+          lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
         // Executar sincronização inicial de grupos
         await syncGroups();
@@ -157,6 +259,10 @@ async function connectToWhatsApp() {
   } catch (err) {
     isConnecting = false;
     console.error('❌ Erro durante a inicialização do Baileys:', err);
+    await updateSessionDoc({
+      status: 'disconnected',
+      qr: null,
+    });
     setTimeout(connectToWhatsApp, 10000);
   }
 }
@@ -180,7 +286,7 @@ async function syncGroups() {
     for (const group of groupList) {
       if (!group.id.endsWith('@g.us')) continue;
 
-      // Pegar contagem de participantes
+      // Pegar contagem de participantes (apenas contagem agregada para LGPD)
       const participants = group.participants || [];
       const participantsCount = participants.length;
 
@@ -195,7 +301,6 @@ async function syncGroups() {
       try {
         photoUrl = await sock.profilePictureUrl(group.id, 'image');
       } catch (e) {
-        // Sem foto ou sem permissão
         photoUrl = null;
       }
 
@@ -226,28 +331,93 @@ async function syncGroups() {
 }
 
 // ------------------------------------------------------------------------------
-// 4. MOTOR DE DISPARO E PROCESSAMENTO DE CAMPANHAS
+// 4. GERADOR DE LINK DE AFILIADO POR PLATAFORMA
 // ------------------------------------------------------------------------------
+
+function buildAffiliateLink(rawUrl, platform, apiKeys) {
+  if (!rawUrl) return '';
+  const plat = (platform || '').toLowerCase();
+  const keys = apiKeys || {};
+
+  let tagParam = null;
+  let tagValue = null;
+
+  if (plat.includes('mercadolivre') || plat.includes('mercado livre') || plat.includes('mercadolibre')) {
+    tagParam = 'tracking_id';
+    tagValue = keys.mercadolivreTrackingId;
+  } else if (plat.includes('amazon')) {
+    tagParam = 'tag';
+    tagValue = keys.amazonAssociatesTag;
+  } else if (plat.includes('shopee')) {
+    tagParam = 'smtt';
+    tagValue = keys.shopeeTrackingId;
+  } else if (plat.includes('aliexpress')) {
+    tagParam = 'aff_id';
+    tagValue = keys.aliexpressAffiliateId;
+  } else if (plat.includes('shein')) {
+    tagParam = 'url_from';
+    tagValue = keys.sheinAffiliateToken;
+  }
+
+  if (!tagParam || !tagValue) {
+    if (plat) {
+      console.warn(`⚠️ ID de afiliado não configurado para a plataforma "${platform}". Usando link original sem comissão.`);
+    }
+    return rawUrl;
+  }
+
+  // Anexar parâmetro de rastreamento na URL
+  try {
+    const urlObj = new URL(rawUrl);
+    urlObj.searchParams.set(tagParam, tagValue);
+    return urlObj.toString();
+  } catch (e) {
+    const separator = rawUrl.includes('?') ? '&' : '?';
+    return `${rawUrl}${separator}${tagParam}=${encodeURIComponent(tagValue)}`;
+  }
+}
+
+// Formatar Copy do Produto com o Link de Afiliado
+function formatProductCopy(product, affiliateLink) {
+  const title = product.title || 'Produto de Oferta';
+  const priceTo = product.price_to ? `R$ ${product.price_to}` : '';
+  const priceFrom = product.price_from ? `~R$ ${product.price_from}~` : '';
+  const discount = product.discount_pct ? `🔥 *${product.discount_pct}% OFF*` : '';
+  const link = affiliateLink || product.original_link || product.affiliate_link || '';
+
+  return (
+    `🚨 *OFERTA IMPERDÍVEL!* 🚨\n\n` +
+    `📦 *${title}*\n\n` +
+    (priceFrom ? `❌ De: ${priceFrom}\n` : '') +
+    (priceTo ? `✅ Por: *${priceTo}* ${discount}\n\n` : '\n') +
+    `🛒 *Compre aqui com desconto:* \n${link}\n\n` +
+    `⚡ *Aproveite antes que o estoque acabe!*`
+  );
+}
+
+// ------------------------------------------------------------------------------
+// 5. CHECAGEM DE HORÁRIO ATIVO (HH:mm em minutos inteiros)
+// ------------------------------------------------------------------------------
+
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const parts = timeStr.trim().split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
 
 function isScheduleActive(schedule) {
   if (!schedule) return true;
 
   try {
-    // Obter data/hora atual no fuso informado (padrão America/Sao_Paulo)
     const tz = schedule.timezone || 'America/Sao_Paulo';
     const now = new Date();
 
-    // Formatar partes da data
-    const options = { timeZone: tz, hour12: false };
-    const dateParts = new Intl.DateTimeFormat('en-US', {
-      ...options,
-      weekday: 'narrow',
-      hour: 'numeric',
-      minute: 'numeric',
-    }).formatToParts(now);
-
-    // Pegar dia da semana (0 = Dom, 6 = Sáb)
-    const dayOfWeek = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
+    const localDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const dayOfWeek = localDate.getDay(); // 0 = Dom, 6 = Sáb
 
     if (Array.isArray(schedule.days) && schedule.days.length > 0) {
       if (!schedule.days.includes(dayOfWeek)) {
@@ -255,32 +425,70 @@ function isScheduleActive(schedule) {
       }
     }
 
-    // Checar intervalo de hora (HH:mm)
+    // Checar intervalo de hora usando comparação de minutos inteiros
     if (schedule.startHour && schedule.endHour) {
-      const currentFormatted = now.toLocaleTimeString('pt-BR', {
-        timeZone: tz,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const currentHours = localDate.getHours();
+      const currentMinutes = localDate.getMinutes();
+      const currentTotalMin = currentHours * 60 + currentMinutes;
 
-      if (currentFormatted < schedule.startHour || currentFormatted > schedule.endHour) {
-        return false;
+      const startMin = parseTimeToMinutes(schedule.startHour);
+      const endMin = parseTimeToMinutes(schedule.endHour);
+
+      if (startMin !== null && endMin !== null) {
+        if (startMin <= endMin) {
+          if (currentTotalMin < startMin || currentTotalMin > endMin) {
+            return false;
+          }
+        } else {
+          // Atravessa meia-noite (ex: 22:00 até 06:00)
+          if (currentTotalMin < startMin && currentTotalMin > endMin) {
+            return false;
+          }
+        }
       }
     }
 
     return true;
   } catch (err) {
     console.error('Erro ao verificar agendamento da campanha:', err);
-    return true; // Fallback para ativo em caso de falha de parsing
+    return true;
   }
 }
 
+// ------------------------------------------------------------------------------
+// 6. MOTOR DE DISPARO E PROCESSAMENTO DE CAMPANHAS
+// ------------------------------------------------------------------------------
+
 async function runCampaignCycle() {
   if (!sock) return;
-  console.log('\n⚙️ Executando ciclo de campanhas de disparo...');
+
+  // Trava de concorrência
+  if (isRunningCampaign) {
+    return;
+  }
+  isRunningCampaign = true;
 
   try {
-    // 1. Buscar campanhas ativas
+    console.log('\n⚙️ Executando ciclo de campanhas de disparo...');
+
+    // 1. Carregar chaves/tags de afiliados do usuário uma vez por ciclo
+    let apiKeys = {};
+    try {
+      const apiKeysDoc = await db
+        .collection('users')
+        .doc(USER_UID)
+        .collection('userConfig')
+        .doc('apiKeys')
+        .get();
+
+      if (apiKeysDoc.exists) {
+        apiKeys = apiKeysDoc.data() || {};
+      }
+    } catch (keyErr) {
+      console.warn('⚠️ Não foi possível carregar as chaves de API/Afiliado:', keyErr.message);
+    }
+
+    // 2. Buscar campanhas ativas
     const campaignsSnap = await db
       .collection('users')
       .doc(USER_UID)
@@ -293,12 +501,11 @@ async function runCampaignCycle() {
       return;
     }
 
-    // 2. Buscar histórico dos últimos 24h para anti-duplicação
+    // 3. Buscar histórico dos últimos 24h para anti-duplicação
     const twentyFourHoursAgo = admin.firestore.Timestamp.fromDate(
       new Date(Date.now() - 24 * 60 * 60 * 1000)
     );
 
-    // Buscar no sendQueue
     const recentQueueSnap = await db
       .collection('users')
       .doc(USER_UID)
@@ -312,7 +519,6 @@ async function runCampaignCycle() {
       if (data.productId) recentlySentProductIds.add(data.productId);
     });
 
-    // Buscar no sendLog
     const recentLogSnap = await db
       .collection('users')
       .doc(USER_UID)
@@ -325,9 +531,34 @@ async function runCampaignCycle() {
       if (data.productId) recentlySentProductIds.add(data.productId);
     });
 
-    // 3. Processar cada campanha ativa
+    // 4. Processar cada campanha ativa
     for (const campaignDoc of campaignsSnap.docs) {
       const campaign = { id: campaignDoc.id, ...campaignDoc.data() };
+
+      // CHECAGEM DA CADÊNCIA DA CAMPANHA (windowMinutes)
+      const windowMin = campaign.windowMinutes || 30;
+      if (campaign.lastRunAt) {
+        let lastRunMs = 0;
+        if (typeof campaign.lastRunAt.toMillis === 'function') {
+          lastRunMs = campaign.lastRunAt.toMillis();
+        } else if (campaign.lastRunAt.seconds) {
+          lastRunMs = campaign.lastRunAt.seconds * 1000;
+        } else if (campaign.lastRunAt instanceof Date) {
+          lastRunMs = campaign.lastRunAt.getTime();
+        } else if (typeof campaign.lastRunAt === 'number') {
+          lastRunMs = campaign.lastRunAt;
+        }
+
+        if (lastRunMs > 0) {
+          const elapsedMs = Date.now() - lastRunMs;
+          const windowMs = windowMin * 60 * 1000;
+          if (elapsedMs < windowMs) {
+            const remainMin = Math.ceil((windowMs - elapsedMs) / 60000);
+            console.log(`⏳ Campanha "${campaign.name}" está dentro da janela de espera (${remainMin} min restantes). Pulando.`);
+            continue;
+          }
+        }
+      }
 
       if (!isScheduleActive(campaign.schedule)) {
         console.log(`⏰ Campanha "${campaign.name}" fora do horário ativo agendado. Pulando.`);
@@ -341,7 +572,7 @@ async function runCampaignCycle() {
 
       console.log(`🎯 Processando campanha ativa: "${campaign.name}"`);
 
-      // 4. Buscar produtos minerados do usuário
+      // 5. Buscar produtos minerados do usuário
       const minedSnap = await db
         .collection('users')
         .doc(USER_UID)
@@ -355,7 +586,7 @@ async function runCampaignCycle() {
 
       const minedRefs = minedSnap.docs.map((d) => d.data());
 
-      // Buscar os documentos completos em /products
+      // Buscar documentos completos em /products
       const candidateProducts = [];
       for (const ref of minedRefs) {
         if (!ref.productId) continue;
@@ -368,16 +599,13 @@ async function runCampaignCycle() {
       // Aplicar filtros da campanha
       const filters = campaign.filters || {};
       let filtered = candidateProducts.filter((p) => {
-        // Excluir os enviados nas últimas 24h
         if (recentlySentProductIds.has(p.id)) return false;
 
-        // Filtro de plataformas
         if (filters.platforms && filters.platforms.length > 0) {
           const platSet = new Set(filters.platforms.map((pl) => pl.toLowerCase()));
           if (!platSet.has((p.platform || '').toLowerCase())) return false;
         }
 
-        // Filtro de vendas mínimas
         if (filters.minSales && filters.minSales > 0) {
           let countNum = 0;
           const s = String(p.sales_count || '').toLowerCase().replace(',', '.');
@@ -386,12 +614,10 @@ async function runCampaignCycle() {
           if (countNum < filters.minSales) return false;
         }
 
-        // Filtro de desconto mínimo
         if (filters.minDiscount && filters.minDiscount > 0) {
           if ((p.discount_pct || 0) < filters.minDiscount) return false;
         }
 
-        // Filtro de preço máximo
         if (filters.maxPrice && filters.maxPrice > 0) {
           const numPrice = parseFloat((p.price_to || '0').replace(/\./g, '').replace(',', '.'));
           if (numPrice > filters.maxPrice) return false;
@@ -415,7 +641,6 @@ async function runCampaignCycle() {
         } else if (campaign.objective === 'maior_comissao') {
           return (b.commission_amount || 0) - (a.commission_amount || 0);
         } else {
-          // 'mais_recentes'
           return (b.firstMinedAt || '').localeCompare(a.firstMinedAt || '');
         }
       });
@@ -423,6 +648,11 @@ async function runCampaignCycle() {
       // Selecionar até a quantidade configurada
       const qty = campaign.quantity || 30;
       const selectedProducts = filtered.slice(0, qty);
+
+      if (selectedProducts.length === 0) {
+        console.log(`ℹ️ Nenhuns novos produtos para enfileirar para a campanha "${campaign.name}".`);
+        continue;
+      }
 
       console.log(`📦 ${selectedProducts.length} produto(s) elegíveis selecionado(s) para a campanha "${campaign.name}".`);
 
@@ -432,15 +662,13 @@ async function runCampaignCycle() {
       for (let i = 0; i < selectedProducts.length; i++) {
         const product = selectedProducts[i];
 
-        // Calcular gap do pacing
-        let gapMs = 60 * 1000; // default 1 min
+        let gapMs = 60 * 1000;
         if (campaign.pacing === 'aleatorio') {
           const minG = campaign.minGapSec || 30;
           const maxG = campaign.maxGapSec || 120;
           const randomSec = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
           gapMs = randomSec * 1000;
         } else {
-          // Uniforme
           const totalMin = campaign.windowMinutes || 30;
           const stepSec = Math.max(10, Math.floor((totalMin * 60) / qty));
           gapMs = stepSec * 1000;
@@ -450,9 +678,10 @@ async function runCampaignCycle() {
           currentTimeMs += gapMs;
         }
 
-        // Formatar Copy básica de envio
-        const copyText = formatProductCopy(product);
-        const affiliateLink = product.original_link || product.affiliate_link || '';
+        // Montar link de afiliado e copy personalizada
+        const rawLink = product.original_link || product.affiliate_link || '';
+        const affiliateLink = buildAffiliateLink(rawLink, product.platform, apiKeys);
+        const copyText = formatProductCopy(product, affiliateLink);
 
         // Agendar para cada grupo alvo
         for (const groupId of campaign.targetGroupIds) {
@@ -477,7 +706,6 @@ async function runCampaignCycle() {
             .add(queueItemData);
         }
 
-        // Adicionar o produto ao Set de enviados para não duplicar entre campanhas no mesmo ciclo
         recentlySentProductIds.add(product.id);
       }
 
@@ -491,33 +719,21 @@ async function runCampaignCycle() {
     }
   } catch (err) {
     console.error('⚠️ Erro ao rodar ciclo de campanhas:', err.message);
+  } finally {
+    isRunningCampaign = false;
   }
 }
 
-// Formatar Copy do Produto
-function formatProductCopy(product) {
-  const title = product.title || 'Produto de Oferta';
-  const priceTo = product.price_to ? `R$ ${product.price_to}` : '';
-  const priceFrom = product.price_from ? `~R$ ${product.price_from}~` : '';
-  const discount = product.discount_pct ? `🔥 *${product.discount_pct}% OFF*` : '';
-  const link = product.original_link || product.affiliate_link || '';
-
-  return (
-    `🚨 *OFERTA IMPERDÍVEL!* 🚨\n\n` +
-    `📦 *${title}*\n\n` +
-    (priceFrom ? `❌ De: ${priceFrom}\n` : '') +
-    (priceTo ? `✅ Por: *${priceTo}* ${discount}\n\n` : '\n') +
-    `🛒 *Compre aqui com desconto:* \n${link}\n\n` +
-    `⚡ *Aproveite antes que o estoque acabe!*`
-  );
-}
-
 // ------------------------------------------------------------------------------
-// 5. CONSUMIDOR DA FILA DE ENVIOS (sendQueue)
+// 7. CONSUMIDOR DA FILA DE ENVIOS (sendQueue)
 // ------------------------------------------------------------------------------
 
 async function processSendQueue() {
   if (!sock) return;
+
+  // Trava de concorrência
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
 
   try {
     const nowTimestamp = admin.firestore.Timestamp.now();
@@ -529,7 +745,7 @@ async function processSendQueue() {
       .collection('sendQueue')
       .where('status', '==', 'pending')
       .where('scheduledAt', '<=', nowTimestamp)
-      .limit(5) // Limite de lote por segurança
+      .limit(5)
       .get();
 
     if (pendingSnap.empty) return;
@@ -629,11 +845,13 @@ async function processSendQueue() {
     }
   } catch (err) {
     console.error('⚠️ Erro no processamento da fila de envios:', err.message);
+  } finally {
+    isProcessingQueue = false;
   }
 }
 
 // ------------------------------------------------------------------------------
-// 6. INICIALIZAÇÃO DE TEMPORIZADORES (LOOPS)
+// 8. INICIALIZAÇÃO DE TEMPORIZADORES (LOOPS)
 // ------------------------------------------------------------------------------
 
 function startWorkerLoops() {
@@ -652,5 +870,6 @@ function startWorkerLoops() {
   setInterval(processSendQueue, 15 * 1000);
 }
 
-// Iniciar conexão com WhatsApp
+// Iniciar escuta de comandos no Firestore e conexão com WhatsApp
+listenToSessionCommands();
 connectToWhatsApp();

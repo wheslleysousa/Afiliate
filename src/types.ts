@@ -245,6 +245,17 @@ export interface WaSendLogItem {
   imageUrl?: string | null;
 }
 
+export interface WaSession {
+  status: 'disconnected' | 'connecting' | 'qr' | 'connected';
+  qr?: string | null;
+  phoneNumber?: string | null;
+  name?: string | null;
+  label?: string | null;
+  requestedLogout?: boolean;
+  updatedAt?: any;
+  lastConnectedAt?: any;
+}
+
 // ─── Navegação ───────────────────────────────────────────────────────────────
 
 export type AppTab =
