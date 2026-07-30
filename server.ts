@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import * as cheerio from "cheerio";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -2797,14 +2798,19 @@ app.get(['/api/extension/status', '/extension/status'], (req, res) => {
 
 // Vite / Production middleware
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  const hasBuiltApp = fs.existsSync(path.join(distPath, "index.html"));
+  const isProduction = process.env.NODE_ENV === "production" || hasBuiltApp;
+
+  if (!isProduction) {
+    console.log("Starting server in DEVELOPMENT mode with Vite dev middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    console.log("Starting server in PRODUCTION mode, serving pre-built files from:", distPath);
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
