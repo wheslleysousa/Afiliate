@@ -265,6 +265,12 @@ export function applyTemplate(
     commissionRates
   );
 
+  const isSemJuros = Boolean(
+    product.installments_interest_free === true ||
+    (product.installments && /sem juros/i.test(product.installments))
+  );
+  const parcelaSemJuros = isSemJuros ? (product.installments || '') : '';
+
   const replacements: Record<string, string> = {
     '{titulo}':        product.title || '',
     '{preco}':         product.price_to || '',
@@ -273,6 +279,7 @@ export function applyTemplate(
     '{precoAntigo}':   product.price_from || '',
     '{desconto}':      discountPct ? `-${discountPct}%` : '',
     '{parcelamento}':  product.installments || '',
+    '{parcelaSemJuros}': parcelaSemJuros,
     '{cupom}':         product.coupon ? `🎟 Cupom: ${product.coupon}` : (product.coupon_text ? `🎟 Cupom: ${product.coupon_text}` : ''),
     '{frete}':         product.free_shipping ? '🚚 Frete GRÁTIS' : (product.shipping || 'Frete a calcular'),
     '{descricao}':     (product.description || '').slice(0, 200),

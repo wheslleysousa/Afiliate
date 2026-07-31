@@ -120,6 +120,7 @@ export async function upsertToMarketplace(
       price_to: product.price_to,
       price_from: product.price_from ?? null,
       installments: product.installments ?? null,
+      installments_interest_free: product.installments_interest_free ?? (product.installments ? /sem juros/i.test(product.installments) : false),
       coupon: product.coupon ?? null,
       shipping: product.shipping ?? null,
       original_link: cleanLink,
@@ -163,6 +164,7 @@ export async function upsertToMarketplace(
     // Só atualiza campos opcionais se vierem preenchidos
     if (product.price_from != null) updates.price_from = product.price_from;
     if (product.installments != null) updates.installments = product.installments;
+    if (product.installments_interest_free != null) updates.installments_interest_free = product.installments_interest_free;
     if (product.coupon != null) updates.coupon = product.coupon;
     if (product.shipping != null) updates.shipping = product.shipping;
     if (product.pictures?.length) updates.pictures = product.pictures;

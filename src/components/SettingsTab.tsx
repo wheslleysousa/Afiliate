@@ -222,7 +222,7 @@ const AffiliateItemCard: React.FC<AffiliateItemCardProps> = ({
           <button
             type="button"
             onClick={onHowToObtain}
-            className="text-[11px] text-violet-400 hover:text-violet-300 font-bold flex items-center gap-0.5 transition-colors underline decoration-dashed"
+            className="text-[11px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-0.5 transition-colors underline decoration-dashed"
           >
             Como obter →
           </button>
@@ -237,7 +237,7 @@ const AffiliateItemCard: React.FC<AffiliateItemCardProps> = ({
             onChange={(e) => handleTextChange(e.target.value)}
             className={`w-full pl-3 pr-28 py-2.5 rounded-xl text-xs font-mono transition-all focus:outline-none ${
               isEditing
-                ? 'bg-stone-900 border-2 border-violet-500 text-white placeholder-stone-600 shadow-inner'
+                ? 'bg-stone-900 border-2 border-blue-500 text-white placeholder-stone-600 shadow-inner'
                 : 'bg-stone-900/60 border border-stone-800/80 text-stone-300 disabled:opacity-90 cursor-not-allowed'
             }`}
           />
@@ -260,7 +260,7 @@ const AffiliateItemCard: React.FC<AffiliateItemCardProps> = ({
                 onClick={() => setIsEditing(true)}
                 className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[11px] font-bold transition-all flex items-center gap-1"
               >
-                {hasValue ? <Edit3 className="w-3 h-3 text-violet-400" /> : <Plus className="w-3 h-3 text-emerald-400" />}
+                {hasValue ? <Edit3 className="w-3 h-3 text-blue-400" /> : <Plus className="w-3 h-3 text-emerald-400" />}
                 <span>{hasValue ? 'Editar' : 'Adicionar'}</span>
               </button>
             ) : (
@@ -580,7 +580,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           onClick={() => setActiveSection('commissions')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
             activeSection === 'commissions'
-              ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/20'
+              ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
               : 'text-[#93a0b5] hover:text-white hover:bg-[#0e1119] border-transparent'
           }`}
         >
@@ -638,12 +638,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Commission Rates Management Section */}
       {activeSection === 'commissions' && (
-        <div className="bg-[#0e1119] border border-purple-500/30 rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden animate-fadeIn">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-[#0e1119] border border-blue-500/30 rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden animate-fadeIn">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-purple-500/15 border border-purple-500/30 text-purple-400 rounded-xl shrink-0">
+              <div className="p-3 bg-blue-500/15 border border-blue-500/30 text-blue-400 rounded-xl shrink-0">
                 <Percent className="w-6 h-6" />
               </div>
               <div>
@@ -667,7 +667,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <button
                 type="button"
                 onClick={handleSaveCommissions}
-                className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-purple-600/20"
+                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-600/20"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>Salvar Taxas</span>
@@ -700,7 +700,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   onClick={() => setSelectedCommPlatform(p.id)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
                     active
-                      ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                      ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30'
                       : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
                   }`}
                 >
@@ -734,9 +734,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       max="100"
                       value={platformConfig.default}
                       onChange={(e) => handleUpdateDefaultRate(selectedCommPlatform, parseFloat(e.target.value) || 0)}
-                      className="w-24 bg-[#151a26] border border-[#1e2636] rounded-lg px-3 py-1.5 text-xs font-bold text-white text-right focus:outline-none focus:border-purple-500"
+                      className="w-24 bg-[#151a26] border border-[#1e2636] rounded-lg px-3 py-1.5 text-xs font-bold text-white text-right focus:outline-none focus:border-blue-500"
                     />
-                    <span className="text-xs font-bold text-purple-400">%</span>
+                    <span className="text-xs font-bold text-blue-400">%</span>
                   </div>
                 </div>
 
@@ -744,7 +744,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-stone-300 flex items-center gap-2">
-                      <Tag className="w-3.5 h-3.5 text-purple-400" />
+                      <Tag className="w-3.5 h-3.5 text-blue-400" />
                       <span>Taxas por Categoria ({categoryKeys.length})</span>
                     </h4>
                   </div>
@@ -758,13 +758,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       {categoryKeys.map((cat) => (
                         <div
                           key={cat}
-                          className="flex items-center justify-between p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl group hover:border-purple-500/40 transition-all"
+                          className="flex items-center justify-between p-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl group hover:border-blue-500/40 transition-all"
                         >
                           <span className="text-xs font-medium text-stone-200 truncate max-w-[180px]" title={cat}>
                             {cat}
                           </span>
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-extrabold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/20">
+                            <span className="text-xs font-extrabold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-lg border border-blue-500/20">
                               {categoriesMap[cat]}%
                             </span>
                             <button
@@ -790,7 +790,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         placeholder="Ex: Eletrônicos, Celulares, Beleza..."
                         value={newCatName}
                         onChange={(e) => setNewCatName(e.target.value)}
-                        className="flex-1 w-full bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-purple-500"
+                        className="flex-1 w-full bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-blue-500"
                       />
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <input
@@ -799,13 +799,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                           placeholder="Taxa %"
                           value={newCatRate}
                           onChange={(e) => setNewCatRate(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-24 bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-purple-500 text-right font-bold"
+                          className="w-24 bg-[#0e1119] border border-[#1e2636] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-600 focus:outline-none focus:border-blue-500 text-right font-bold"
                         />
                         <button
                           type="button"
                           onClick={() => handleAddCategoryOverride(selectedCommPlatform)}
                           disabled={!newCatName.trim() || newCatRate === ''}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Adicionar</span>
@@ -1214,22 +1214,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Seção: IDs de Afiliado por Usuário */}
       {activeSection === 'affiliates' && (
-        <div className="bg-stone-900 border border-violet-500/30 rounded-2xl p-6 space-y-5 shadow-xl animate-fadeIn">
-          <div className="flex items-center gap-3 border-b border-stone-800 pb-4">
-            <div className="p-2.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-400">
+        <div className="bg-[#0e1119] border border-blue-500/30 rounded-2xl p-6 space-y-5 shadow-xl animate-fadeIn">
+          <div className="flex items-center gap-3 border-b border-[#1e2636] pb-4">
+            <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400">
               <LinkIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-bold text-white">IDs de Afiliado por Usuário</h3>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-[#93a0b5]">
                 Seus links ganharão comissão automaticamente quando alguém comprar
               </p>
             </div>
           </div>
 
           {/* Alert informativo */}
-          <div className="p-3.5 bg-violet-950/40 border border-violet-500/20 rounded-xl text-xs text-violet-300 flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-blue-950/40 border border-blue-500/20 rounded-xl text-xs text-blue-300 flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
             <span className="leading-relaxed">
               ⚡ Com seus IDs configurados abaixo, todos os links gerados pelo app e extensão usarão
               automaticamente <strong>seus</strong> códigos de afiliado — você ganha comissão em 100% das vendas efetuadas!
@@ -1535,7 +1535,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </button>
 
             <div className="flex items-center gap-3 border-b border-stone-800 pb-4 pr-8">
-              <div className="p-3 bg-violet-500/10 border border-violet-500/30 text-violet-400 rounded-2xl shrink-0">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-2xl shrink-0">
                 <BookOpen className="w-6 h-6" />
               </div>
               <div>
@@ -1551,14 +1551,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
             {/* Imagem Ilustrativa / Diagrama do Local no Painel */}
             {currentHelpGuide.guideImage && (
-              <div className="rounded-2xl overflow-hidden border border-violet-500/30 bg-stone-950 shadow-lg relative group">
+              <div className="rounded-2xl overflow-hidden border border-blue-500/30 bg-stone-950 shadow-lg relative group">
                 <img
                   src={currentHelpGuide.guideImage}
                   alt={`Guia visual para ${currentHelpGuide.platform}`}
                   referrerPolicy="no-referrer"
                   className="w-full h-auto object-cover max-h-56 sm:max-h-64"
                 />
-                <div className="absolute bottom-2 right-2 bg-stone-950/90 border border-stone-800 text-[10px] font-semibold text-violet-300 px-2.5 py-1 rounded-lg backdrop-blur-sm">
+                <div className="absolute bottom-2 right-2 bg-stone-950/90 border border-stone-800 text-[10px] font-semibold text-blue-300 px-2.5 py-1 rounded-lg backdrop-blur-sm">
                   📍 Onde localizar e copiar no painel
                 </div>
               </div>
@@ -1570,7 +1570,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <div className="space-y-2.5">
                 {currentHelpGuide.steps.map((step, idx) => (
                   <div key={idx} className="flex items-start gap-3 p-2.5 bg-stone-950 rounded-xl border border-stone-800/80">
-                    <span className="w-5 h-5 rounded-full bg-violet-500/20 text-violet-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                       {idx + 1}
                     </span>
                     <p className="text-xs text-stone-300 leading-relaxed">{step}</p>
@@ -1602,7 +1602,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setActiveHelpModal(null)}
-                className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-violet-950/50 transition-all"
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-950/50 transition-all"
               >
                 <span>Obter meu ID na {currentHelpGuide.platform}</span>
                 <ExternalLink className="w-4 h-4" />

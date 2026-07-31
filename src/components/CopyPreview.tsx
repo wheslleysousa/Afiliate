@@ -11,16 +11,16 @@ export const CopyPreview: React.FC<CopyPreviewProps> = ({ product, formattedText
   const rawCopyText = formattedText || formatCopy(product);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5 shadow-xl">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 space-y-5 shadow-xl">
       {/* 1. Visual Styled Preview */}
-      <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">Prévia Visual</h3>
+      <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400">Prévia Visual</h3>
         
         <p className="font-bold text-white text-sm sm:text-base leading-snug">{product.title}</p>
 
         <div className="space-y-1 text-xs">
           {product.price_from && (
-            <p className="text-slate-400 line-through">de R$ {product.price_from}</p>
+            <p className="text-stone-400 line-through">de R$ {product.price_from}</p>
           )}
 
           <p className="text-emerald-400 font-extrabold text-lg">
@@ -28,7 +28,7 @@ export const CopyPreview: React.FC<CopyPreviewProps> = ({ product, formattedText
           </p>
 
           {product.installments && (
-            <p className="text-slate-300 font-medium">💳 ou {product.installments}</p>
+            <p className="text-stone-300 font-medium">💳 ou {product.installments}</p>
           )}
         </div>
 
@@ -39,33 +39,33 @@ export const CopyPreview: React.FC<CopyPreviewProps> = ({ product, formattedText
         )}
 
         <div className="pt-1 text-xs">
-          <p className="text-slate-400">🛍️ Compre aqui:</p>
+          <p className="text-stone-400">🛍️ Compre aqui:</p>
           <a
             href={product.original_link}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-indigo-400 hover:underline font-mono truncate block"
+            className="text-blue-400 hover:underline font-mono truncate block"
           >
             {product.original_link}
           </a>
         </div>
 
-        <p className="text-[11px] text-slate-500 italic pt-1">
+        <p className="text-[11px] text-stone-500 italic pt-1">
           *Promoção sujeita a alteração a qualquer momento
         </p>
       </div>
 
       {/* 2. Textarea with Pure Text */}
       <div className="space-y-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex justify-between items-center">
+        <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex justify-between items-center">
           <span>Texto Puro (formatado para WhatsApp):</span>
-          <span className="text-[10px] text-slate-500 font-normal">{rawCopyText.length} caracteres</span>
+          <span className="text-[10px] text-stone-500 font-normal">{rawCopyText.length} caracteres</span>
         </label>
         <textarea
           readOnly
           rows={10}
           value={rawCopyText}
-          className="w-full bg-slate-950 border border-slate-700 text-white font-mono text-xs p-3 rounded-xl focus:outline-none select-all leading-relaxed"
+          className="w-full bg-[#151a26] border border-[#1e2636] text-white font-mono text-xs p-3 rounded-xl focus:outline-none select-all leading-relaxed"
         />
       </div>
     </div>

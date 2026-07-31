@@ -17,6 +17,7 @@ import { formatPrice } from '../utils/formatPrice';
 import { buildAffiliateLink } from '../utils/affiliateLink';
 import { isProductSharedRecently } from '../utils/sharingLogUtils';
 import { ProductDetailModal } from './ProductDetailModal';
+import { PriceBlock } from './PriceBlock';
 import { CommissionBadge } from './Badge';
 import { calculateCommission } from '../utils/marketplaceUtils';
 import {
@@ -71,7 +72,7 @@ const platformColor: Record<string, string> = {
   shopee:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
-  shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  shein:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
 export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
@@ -402,7 +403,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
         </div>
       )}
 
@@ -424,7 +425,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
               {visible.map((item) => (
                 <MinedCard
                   key={item.productId}
@@ -802,47 +803,8 @@ const MinedCard: React.FC<MinedCardProps> = ({
           </div>
         )}
 
-        {/* Cupom Badge */}
-        {p.coupon && (
-          <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md w-fit">
-            <span>🎟️</span>
-            <span className="truncate">Cupom: {p.coupon}</span>
-          </div>
-        )}
-
-        {/* Bloco de Preço */}
-        <div className="mt-auto flex flex-col gap-0.5">
-          {p.price_from && p.price_from !== p.price_to && (
-            <span className="text-[10px] text-[#93a0b5] line-through">
-              {formatPrice(p.price_from)}
-            </span>
-          )}
-
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-sm sm:text-base font-extrabold text-white">
-              {formatPrice(p.price_to)}
-            </span>
-            {p.discount_pct != null && p.discount_pct > 0 && (
-              <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
-                -{p.discount_pct}%
-              </span>
-            )}
-          </div>
-
-          {/* Preço à vista no Pix (Destaque Verde) */}
-          {p.pix_price && p.pix_price !== p.price_to && (
-            <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md w-fit">
-              <span>⚡ Pix: {formatPrice(p.pix_price)}</span>
-            </div>
-          )}
-
-          {/* Parcelamento */}
-          {p.installments && (
-            <span className="text-[10px] text-[#93a0b5] truncate mt-0.5">
-              💳 {p.installments}
-            </span>
-          )}
-        </div>
+        {/* Bloco de Preço Padronizado */}
+        <PriceBlock product={p} className="mt-auto" />
 
         {/* Bloco de Comissão Estimada e Categoria */}
         {comm && (

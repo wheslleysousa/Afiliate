@@ -47,7 +47,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
         {/* Button 1: Copy Text */}
         <button
           onClick={handleCopyText}
-          className="w-full sm:w-auto px-5 py-3 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/10 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md"
+          className="w-full sm:w-auto px-5 py-3 border border-blue-500 text-blue-400 hover:bg-blue-500/10 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md"
         >
           {copyState === 'copied' ? (
             <>

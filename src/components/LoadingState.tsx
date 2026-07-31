@@ -17,9 +17,9 @@ export const LoadingState: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center space-y-4 shadow-xl">
-      <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 border-r-violet-500 rounded-full animate-spin"></div>
-      <p className="text-sm font-semibold text-slate-200 animate-pulse transition-all">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-8 flex flex-col items-center justify-center space-y-4 shadow-xl">
+      <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 border-r-blue-400 rounded-full animate-spin"></div>
+      <p className="text-sm font-semibold text-stone-200 animate-pulse transition-all">
         {MESSAGES[index]}
       </p>
     </div>

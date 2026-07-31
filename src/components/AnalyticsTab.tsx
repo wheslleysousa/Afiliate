@@ -352,7 +352,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           <select
             value={performanceFilter}
             onChange={(e) => setPerformanceFilter(e.target.value as any)}
-            className="w-full md:w-52 px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-200 font-semibold focus:outline-none focus:border-sky-500"
+            className="w-full md:w-52 px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-stone-200 font-semibold focus:outline-none focus:border-blue-500"
           >
             <option value="all">Todos os Desempenhos</option>
             <option value="top_sales">🔥 Mais Vendidos (≥5)</option>
@@ -402,7 +402,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-stone-800 text-sky-400 border border-stone-700">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#151a26] text-blue-400 border border-[#1e2636]">
                           {p.platform}
                         </span>
 
@@ -470,7 +470,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                         <button
                           onClick={() => onOpenProductDetail(p)}
                           title="Gerar Copy para Divulgar"
-                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                           <span className="hidden sm:inline">Divulgar</span>

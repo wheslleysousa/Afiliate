@@ -19,6 +19,7 @@ const PLACEHOLDERS = [
   { tag: '{precoAntigo}', label: 'Preço Riscado', desc: 'Preço de tabela' },
   { tag: '{desconto}', label: 'Desconto %', desc: 'Porcentagem calculada' },
   { tag: '{parcelamento}', label: 'Parcelas', desc: 'Ex: "10x de R$ 50"' },
+  { tag: '{parcelaSemJuros}', label: 'Parcelas s/ Juros', desc: 'Apenas quando sem juros' },
   { tag: '{cupom}', label: 'Cupom', desc: 'Ex: "Cupom: 10OFF"' },
   { tag: '{frete}', label: 'Frete', desc: 'Ex: "Frete GRÁTIS"' },
   { tag: '{descricao}', label: 'Descrição', desc: 'Resumo (primeiros 200 caracteres)' },

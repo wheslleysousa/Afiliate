@@ -195,7 +195,7 @@ export function calculateCampaignScheduleStatus(
   let badgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
 
   if (isOffDay) {
-    badgeColor = 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+    badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
   } else if (isEndedToday) {
     badgeColor = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
   }

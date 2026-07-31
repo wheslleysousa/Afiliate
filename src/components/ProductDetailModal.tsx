@@ -3,6 +3,7 @@ import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate 
 import { buildAffiliateLink } from '../utils/affiliateLink';
 import { calculateCommission, calculateSalesTrend, normalizeCategoryText, addGlobalProductToUserList } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
+import { PriceBlock } from './PriceBlock';
 import { isProductSharedRecently, toggleProductShared } from '../utils/sharingLogUtils';
 import {
   X,
@@ -67,9 +68,9 @@ const platformLabel: Record<string, string> = {
 const platformColor: Record<string, string> = {
   mercadolivre: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   shopee: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  amazon: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  amazon: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress: 'bg-red-500/20 text-red-300 border-red-500/30',
-  shein: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  shein: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -614,27 +615,9 @@ ${affiliateLink}
               {/* Bloco de Preço & Comissão Estimada */}
               <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-stone-900 border border-stone-800">
                 {/* Preço do produto */}
-                <div className="flex flex-col justify-center">
-                  <span className="text-[10px] text-stone-400 font-medium">Preço ao Consumidor</span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
-                    <span className="text-lg font-extrabold text-white">
-                      {formatPrice(product.price_to)}
-                    </span>
-                    {hasFrom && (
-                      <span className="text-xs text-stone-500 line-through">
-                        {formatPrice(product.price_from!)}
-                      </span>
-                    )}
-                  </div>
-                  {/* Preço à Vista no Pix (Destaque Verde) */}
-                  {product.pix_price && product.pix_price !== product.price_to && (
-                    <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs w-fit">
-                      <span>⚡ À vista no Pix: {formatPrice(product.pix_price)}</span>
-                    </div>
-                  )}
-                  {product.installments && (
-                    <span className="text-[10px] text-stone-400 mt-1 block">💳 {product.installments}</span>
-                  )}
+                <div className="flex flex-col justify-center gap-1">
+                  <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider">Preço ao Consumidor</span>
+                  <PriceBlock product={product} size="md" />
                 </div>
 
                 {/* Comissão */}
@@ -771,7 +754,7 @@ ${affiliateLink}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-stone-300 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-violet-400" />
+                      <Tag className="w-3.5 h-3.5 text-blue-400" />
                       Seu Link de Afiliado Personalizado:
                     </span>
                     {!hasUserTag && onNavigateToSettings && (
@@ -794,7 +777,7 @@ ${affiliateLink}
                     />
                     <button
                       onClick={handleCopyLink}
-                      className="px-3.5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
                     >
                       {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copiedLink ? 'Copiado!' : 'Copiar Link'}
@@ -872,7 +855,7 @@ ${affiliateLink}
                 onClick={() => setActiveTab('share')}
                 className={`flex items-center gap-2 px-5 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all ${
                   activeTab === 'share'
-                    ? 'border-pink-500 text-pink-400 bg-pink-500/5'
+                    ? 'border-blue-500 text-blue-400 bg-blue-500/5'
                     : 'border-transparent text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -884,7 +867,7 @@ ${affiliateLink}
                 onClick={() => setActiveTab('script')}
                 className={`flex items-center gap-2 px-5 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all ${
                   activeTab === 'script'
-                    ? 'border-violet-500 text-violet-400 bg-violet-500/5'
+                    ? 'border-blue-500 text-blue-400 bg-blue-500/5'
                     : 'border-transparent text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -900,13 +883,13 @@ ${affiliateLink}
                 <div className="space-y-3 flex flex-col">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
-                      <MessageSquare className="w-4 h-4 text-pink-400" />
+                      <MessageSquare className="w-4 h-4 text-blue-400" />
                       Mensagem de Divulgação
                     </span>
                     <button
                       onClick={handleGenerateAiCopy}
                       disabled={generatingCopy}
-                      className="text-xs font-bold text-pink-400 hover:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 px-2.5 py-1 rounded-lg border border-pink-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                      className="text-xs font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-lg border border-blue-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <Sparkles className={`w-3.5 h-3.5 ${generatingCopy ? 'animate-spin' : ''}`} />
                       {generatingCopy ? 'Criando IA...' : '✨ Gerar Copy com IA'}
@@ -917,13 +900,13 @@ ${affiliateLink}
                     rows={8}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="w-full p-3 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-200 font-mono focus:outline-none focus:border-pink-500 transition-colors resize-none leading-relaxed"
+                    className="w-full p-3 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-200 font-mono focus:outline-none focus:border-blue-500 transition-colors resize-none leading-relaxed"
                   />
 
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       onClick={handleCopyMessage}
-                      className="flex-1 py-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-pink-600/20"
+                      className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
                     >
                       {copiedMessage ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       {copiedMessage ? 'Mensagem Copiada!' : 'Copiar Mensagem Pronta'}
@@ -973,13 +956,13 @@ ${affiliateLink}
                   {/* Tipo de Vídeo */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
-                      <Film className="w-3.5 h-3.5 text-violet-400" />
+                      <Film className="w-3.5 h-3.5 text-blue-400" />
                       Estilo / Formato do Roteiro:
                     </label>
                     <select
                       value={videoType}
                       onChange={(e: any) => setVideoType(e.target.value)}
-                      className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                     >
                       <option value="achadinho">🎬 Achadinho Viral / Descoberta UAU</option>
                       <option value="review">📱 Review Honesto / UGC em Primeira Pessoa</option>
@@ -992,7 +975,7 @@ ${affiliateLink}
                   {/* Duração do Vídeo */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-violet-400" />
+                      <Clock className="w-3.5 h-3.5 text-blue-400" />
                       Duração do Vídeo (~140 palavras / min):
                     </label>
                     <div className="grid grid-cols-4 gap-1.5">
@@ -1007,7 +990,7 @@ ${affiliateLink}
                           onClick={() => setVideoDuration(d.id as any)}
                           className={`py-2 rounded-xl text-xs font-bold border transition-all ${
                             videoDuration === d.id
-                              ? 'bg-violet-600 border-violet-500 text-white'
+                              ? 'bg-blue-600 border-blue-500 text-white'
                               : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white'
                           }`}
                         >
@@ -1022,7 +1005,7 @@ ${affiliateLink}
                 <button
                   onClick={handleGenerateScript}
                   disabled={generatingScript}
-                  className="w-full py-3 bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 hover:opacity-95 text-white rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/25 disabled:opacity-50"
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 disabled:opacity-50"
                 >
                   <Sparkles className={`w-4 h-4 ${generatingScript ? 'animate-spin' : ''}`} />
                   {generatingScript ? 'Criando Roteiro com Gemini IA...' : '✨ Sugerir Roteiro Viral com Inteligência Artificial'}
@@ -1030,7 +1013,7 @@ ${affiliateLink}
 
                 {/* Exibição do Roteiro Gerado */}
                 {videoScriptData && (
-                  <div className="p-4 rounded-2xl bg-stone-950 border border-violet-500/30 space-y-4">
+                  <div className="p-4 rounded-2xl bg-stone-950 border border-blue-500/30 space-y-4">
                     <div className="flex items-center justify-between border-b border-stone-800 pb-3">
                       <div>
                         <h4 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1044,7 +1027,7 @@ ${affiliateLink}
 
                       <button
                         onClick={handleCopyScript}
-                        className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                       >
                         {copiedScript ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                         {copiedScript ? 'Copiado!' : 'Copiar Roteiro'}
@@ -1053,8 +1036,8 @@ ${affiliateLink}
 
                     {/* Hook / Gancho */}
                     {videoScriptData.hook && (
-                      <div className="p-3 rounded-xl bg-pink-950/30 border border-pink-500/30 text-xs">
-                        <span className="font-extrabold text-pink-400 block mb-1">
+                      <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-500/30 text-xs">
+                        <span className="font-extrabold text-blue-400 block mb-1">
                           🎯 GANCHO VIRAL (Primeiros 3 segundos):
                         </span>
                         <p className="text-stone-200 font-medium italic">"{videoScriptData.hook}"</p>
@@ -1067,7 +1050,7 @@ ${affiliateLink}
                         {videoScriptData.scenes.map((scene: any, idx: number) => (
                           <div key={idx} className="p-3 rounded-xl bg-stone-900 border border-stone-800 space-y-1.5 text-xs">
                             <div className="flex items-center justify-between text-stone-400 font-bold">
-                              <span className="text-violet-400">Cena {scene.sceneNumber || idx + 1}</span>
+                              <span className="text-blue-400">Cena {scene.sceneNumber || idx + 1}</span>
                               <span className="text-[10px] bg-stone-800 px-2 py-0.5 rounded-full">{scene.timeRange}</span>
                             </div>
                             <p className="text-stone-300">

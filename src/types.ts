@@ -58,6 +58,7 @@ export interface ProductData {
   price_from?: string | null;
   card_price?: string | null;
   installments?: string | null;
+  installments_interest_free?: boolean;
   max_installments_interest_free?: string | null;
   coupon: string | null;
   coupon_text?: string | null;
@@ -121,6 +122,7 @@ export interface GlobalProduct {
   price_to: string;        // preço atual (Pix/à vista)
   price_from?: string | null;
   installments?: string | null;
+  installments_interest_free?: boolean;
   coupon?: string | null;
   coupon_text?: string | null;
   shipping?: string | null;

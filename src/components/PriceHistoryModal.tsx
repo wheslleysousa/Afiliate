@@ -118,7 +118,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({ product, o
         <div className="p-4 max-h-72 overflow-y-auto flex flex-col gap-2">
           {loading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
+              <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
             </div>
           ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-stone-500">

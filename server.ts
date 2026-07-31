@@ -66,19 +66,40 @@ function cleanPrice(val: any): string | null {
 // Helper to extract stars rating (e.g. "4.8")
 function extractStars($: any, html: string, jsonLd: any = null, apiData: any = null): string | null {
   if (apiData) {
-    if (typeof apiData.rating_average === 'number') return apiData.rating_average.toFixed(1);
-    if (typeof apiData.reviews?.rating_average === 'number') return apiData.reviews.rating_average.toFixed(1);
-    if (typeof apiData.item_rating?.rating_star === 'number') return apiData.item_rating.rating_star.toFixed(1);
-    if (typeof apiData.rating_star === 'number') return apiData.rating_star.toFixed(1);
-    if (typeof apiData.eVAL_RATING === 'number') return apiData.eVAL_RATING.toFixed(1);
-    if (typeof apiData.averageStar === 'number') return apiData.averageStar.toFixed(1);
+    if (typeof apiData.rating_average === 'number' && apiData.rating_average > 0) return apiData.rating_average.toFixed(1);
+    if (typeof apiData.reviews?.rating_average === 'number' && apiData.reviews.rating_average > 0) return apiData.reviews.rating_average.toFixed(1);
+    if (typeof apiData.item_rating?.rating_star === 'number' && apiData.item_rating.rating_star > 0) return apiData.item_rating.rating_star.toFixed(1);
+    if (typeof apiData.rating_star === 'number' && apiData.rating_star > 0) return apiData.rating_star.toFixed(1);
+    if (typeof apiData.eVAL_RATING === 'number' && apiData.eVAL_RATING > 0) return apiData.eVAL_RATING.toFixed(1);
+    if (typeof apiData.averageStar === 'number' && apiData.averageStar > 0) return apiData.averageStar.toFixed(1);
+    if (typeof apiData.evaluationScore === 'number' && apiData.evaluationScore > 0) return apiData.evaluationScore.toFixed(1);
   }
 
-  if (jsonLd) {
-    const agg = jsonLd.aggregateRating || (Array.isArray(jsonLd['@graph']) ? jsonLd['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
-    if (agg?.ratingValue) {
-      const val = parseFloat(String(agg.ratingValue).replace(',', '.'));
-      if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+  // Gather JSON-LD blocks - priority 1
+  const jsonLdObjects: any[] = [];
+  if (jsonLd) jsonLdObjects.push(jsonLd);
+  if ($) {
+    $("script[type='application/ld+json']").each((_, el) => {
+      try {
+        const parsed = JSON.parse($(el).html() || "");
+        if (parsed) jsonLdObjects.push(parsed);
+      } catch (e) {}
+    });
+  }
+
+  for (const obj of jsonLdObjects) {
+    const items = Array.isArray(obj) ? obj : [obj];
+    for (const item of items) {
+      const agg = item?.aggregateRating ||
+                  (Array.isArray(item?.['@graph']) ? item['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
+      if (agg?.ratingValue) {
+        const val = parseFloat(String(agg.ratingValue).replace(',', '.'));
+        if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+      }
+      if (item?.ratingValue) {
+        const val = parseFloat(String(item.ratingValue).replace(',', '.'));
+        if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
+      }
     }
   }
 
@@ -91,10 +112,18 @@ function extractStars($: any, html: string, jsonLd: any = null, apiData: any = n
       '.overview-rating-average',
       '.product-intro__head-reviews-rank',
       '.rank-num',
-      'meta[itemprop="ratingValue"]'
+      'meta[itemprop="ratingValue"]',
+      'meta[property="og:rating"]',
+      '[class*="rating-score"]',
+      '[class*="rating-average"]',
+      '[class*="rating-value"]',
+      '[aria-label*="de 5"]',
+      '[aria-label*="out of 5"]',
+      '[aria-label*="estrelas"]',
+      '[aria-label*="stars"]'
     ];
     for (const sel of selectors) {
-      const txt = $(sel).first().attr('content') || $(sel).first().text().trim();
+      const txt = $(sel).first().attr('content') || $(sel).first().attr('aria-label') || $(sel).first().text().trim();
       if (txt) {
         const match = txt.match(/([345][\.,]\d|[12345](?:[\.,]\d)?)/);
         if (match) {
@@ -106,8 +135,8 @@ function extractStars($: any, html: string, jsonLd: any = null, apiData: any = n
   }
 
   if (html) {
-    const ratingMatch = html.match(/(?:ratingValue|rating_score|rating_star|ratingAverage|rating|nota|classificação)["']?\s*[:=]\s*["']?([345][\.,]\d|[12345])/i) ||
-                        html.match(/(?:aria-label|title)=["'][^"']*\b([345][\.,]\d)\s*(?:de\s*5|estrelas|stars|\/5)/i);
+    const ratingMatch = html.match(/(?:ratingValue|rating_score|rating_star|ratingAverage|rating|nota|classificação|evaluationScore)["']?\s*[:=]\s*["']?([345][\.,]\d|[12345])/i) ||
+                        html.match(/(?:aria-label|title)=["'][^"']*\b([345][\.,]\d)\s*(?:de\s*5|out of 5|estrelas|stars|\/5)/i);
     if (ratingMatch && ratingMatch[1]) {
       const val = parseFloat(ratingMatch[1].replace(',', '.'));
       if (!isNaN(val) && val >= 1 && val <= 5) return val.toFixed(1);
@@ -124,13 +153,30 @@ function extractSalesCount($: any, html: string, jsonLd: any = null, apiData: an
     if (apiData.historical_sold) return apiData.historical_sold >= 1000 ? `${(apiData.historical_sold / 1000).toFixed(1)}k vendidos` : `${apiData.historical_sold} vendidos`;
     if (apiData.sold) return `${apiData.sold} vendidos`;
     if (apiData.tradeCount) return `${apiData.tradeCount} vendidos`;
+    if (apiData.totalValidNum) return `${apiData.totalValidNum} avaliações`;
+    if (apiData.formatTradeCount) return `${apiData.formatTradeCount} vendidos`;
   }
 
-  if (jsonLd) {
-    const agg = jsonLd.aggregateRating || (Array.isArray(jsonLd['@graph']) ? jsonLd['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
-    if (agg?.reviewCount || agg?.ratingCount) {
-      const count = agg.reviewCount || agg.ratingCount;
-      return `${count} avaliações`;
+  const jsonLdObjects: any[] = [];
+  if (jsonLd) jsonLdObjects.push(jsonLd);
+  if ($) {
+    $("script[type='application/ld+json']").each((_, el) => {
+      try {
+        const parsed = JSON.parse($(el).html() || "");
+        if (parsed) jsonLdObjects.push(parsed);
+      } catch (e) {}
+    });
+  }
+
+  for (const obj of jsonLdObjects) {
+    const items = Array.isArray(obj) ? obj : [obj];
+    for (const item of items) {
+      const agg = item?.aggregateRating ||
+                  (Array.isArray(item?.['@graph']) ? item['@graph'].find((g: any) => g?.aggregateRating)?.aggregateRating : null);
+      if (agg?.reviewCount || agg?.ratingCount) {
+        const count = agg.reviewCount || agg.ratingCount;
+        return `${count} avaliações`;
+      }
     }
   }
 
@@ -142,7 +188,10 @@ function extractSalesCount($: any, html: string, jsonLd: any = null, apiData: an
       '.product-reviewer-sold',
       '.product-intro__head-reviews-num',
       '[class*="sold"]',
-      '[class*="review-count"]'
+      '[class*="review-count"]',
+      '[class*="review_count"]',
+      '[class*="sales"]',
+      '[class*="vendas"]'
     ];
     for (const sel of selectors) {
       const txt = $(sel).first().text().replace(/\s+/g, ' ').trim();
@@ -158,7 +207,7 @@ function extractSalesCount($: any, html: string, jsonLd: any = null, apiData: an
   }
 
   if (html) {
-    const regexMatch = html.match(/(?:sold_quantity|historical_sold|sales_count|total_sold|sold_count)["']?\s*[:=]\s*["']?(\d+)/i) ||
+    const regexMatch = html.match(/(?:sold_quantity|historical_sold|sales_count|total_sold|sold_count|totalValidNum)["']?\s*[:=]\s*["']?(\d+)/i) ||
                        html.match(/(\+?\d+(?:[\.,]\d+)?\s*[kKmM]?\s*(?:vendidos|comprados|vendas|pedidos|avaliações|avaliacoes))/i);
     if (regexMatch && regexMatch[1]) {
       const raw = regexMatch[1].trim();
@@ -175,7 +224,10 @@ function extractCouponText($: any, html: string, apiData: any = null): string | 
   if (apiData) {
     if (typeof apiData.coupon === 'string' && apiData.coupon.trim()) return apiData.coupon.trim();
     if (Array.isArray(apiData.vouchers) && apiData.vouchers[0]?.voucher_code) return apiData.vouchers[0].voucher_code;
+    if (Array.isArray(apiData.vouchers) && apiData.vouchers[0]?.name) return apiData.vouchers[0].name;
     if (Array.isArray(apiData.coupons) && apiData.coupons[0]?.code) return apiData.coupons[0].code;
+    if (Array.isArray(apiData.coupons) && apiData.coupons[0]?.name) return apiData.coupons[0].name;
+    if (apiData.couponComponent?.couponList?.[0]?.title) return apiData.couponComponent.couponList[0].title;
   }
 
   if ($) {
@@ -186,25 +238,33 @@ function extractCouponText($: any, html: string, apiData: any = null): string | 
       '.vpc-coupon-badge',
       '[class*="voucher"]',
       '[class*="coupon"]',
-      '[class*="cupom"]'
+      '[class*="cupom"]',
+      '[class*="badge"]',
+      '[class*="promo"]'
     ];
     for (const sel of couponSelectors) {
-      const txt = $(sel).first().text().replace(/\s+/g, ' ').trim();
-      if (txt && txt.length < 100 && (
-        txt.toLowerCase().includes("cupom") ||
-        txt.toLowerCase().includes("voucher") ||
-        txt.toLowerCase().includes("coupon") ||
-        txt.toLowerCase().includes("off") ||
-        txt.toLowerCase().includes("desconto")
-      )) {
-        return txt;
-      }
+      let found: string | null = null;
+      $(sel).each((_, el) => {
+        const txt = $(el).text().replace(/\s+/g, ' ').trim();
+        if (txt && txt.length < 100 && (
+          txt.toLowerCase().includes("cupom") ||
+          txt.toLowerCase().includes("voucher") ||
+          txt.toLowerCase().includes("coupon") ||
+          txt.toLowerCase().includes("off") ||
+          txt.toLowerCase().includes("desconto")
+        )) {
+          found = txt;
+          return false;
+        }
+      });
+      if (found) return found;
     }
   }
 
   if (html) {
     const couponMatch = html.match(/(?:cupom|voucher|coupon)\s*[:=]?\s*["']?([A-Z0-9_\-]{3,20}|\d+%\s*OFF|R\$\s*\d+\s*OFF)/i) ||
-                        html.match(/(?:cupom de|voucher de|usar cupom)\s*[:=]?\s*["']?([^"'<>\n]{3,30})/i);
+                        html.match(/(?:cupom de|voucher de|usar cupom)\s*[:=]?\s*["']?([^"'<>\n]{3,30})/i) ||
+                        html.match(/["'](?:coupon_code|voucher_code|promo_code)["']\s*[:=]\s*["']([^"']+)["']/i);
     if (couponMatch && couponMatch[1]) {
       return couponMatch[1].trim();
     }
@@ -223,7 +283,7 @@ function checkFreeShipping(shippingText: string | null | undefined, html: string
   }
   if (html) {
     const htmlLower = html.toLowerCase();
-    return htmlLower.includes("frete grátis") || htmlLower.includes("frete gratis") || htmlLower.includes("envio grátis");
+    return htmlLower.includes("frete grátis") || htmlLower.includes("frete gratis") || htmlLower.includes("envio grátis") || htmlLower.includes("envio gratis") || htmlLower.includes("free shipping");
   }
   return false;
 }
@@ -1991,6 +2051,7 @@ async function scrapeAliExpress(url: string, aliExpressKey?: string) {
         const raw = JSON.parse(matchJson[1]);
         const comp = raw?.data?.productInfoComponent;
         if (comp) {
+          const $ = cheerio.load(html);
           const title = comp.subject || "";
           const description = comp.description ? String(comp.description).slice(0, 300).trim() : null;
           const salePrice = comp.prices?.salePrice?.formattedPrice || cleanPrice(comp.prices?.salePrice?.minPrice);
@@ -1998,15 +2059,26 @@ async function scrapeAliExpress(url: string, aliExpressKey?: string) {
           let img = comp.imagePathList?.[0] || null;
           if (img && img.startsWith("//")) img = "https:" + img;
 
+          const price_to = cleanPrice(salePrice) || "Consulte no link";
+          const stars = extractStars($, html, null, raw?.data);
+          const sales_count = extractSalesCount($, html, null, raw?.data);
+          const coupon = extractCouponText($, html, raw?.data);
+          const free_shipping = checkFreeShipping(null, html);
+          const pix_price = extractPixPrice($, html, price_to);
+
           return {
             title,
             description,
             image_url: img,
             price_from: origPrice !== salePrice ? cleanPrice(origPrice) : null,
-            price_to: cleanPrice(salePrice) || "Consulte no link",
+            price_to,
             installments: null,
             max_installments_interest_free: null,
-            coupon: null
+            coupon,
+            stars,
+            sales_count,
+            free_shipping,
+            pix_price
           };
         }
       } catch (e) {}

@@ -417,7 +417,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
           
           {/* Widget de cota diária */}
           {uid && dailyCount !== null && (
-            <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs min-w-[240px] ${
+            <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs w-full sm:w-auto sm:min-w-[240px] ${
               dailyCount >= DAILY_LIMIT
                 ? 'bg-red-950/40 border-red-500/30 text-red-400'
                 : dailyCount >= DAILY_LIMIT * 0.8

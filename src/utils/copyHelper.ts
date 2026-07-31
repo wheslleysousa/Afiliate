@@ -85,7 +85,7 @@ export function getPlatformInfo(platformStr: string) {
   } else if (p.includes('shein')) {
     return {
       name: 'Shein',
-      badgeClass: 'bg-stone-900 text-pink-300 border-stone-800',
+      badgeClass: 'bg-stone-900 text-blue-300 border-stone-800',
       colorHex: '#000000',
       logoText: 'Shein'
     };

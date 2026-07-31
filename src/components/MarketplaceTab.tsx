@@ -13,6 +13,7 @@ import { db } from '../lib/firebase';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { PriceHistoryModal } from './PriceHistoryModal';
 import { ProductDetailModal } from './ProductDetailModal';
+import { PriceBlock } from './PriceBlock';
 import { Badge, CommissionBadge } from './Badge';
 import { formatPrice } from '../utils/formatPrice';
 import { buildAffiliateLink } from '../utils/affiliateLink';
@@ -71,7 +72,7 @@ const platformColor: Record<string, string> = {
   shopee:       'bg-amber-500/20 text-amber-300 border-amber-500/30',
   amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
-  shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  shein:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
 interface MarketplaceTabProps {
@@ -317,7 +318,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
               <p className="text-xs mt-1 text-stone-500">Tente buscar por outro termo ou limpar os filtros.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filtered.map((product) => (
                 <MarketplaceCard
                   key={product.id}
@@ -492,25 +493,8 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
           {product.title || 'Produto sem título'}
         </h4>
 
-        {/* Bloco de Preço e Desconto */}
-        <div className="mt-auto flex flex-col gap-0.5">
-          {hasDiscount && (
-            <span className="text-[10px] text-stone-500 line-through">
-              {formatPrice(product.price_from!)}
-            </span>
-          )}
-
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-sm sm:text-base font-extrabold text-white">
-              {formatPrice(product.price_to)}
-            </span>
-            {product.discount_pct != null && product.discount_pct > 0 && (
-              <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
-                -{product.discount_pct}%
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Bloco de Preço Padronizado */}
+        <PriceBlock product={product} className="mt-auto" />
 
         {/* Bloco de Comissão Estimada e Categoria */}
         <div className="bg-[#151a26]/40 border border-[#1e2636] p-2 rounded-xl flex flex-col gap-1 text-xs">

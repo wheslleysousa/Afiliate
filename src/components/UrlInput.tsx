@@ -36,12 +36,12 @@ export const UrlInput = forwardRef<HTMLInputElement, UrlInputProps>(({ onSubmit,
             if (validationError) setValidationError('');
           }}
           placeholder="Cole aqui o link de afiliado (ML, Shopee, Amazon, AliExpress, Shein)"
-          className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 text-sm transition-all"
+          className="w-full bg-[#0e1119] border border-[#1e2636] text-white placeholder-stone-500 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 text-sm transition-all"
         />
         <button
           type="submit"
           disabled={isLoading}
-          className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 shadow-md"
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 shadow-md shadow-blue-600/20"
         >
           {isLoading ? (
             <>
