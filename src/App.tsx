@@ -202,7 +202,7 @@ export default function App() {
             })
           });
 
-          const data = await res.json();
+          let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
           if (res.ok && data.success) {
             const updatedKeys: ApiKeysConfig = {
               ...apiKeys,
@@ -728,7 +728,9 @@ export default function App() {
               onUseProduct={handleUseProduct}
               onUpdateProductCommission={handleUpdateProductCommission}
               onNavigateToSettings={() => setActiveTab('settings')}
+              onNavigateToMyProducts={() => setActiveTab('my-products')}
               onAddCustomTemplate={handleAddCustomTemplate}
+              userMinedIds={new Set(minedItems.map((m) => m.productId))}
             />
           )}
 

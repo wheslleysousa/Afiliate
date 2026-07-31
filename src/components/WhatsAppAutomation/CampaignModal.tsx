@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import type { WaCampaign, WaGroup, WaSession, CampaignObjective, CampaignPacing } from '../../types';
 import {
+  calculateCampaignScheduleStatus,
+  getUserLocalTimezone,
+  COMMON_TIMEZONES,
+} from '../../utils/scheduleUtils';
+import {
   X,
   Target,
   Clock,
@@ -18,6 +23,8 @@ import {
   Tag,
   MessageSquare,
   Smartphone,
+  Globe,
+  Compass,
 } from 'lucide-react';
 
 interface CampaignModalProps {
@@ -116,7 +123,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setStartHour(campaign.schedule?.startHour || '09:00');
       setEndHour(campaign.schedule?.endHour || '21:00');
       setDays(campaign.schedule?.days || [0, 1, 2, 3, 4, 5, 6]);
-      setTimezone(campaign.schedule?.timezone || 'America/Sao_Paulo');
+      setTimezone(campaign.schedule?.timezone || getUserLocalTimezone());
     } else {
       // Default reset
       setName('');
@@ -143,7 +150,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setStartHour('09:00');
       setEndHour('21:00');
       setDays([0, 1, 2, 3, 4, 5, 6]);
-      setTimezone('America/Sao_Paulo');
+      setTimezone(getUserLocalTimezone());
     }
     setError(null);
   }, [campaign, waGroups, waSessions, isOpen]);
@@ -213,11 +220,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         targetGroupIds,
         objective,
         filters: {
-          minSales: minSales !== '' ? Number(minSales) : undefined,
-          minDiscount: minDiscount !== '' ? Number(minDiscount) : undefined,
-          platforms,
-          categories,
-          maxPrice: maxPrice !== '' ? Number(maxPrice) : undefined,
+          minSales: minSales !== '' && !isNaN(Number(minSales)) ? Number(minSales) : null,
+          minDiscount: minDiscount !== '' && !isNaN(Number(minDiscount)) ? Number(minDiscount) : null,
+          platforms: platforms || [],
+          categories: categories || [],
+          maxPrice: maxPrice !== '' && !isNaN(Number(maxPrice)) ? Number(maxPrice) : null,
         },
         quantity: Number(quantity) || 30,
         windowMinutes: Number(windowMinutes) || 30,
@@ -613,46 +620,66 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
 
           {/* Horários e Agendamento */}
-          <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
-            <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-400" />
-              Horário de Funcionamento
-            </h4>
+          <div className="space-y-4 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-400" />
+                Horário de Agendamento & Fuso Horário
+              </h4>
+              <button
+                type="button"
+                onClick={() => setTimezone(getUserLocalTimezone())}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                Detectar Meu Fuso Local
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Início</label>
+                <label className="text-[11px] font-semibold text-stone-400">Hora de Início *</label>
                 <input
                   type="time"
                   value={startHour}
                   onChange={(e) => setStartHour(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 font-semibold"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Fim</label>
+                <label className="text-[11px] font-semibold text-stone-400">Hora de Fim *</label>
                 <input
                   type="time"
                   value={endHour}
                   onChange={(e) => setEndHour(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 font-semibold"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Fuso Horário</label>
-                <input
-                  type="text"
+                <label className="text-[11px] font-semibold text-stone-400 flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-blue-400" /> Fuso Horário
+                </label>
+                <select
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 font-mono"
-                />
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+                >
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                  {!COMMON_TIMEZONES.some((tz) => tz.value === timezone) && (
+                    <option value={timezone}>{timezone} (Personalizado)</option>
+                  )}
+                </select>
               </div>
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] text-stone-400">Dias da Semana Permitidos</label>
+              <label className="text-[11px] font-semibold text-stone-400">Dias da Semana Permitidos</label>
               <div className="flex flex-wrap gap-1.5">
                 {DAYS_OF_WEEK.map((d) => {
                   const isSel = days.includes(d.day);
@@ -663,7 +690,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                       onClick={() => toggleDay(d.day)}
                       className={`w-10 h-8 rounded-lg border text-xs font-bold transition-all ${
                         isSel
-                          ? 'bg-emerald-600 border-emerald-500 text-white'
+                          ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
                           : 'bg-[#0e1119] border-[#1e2636] text-stone-500 hover:text-stone-300'
                       }`}
                     >
@@ -673,6 +700,27 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 })}
               </div>
             </div>
+
+            {/* Live Schedule Calculation Preview Box */}
+            {(() => {
+              const liveStatus = calculateCampaignScheduleStatus(
+                { startHour, endHour, days, timezone },
+                enabled
+              );
+              return (
+                <div className="mt-2 p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl flex items-center justify-between text-xs gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-extrabold ${liveStatus.badgeColor}`}>
+                      {liveStatus.badgeText}
+                    </span>
+                    <span className="text-stone-300 truncate">{liveStatus.subtext}</span>
+                  </div>
+                  <span className="text-[10px] text-stone-500 shrink-0 font-mono">
+                    Hora local fuso: {liveStatus.currentTimeInTz}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Action Buttons */}

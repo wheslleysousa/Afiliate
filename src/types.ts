@@ -100,6 +100,8 @@ export interface SavedHistoryItem {
   product: ScrapedProduct;
   variations: GeminiCopyVariation[];
   selectedCopyIndex: number;
+  templateName?: string;
+  copyText?: string;
   createdAt: string;
 }
 
@@ -115,10 +117,12 @@ export interface GlobalProduct {
   image_url: string | null;
   pictures?: string[];
   video_url?: string | null;
+  videos?: string[];
   price_to: string;        // preço atual (Pix/à vista)
   price_from?: string | null;
   installments?: string | null;
   coupon?: string | null;
+  coupon_text?: string | null;
   shipping?: string | null;
   original_link: string;
   miners: string[];        // UIDs dos usuários que mineraram este produto
@@ -164,6 +168,13 @@ export interface DailyStat {
 
 // ─── Automação de Disparos no WhatsApp ─────────────────────────────────────
 
+export interface WaGroupParticipant {
+  id: string;
+  phone?: string;
+  name?: string;
+  isAdmin?: boolean;
+}
+
 export interface WaGroup {
   groupId: string;
   sessionId?: string;
@@ -173,6 +184,7 @@ export interface WaGroup {
   description?: string | null;
   isAdmin?: boolean;
   participantsCount?: number;
+  participants?: WaGroupParticipant[];
   updatedAt?: any;
 }
 

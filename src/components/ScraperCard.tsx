@@ -80,10 +80,17 @@ export const ScraperCard: React.FC<ScraperCardProps> = ({
         body: JSON.stringify({ url: finalUrl })
       });
 
-      const data = await response.json();
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`O servidor retornou uma resposta inválida (Status ${response.status}). Pode ser um problema temporário de conexão ou timeout.`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || data.detail || 'Falha ao extrair dados do produto.');
+        throw new Error(data?.error || data?.detail || 'Falha ao extrair dados do produto.');
       }
 
       onScrapeSuccess(data);

@@ -238,10 +238,17 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
         body: JSON.stringify({ url: urlInput.trim(), apiKeys }),
       });
 
-      const data = await response.json();
+      let data: any;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`O servidor retornou uma resposta inválida (Status ${response.status}). Pode ser um timeout ou falha na rede.`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || data.detail || 'Não foi possível extrair as informações deste link.');
+        throw new Error(data?.error || data?.detail || 'Não foi possível extrair as informações deste link.');
       }
 
       // Check for automatic ML token renewal

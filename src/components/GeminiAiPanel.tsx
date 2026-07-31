@@ -33,7 +33,7 @@ export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectV
         })
       });
 
-      const data = await response.json();
+      let data: any; const contentType = response.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await response.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao comunicar com a IA');
       }

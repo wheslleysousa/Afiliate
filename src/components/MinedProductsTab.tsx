@@ -606,6 +606,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       {selectedProductForModal && (
         <ProductDetailModal
           product={selectedProductForModal}
+          currentUserId={uid}
           apiKeys={apiKeys || {}}
           commissionRates={commissionRates}
           sharedMap={sharedMap}
@@ -613,6 +614,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           onUpdateProductCommission={onUpdateProductCommission}
           onClose={() => setSelectedProductForModal(null)}
           onAddCustomTemplate={onAddCustomTemplate}
+          isAlreadyInMyProducts={true}
         />
       )}
     </div>

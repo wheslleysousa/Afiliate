@@ -16,7 +16,7 @@ import { ProductDetailModal } from './ProductDetailModal';
 import { Badge, CommissionBadge } from './Badge';
 import { formatPrice } from '../utils/formatPrice';
 import { buildAffiliateLink } from '../utils/affiliateLink';
-import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
+import { calculateCommission, calculateSalesTrend, addGlobalProductToUserList } from '../utils/marketplaceUtils';
 import {
   Globe,
   Search,
@@ -37,6 +37,10 @@ import {
   Layers,
   Check,
   Copy,
+  PlusCircle,
+  BarChart2,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 
 const PLATFORMS = ['mercadolivre', 'shopee', 'amazon', 'aliexpress', 'shein'] as const;
@@ -78,8 +82,10 @@ interface MarketplaceTabProps {
   onToggleShared?: (productId: string) => void;
   onUseProduct?: (product: GlobalProduct) => void;
   onNavigateToSettings?: () => void;
+  onNavigateToMyProducts?: () => void;
   onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
   onAddCustomTemplate?: (template: CopyTemplate) => void;
+  userMinedIds?: Set<string>;
 }
 
 export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
@@ -90,8 +96,10 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   onToggleShared,
   onUseProduct,
   onNavigateToSettings,
+  onNavigateToMyProducts,
   onUpdateProductCommission,
   onAddCustomTemplate,
+  userMinedIds = new Set<string>(),
 }) => {
   const [products, setProducts] = useState<GlobalProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -318,6 +326,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
                   apiKeys={apiKeys}
                   commissionRates={commissionRates}
                   onOpenDetail={() => setSelectedProductForModal(product)}
+                  isMined={userMinedIds.has(product.id)}
                 />
               ))}
             </div>
@@ -347,6 +356,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
       {selectedProductForModal && (
         <ProductDetailModal
           product={selectedProductForModal}
+          currentUserId={currentUserId}
           apiKeys={apiKeys}
           commissionRates={commissionRates}
           sharedMap={sharedMap}
@@ -354,7 +364,10 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
           onUpdateProductCommission={onUpdateProductCommission}
           onClose={() => setSelectedProductForModal(null)}
           onNavigateToSettings={onNavigateToSettings}
+          onNavigateToMyProducts={onNavigateToMyProducts}
           onAddCustomTemplate={onAddCustomTemplate}
+          isAlreadyInMyProducts={userMinedIds.has(selectedProductForModal.id)}
+          isFromMarketplace={true}
         />
       )}
     </div>
@@ -369,6 +382,7 @@ interface MarketplaceCardProps {
   apiKeys?: ApiKeysConfig;
   commissionRates?: CommissionRatesConfig;
   onOpenDetail: () => void;
+  isMined?: boolean;
 }
 
 const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
@@ -377,10 +391,38 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
   apiKeys,
   commissionRates,
   onOpenDetail,
+  isMined = false,
 }) => {
   const [imgError, setImgError] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [isSavedLocally, setIsSavedLocally] = useState(isMined);
+  const [savingLocally, setSavingLocally] = useState(false);
+
+  useEffect(() => {
+    setIsSavedLocally(isMined);
+  }, [isMined]);
+
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSavedLocally) return;
+    if (!currentUserId) {
+      alert('Você precisa estar logado para adicionar este produto.');
+      return;
+    }
+    setSavingLocally(true);
+    try {
+      const ok = await addGlobalProductToUserList(currentUserId, product);
+      if (ok) {
+        setIsSavedLocally(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingLocally(false);
+    }
+  };
 
   const hasDiscount = !!(product.price_from && product.price_from !== product.price_to);
 
@@ -396,14 +438,6 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
 
   // Tendência de Vendas (Cresceu/Diminuiu)
   const trend = calculateSalesTrend(product);
-
-  const handleCopyLink = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link = buildAffiliateLink(product.original_link, product.platform, apiKeys || {});
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div
@@ -496,16 +530,46 @@ const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
 
         {/* Botões de Ação */}
         <div className="flex items-center gap-1.5 mt-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDetail();
-            }}
-            className="w-full py-2 sm:py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 whitespace-nowrap"
-          >
-            <Share2 className="w-3.5 h-3.5 shrink-0" />
-            <span>Divulgar este produto</span>
-          </button>
+          {isSavedLocally ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail();
+              }}
+              className="w-full py-2 sm:py-2.5 px-3 bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Em Meus Produtos</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDetail();
+                }}
+                className="flex-1 py-2 sm:py-2.5 px-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1 whitespace-nowrap"
+                title="Analisar estatísticas de vendas e divulgar este produto"
+              >
+                <BarChart2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Divulgar</span>
+              </button>
+
+              <button
+                onClick={handleQuickAdd}
+                disabled={savingLocally}
+                className="py-2 sm:py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 rounded-xl text-xs font-black transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
+                title="Adicionar diretamente a Meus Produtos"
+              >
+                {savingLocally ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-stone-950" />
+                ) : (
+                  <PlusCircle className="w-3.5 h-3.5 text-stone-950" />
+                )}
+                <span className="hidden sm:inline">Adicionar</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

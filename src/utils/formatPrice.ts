@@ -2,8 +2,14 @@
  * Normaliza qualquer representação de preço para "R$ 99,90"
  * Cobre: "99.90", "99,90", "R$ 99,90", "R$99,90", "R$99.90"
  */
-export function formatPrice(raw: string | null | undefined): string {
-  if (!raw) return '—';
+export function formatPrice(raw: string | number | null | undefined): string {
+  if (raw === null || raw === undefined) return '—';
+  if (typeof raw === 'number') {
+    return `R$ ${raw.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
   
   // Remove espaços extras
   const clean = raw.trim();

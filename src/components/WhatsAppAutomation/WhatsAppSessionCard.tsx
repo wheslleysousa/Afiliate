@@ -11,16 +11,17 @@ import {
   LogOut,
   CheckCircle2,
   AlertCircle,
-  Phone,
   Edit3,
   Save,
   Trash2,
   Terminal,
   Server,
-  Zap,
   X,
   Check,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react';
+import { WhatsAppAlert } from './WhatsAppAlert';
 
 interface WhatsAppSessionCardProps {
   uid: string;
@@ -29,6 +30,7 @@ interface WhatsAppSessionCardProps {
 export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid }) => {
   const [sessions, setSessions] = useState<WaSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
   // Add account modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -55,7 +57,6 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
           ...d.data(),
         })) as WaSession[];
 
-        // Ordenar por data de criação
         list.sort((a, b) => {
           const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
           const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
@@ -67,6 +68,10 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
       },
       (err) => {
         console.error('Erro ao escutar coleção waSessions:', err);
+        setAlertMessage({
+          type: 'error',
+          text: 'Erro ao carregar as conexões do WhatsApp. Verifique sua conexão.',
+        });
         setLoading(false);
       }
     );
@@ -79,13 +84,15 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     if (!uid) return;
 
     setIsCreating(true);
+    setAlertMessage(null);
+
     try {
       const sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const sessionRef = doc(db, 'users', uid, 'waSessions', sessionId);
 
       await setDoc(sessionRef, {
         sessionId,
-        label: newAccountLabel.trim() || 'Nova Conta WhatsApp',
+        label: newAccountLabel.trim() || 'Meu WhatsApp principal',
         status: 'connecting',
         requestedConnect: true,
         requestedLogout: false,
@@ -95,8 +102,16 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
 
       setNewAccountLabel('');
       setIsAddModalOpen(false);
-    } catch (err) {
+      setAlertMessage({
+        type: 'success',
+        text: 'Nova conta cadastrada com sucesso! O QR Code para leitura será gerado abaixo.',
+      });
+    } catch (err: any) {
       console.error('Erro ao criar nova conta de WhatsApp:', err);
+      setAlertMessage({
+        type: 'error',
+        text: err?.message || 'Falha ao cadastrar nova conta de WhatsApp. Tente novamente.',
+      });
     } finally {
       setIsCreating(false);
     }
@@ -111,8 +126,16 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     try {
       const sessionRef = doc(db, 'users', uid, 'waSessions', sId);
       await setDoc(sessionRef, { requestedLogout: true }, { merge: true });
-    } catch (err) {
+      setAlertMessage({
+        type: 'success',
+        text: `Solicitação de desconexão enviada para a conta "${session.label || sId}".`,
+      });
+    } catch (err: any) {
       console.error('Erro ao solicitar logout:', err);
+      setAlertMessage({
+        type: 'error',
+        text: 'Não foi possível enviar o pedido de desconexão. Tente novamente.',
+      });
     }
   };
 
@@ -123,8 +146,16 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     try {
       const sessionRef = doc(db, 'users', uid, 'waSessions', sId);
       await setDoc(sessionRef, { requestedConnect: true, status: 'connecting', qr: null }, { merge: true });
-    } catch (err) {
+      setAlertMessage({
+        type: 'success',
+        text: 'Solicitando novo QR Code para o worker. Aguarde alguns segundos...',
+      });
+    } catch (err: any) {
       console.error('Erro ao solicitar reconexão:', err);
+      setAlertMessage({
+        type: 'error',
+        text: 'Erro ao solicitar a geração do QR Code.',
+      });
     }
   };
 
@@ -132,12 +163,20 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     const sId = session.sessionId || session.id;
     if (!uid || !sId) return;
 
-    if (!window.confirm(`Excluir definitivamente as configurações da conta "${session.label || sId}"?`)) return;
+    if (!window.confirm(`Excluir definitivamente a conta "${session.label || sId}"?`)) return;
 
     try {
       await deleteDoc(doc(db, 'users', uid, 'waSessions', sId));
-    } catch (err) {
+      setAlertMessage({
+        type: 'success',
+        text: 'Conta do WhatsApp excluída com sucesso.',
+      });
+    } catch (err: any) {
       console.error('Erro ao excluir sessão:', err);
+      setAlertMessage({
+        type: 'error',
+        text: 'Ocorreu um erro ao excluir esta conta de WhatsApp.',
+      });
     }
   };
 
@@ -147,15 +186,29 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
       const sessionRef = doc(db, 'users', uid, 'waSessions', sId);
       await setDoc(sessionRef, { label: editLabelInput.trim() || 'Sem Apelido' }, { merge: true });
       setEditingSessionId(null);
-    } catch (err) {
+      setAlertMessage({
+        type: 'success',
+        text: 'Apelido da conta atualizado com sucesso.',
+      });
+    } catch (err: any) {
       console.error('Erro ao salvar apelido:', err);
+      setAlertMessage({
+        type: 'error',
+        text: 'Erro ao salvar apelido da conta.',
+      });
     }
   };
 
   return (
     <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 relative overflow-hidden shadow-xl space-y-6">
-      {/* Glow Effect */}
-      <div className="absolute -top-12 -right-12 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Alert message banner if present */}
+      {alertMessage && (
+        <WhatsAppAlert
+          type={alertMessage.type}
+          message={alertMessage.text}
+          onClose={() => setAlertMessage(null)}
+        />
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#1e2636]">
@@ -167,11 +220,11 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-white">Contas do WhatsApp Conectadas ({sessions.length})</h3>
               <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                Multi-Sessão
+                Multi-Sessão Individual
               </span>
             </div>
             <p className="text-xs text-stone-400 mt-0.5">
-              Gerencie múltiplas contas do WhatsApp simultaneamente para usar em diferentes campanhas.
+              Conecte um ou mais números do WhatsApp. Cada usuário possui conexões e dados 100% isolados e privados.
             </p>
           </div>
         </div>
@@ -181,19 +234,19 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center gap-2 shrink-0 self-start sm:self-center"
         >
           <Plus className="w-4 h-4" />
-          Adicionar Nova Conta
+          Cadastrar Número do WhatsApp
         </button>
       </div>
 
-      {/* Notice about Worker requirement */}
+      {/* Worker requirement info */}
       <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-stone-400">
         <div className="flex items-center gap-2 font-mono text-[11px] text-stone-300">
           <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>Worker ativo: <code className="text-emerald-300">cd whatsapp-worker && node index.js</code></span>
+          <span>Worker de Disparo Ativo em Segundo Plano</span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-stone-400">
           <Server className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-          <span>O worker escuta os pedidos de conexão e gera os QR Codes em tempo real</span>
+          <span>Sua conta está sincronizada em tempo real via Firestore</span>
         </div>
       </div>
 
@@ -201,27 +254,48 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
       {loading && (
         <div className="py-10 flex flex-col items-center justify-center text-stone-400 space-y-3">
           <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
-          <p className="text-xs">Carregando contas do WhatsApp...</p>
+          <p className="text-xs">Carregando suas sessões de WhatsApp...</p>
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Clean Onboarding State for First Access */}
       {!loading && sessions.length === 0 && (
-        <div className="bg-[#151a26] border border-[#1e2636] p-8 rounded-xl text-center space-y-3">
-          <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
-            <Smartphone className="w-6 h-6" />
+        <div className="bg-[#151a26] border border-emerald-500/30 p-8 rounded-2xl text-center space-y-4 shadow-xl relative overflow-hidden animate-fadeIn">
+          <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/50">
+            <Smartphone className="w-8 h-8" />
           </div>
-          <h4 className="text-sm font-bold text-white">Nenhuma conta de WhatsApp cadastrada</h4>
-          <p className="text-xs text-stone-400 max-w-md mx-auto">
-            Clique no botão <strong>"Adicionar Nova Conta"</strong> acima para criar uma sessão de WhatsApp. O worker irá gerar o QR Code aqui na tela para você escanear.
-          </p>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg inline-flex items-center gap-2 mt-2"
-          >
-            <Plus className="w-4 h-4" />
-            Adicionar Primeira Conta
-          </button>
+
+          <div className="space-y-2 max-w-lg mx-auto">
+            <span className="text-[10px] uppercase font-extrabold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
+              Primeiro Acesso
+            </span>
+            <h4 className="text-lg font-extrabold text-white">Conecte seu WhatsApp para começar</h4>
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Sua conta está pronta! Para automatizar os disparos de ofertas nos seus grupos, você só precisa cadastrar e escanear o QR Code do seu WhatsApp.
+            </p>
+          </div>
+
+          <div className="bg-[#0e1119]/80 border border-[#1e2636] p-4 rounded-xl max-w-md mx-auto text-left space-y-2 text-xs text-stone-300">
+            <div className="flex items-center gap-2 font-bold text-emerald-400">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              Sua Conta é 100% Privada e Isolada:
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-stone-400">
+              <li>Qualquer pessoa cadastrada no app pode conectar seu próprio número.</li>
+              <li>Você pode conectar quantos WhatsApps quiser sem interferir nos outros usuários.</li>
+              <li>Seus dados de grupos e campanhas são acessados unicamente por você.</li>
+            </ul>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-xl shadow-emerald-950/60 inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Cadastrar Meu Número de WhatsApp
+            </button>
+          </div>
         </div>
       )}
 
@@ -280,7 +354,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                             setEditLabelInput(session.label || '');
                           }}
                           className="text-stone-400 hover:text-emerald-400 p-1"
-                          title="Editar apelido"
+                          title="Editar apelido da conta"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
@@ -331,7 +405,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                         >
                           <QrCode className="w-3.5 h-3.5" />
-                          Gerar QR Code
+                          Escanear QR Code
                         </button>
 
                         <button
@@ -367,12 +441,12 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                         <li>
                           Acesse <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong>.
                         </li>
-                        <li>Aponta a câmera para o QR Code ao lado.</li>
+                        <li>Aponte a câmera do seu celular para o QR Code ao lado.</li>
                       </ol>
 
                       <p className="text-[11px] text-stone-500 italic flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin text-emerald-500" />
-                        O QR Code é atualizado em tempo real pelo worker.
+                        O QR Code é atualizado em tempo real.
                       </p>
                     </div>
                   </div>
@@ -382,7 +456,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                     <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
                     <p className="text-xs font-bold text-white">Solicitando conexão ao worker...</p>
                     <p className="text-[11px] text-stone-400">
-                      O worker está iniciando o socket Baileys para a conta "{session.label}". O QR Code aparecerá em breve.
+                      O worker está gerando o QR Code para a conta "{session.label}". Aparecerá em instantes.
                     </p>
                   </div>
                 ) : status === 'connected' ? (
@@ -408,11 +482,20 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                   </div>
                 ) : (
                   /* DISCONNECTED STATE */
-                  <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-xl flex items-center gap-3 text-xs text-stone-400">
-                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
-                    <span>
-                      Conta desconectada. Clique em <strong>"Gerar QR Code"</strong> para conectar um celular a esta sessão.
-                    </span>
+                  <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-xl flex items-center justify-between gap-3 text-xs text-stone-400">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                      <span>
+                        Conta desconectada. Clique em <strong>"Escanear QR Code"</strong> para conectar.
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRequestConnect(session)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      Conectar
+                    </button>
                   </div>
                 )}
               </div>
@@ -428,7 +511,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
             <div className="flex items-center justify-between pb-3 border-b border-[#1e2636]">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-emerald-400" />
-                Adicionar Nova Conta WhatsApp
+                Cadastrar Número do WhatsApp
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
@@ -441,25 +524,25 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
             <form onSubmit={handleCreateAccount} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-stone-300 mb-1.5">
-                  Apelido / Identificação da Conta *
+                  Apelido do Número / Identificação *
                 </label>
                 <input
                   type="text"
                   required
                   value={newAccountLabel}
                   onChange={(e) => setNewAccountLabel(e.target.value)}
-                  placeholder="Ex: Zap Vendas ML, Zap Modas Shein"
+                  placeholder="Ex: Meu WhatsApp Principal, Zap Ofertas #1"
                   className="w-full bg-[#151a26] border border-[#1e2636] text-white text-xs px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500"
                 />
                 <p className="text-[11px] text-stone-500 mt-1">
-                  Um nome fácil para identificar qual WhatsApp será usado ao criar campanhas.
+                  Nome fácil para você identificar qual celular responderá pelas mensagens.
                 </p>
               </div>
 
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-xs text-stone-300 space-y-1">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3.5 rounded-xl text-xs text-stone-300 space-y-1">
                 <p className="font-bold text-emerald-400">Como funciona:</p>
                 <p className="text-[11px] leading-relaxed text-stone-400">
-                  Ao criar a conta, o worker iniciará um novo socket de conexão e gerará o QR Code na tela para você escanear.
+                  Ao criar o cadastro, o sistema gera o QR Code na tela para você escanear com a câmera do seu celular no WhatsApp.
                 </p>
               </div>
 
@@ -481,7 +564,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                   ) : (
                     <Check className="w-4 h-4" />
                   )}
-                  Criar e Gerar QR Code
+                  Gerar QR Code
                 </button>
               </div>
             </form>

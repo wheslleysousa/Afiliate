@@ -15,6 +15,10 @@ import type { WaCampaign, WaGroup, WaSession, ApiKeysConfig } from '../../types'
 import { CampaignModal } from './CampaignModal';
 import { CampaignPreviewModal } from './CampaignPreviewModal';
 import {
+  calculateCampaignScheduleStatus,
+  getUserLocalTimezone,
+} from '../../utils/scheduleUtils';
+import {
   Zap,
   Plus,
   Play,
@@ -30,6 +34,10 @@ import {
   BarChart2,
   Calendar,
   Smartphone,
+  Globe,
+  Timer,
+  Info,
+  X,
 } from 'lucide-react';
 
 interface WhatsAppCampaignsViewProps {
@@ -50,12 +58,26 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   const [campaigns, setCampaigns] = useState<WaCampaign[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Live ticker that updates every 1 second for real-time countdown
+  const [, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<WaCampaign | null>(null);
 
   const [previewCampaign, setPreviewCampaign] = useState<WaCampaign | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Modal de Exclusão de Campanha
+  const [deletingCampaign, setDeletingCampaign] = useState<WaCampaign | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -115,30 +137,50 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
     }
   };
 
-  const handleDeleteCampaign = async (campId: string) => {
-    if (!uid) return;
-    if (!window.confirm('Tem certeza de que deseja excluir esta campanha de disparo?')) return;
-
+  const handleConfirmDelete = async () => {
+    if (!deletingCampaign || !deletingCampaign.id || !uid) return;
+    setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, 'users', uid, 'campaigns', campId));
+      await deleteDoc(doc(db, 'users', uid, 'campaigns', deletingCampaign.id));
+      setDeletingCampaign(null);
     } catch (err) {
       console.error('Erro ao excluir campanha:', err);
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const sanitizeFirestoreData = (obj: any): any => {
+    if (obj === undefined) return null;
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeFirestoreData);
+    
+    const clean: Record<string, any> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (val !== undefined) {
+        clean[key] = sanitizeFirestoreData(val);
+      } else {
+        clean[key] = null;
+      }
+    }
+    return clean;
   };
 
   const handleSaveCampaignData = async (data: Partial<WaCampaign>) => {
     if (!uid) return;
 
+    const sanitizedData = sanitizeFirestoreData(data);
+
     if (editingCampaign && editingCampaign.id) {
       // Update
       await updateDoc(doc(db, 'users', uid, 'campaigns', editingCampaign.id), {
-        ...data,
+        ...sanitizedData,
         updatedAt: serverTimestamp(),
       });
     } else {
       // Create
       await addDoc(collection(db, 'users', uid, 'campaigns'), {
-        ...data,
+        ...sanitizedData,
         createdAt: serverTimestamp(),
       });
     }
@@ -178,6 +220,27 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
         </div>
       )}
 
+      {/* Sync / Timezone Notice Banner */}
+      <div className="bg-[#151a26]/80 border border-blue-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl shrink-0 mt-0.5">
+            <Info className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <p className="font-bold text-white">
+              Sincronização de Horário com o Termux / Robô
+            </p>
+            <p className="text-stone-400 leading-relaxed text-[11px]">
+              Se o Termux exibir <span className="text-amber-300 font-mono">"fora do horário ativo agendado"</span>, verifique se o fuso horário da campanha corresponde ao relógio do seu celular. O contador em tempo real abaixo atualiza a cada segundo de acordo com o seu fuso.
+            </p>
+          </div>
+        </div>
+        <div className="text-[11px] font-mono text-emerald-400 bg-[#0e1119] px-3 py-1.5 rounded-xl border border-[#1e2636] shrink-0 flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5 text-blue-400" />
+          <span>Meu Fuso: {getUserLocalTimezone()}</span>
+        </div>
+      </div>
+
       {/* Empty State */}
       {!loading && campaigns.length === 0 && (
         <div className="bg-[#0e1119] border border-[#1e2636] p-10 rounded-2xl text-center space-y-4">
@@ -207,6 +270,8 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
             const targetNames = (camp.targetGroupIds || [])
               .map((id) => groupMap.get(id) || id)
               .join(', ');
+
+            const scheduleStatus = calculateCampaignScheduleStatus(camp.schedule, camp.enabled);
 
             return (
               <div
@@ -254,6 +319,32 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                   >
                     {camp.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </button>
+                </div>
+
+                {/* Real-time Countdown & Schedule Status Badge */}
+                <div className="bg-[#151a26] p-3 rounded-xl border border-[#1e2636] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-stone-400 flex items-center gap-1">
+                      <Timer className="w-3.5 h-3.5 text-amber-400" />
+                      Contagem Regressiva & Status
+                    </span>
+                    <span className="text-[10px] font-mono text-stone-500">
+                      {scheduleStatus.timezone}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`px-2.5 py-1 rounded-lg border text-xs font-black flex items-center gap-1.5 ${scheduleStatus.badgeColor}`}>
+                      {scheduleStatus.badgeText}
+                    </span>
+                    <span className="text-[11px] text-stone-400 font-mono">
+                      Agora: {scheduleStatus.currentTimeInTz}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-stone-400 font-medium">
+                    {scheduleStatus.subtext}
+                  </p>
                 </div>
 
                 {/* Details Badges Grid */}
@@ -309,7 +400,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => camp.id && handleDeleteCampaign(camp.id)}
+                      onClick={() => setDeletingCampaign(camp)}
                       className="p-1.5 bg-[#151a26] hover:bg-red-500/20 text-red-400 rounded-lg border border-[#1e2636] hover:border-red-500/30 transition-all"
                       title="Excluir"
                     >
@@ -343,6 +434,62 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
           isOpen={isPreviewOpen}
           onClose={() => setIsPreviewOpen(false)}
         />
+      )}
+
+      {/* Modal Popup de Confirmação de Exclusão */}
+      {deletingCampaign && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="max-w-md w-full bg-[#151a26] border border-red-500/30 rounded-2xl p-6 shadow-2xl space-y-5 text-center relative">
+            <button
+              onClick={() => setDeletingCampaign(null)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg hover:bg-[#1e2636] transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto text-red-400">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-white">Excluir Campanha?</h3>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Tem certeza de que deseja excluir a campanha{' '}
+                <strong className="text-white font-semibold">"{deletingCampaign.name}"</strong>?
+              </p>
+              <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-left text-[11px] text-stone-400">
+                ⚠️ <strong className="text-stone-300">Atenção:</strong> Esta ação é irreversível. O robô no Termux interromperá os disparos automáticos associados a esta campanha imediatamente.
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingCampaign(null)}
+                disabled={isDeleting}
+                className="flex-1 bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-stone-300 font-semibold py-2.5 px-4 rounded-xl text-xs transition-all"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <span>Excluindo...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Sim, Excluir
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

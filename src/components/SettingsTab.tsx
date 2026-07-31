@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
 import { DEFAULT_COMMISSION_CONFIG } from '../utils/marketplaceUtils';
+import { extractCleanTrackingId } from '../utils/affiliateLink';
 import { 
   AlarmSettings, 
   getAlarmSettings, 
@@ -439,7 +440,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         body: JSON.stringify({ apiKey: cleanKey })
       });
 
-      const data = await res.json();
+      let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
 
       if (res.ok && data.valid) {
         const updatedList = [...geminiKeysList, cleanKey];
@@ -488,7 +489,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         body: JSON.stringify({ apiKey: keyToTest })
       });
 
-      const data = await res.json();
+      let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
 
       if (res.ok && data.valid) {
         setGeminiValidationMsg({
@@ -1244,23 +1245,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-amber-300"
               placeholder="ex: sowh5608494"
               value={apiKeys.mercadolivreTrackingId || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, mercadolivreTrackingId: newVal })}
-              onHowToObtain={() => setActiveHelpModal('mercadolivre')}
-              hint="Aceita seu ID (ex: sowh5608494) ou o link completo do perfil — limpa automaticamente!"
-              autoCleanUrl={(raw) => {
-                if (!raw) return '';
-                const trimmed = raw.trim();
-                const socialMatch = trimmed.match(/social\/([a-zA-Z0-9_-]+)/);
-                if (socialMatch && socialMatch[1]) return socialMatch[1];
-                const trackingMatch = trimmed.match(/tracking_id=([a-zA-Z0-9_-]+)/);
-                if (trackingMatch && trackingMatch[1]) return trackingMatch[1];
-                if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-                  const parts = trimmed.split('?')[0].split('/');
-                  const last = parts[parts.length - 1];
-                  if (last && last.length > 2) return last;
-                }
-                return trimmed;
+              onSave={(newVal) => {
+                const clean = extractCleanTrackingId(newVal, 'mercadolivre');
+                onSaveApiKeys({ ...apiKeys, mercadolivreTrackingId: clean });
               }}
+              onHowToObtain={() => setActiveHelpModal('mercadolivre')}
+              hint="Aceita seu ID (ex: sowh5608494) ou a URL do seu perfil no Mercado Livre — extrai automaticamente!"
+              autoCleanUrl={(raw) => extractCleanTrackingId(raw, 'mercadolivre')}
             />
 
             {/* Amazon */}
@@ -1269,16 +1260,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-yellow-300"
               placeholder="ex: suatag-20"
               value={apiKeys.amazonAssociatesTag || apiKeys.amazonKey || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, amazonAssociatesTag: newVal, amazonKey: newVal })}
+              onSave={(newVal) => {
+                const clean = extractCleanTrackingId(newVal, 'amazon');
+                onSaveApiKeys({ ...apiKeys, amazonAssociatesTag: clean, amazonKey: clean });
+              }}
               onHowToObtain={() => setActiveHelpModal('amazon')}
               hint="Injeta ?tag=XXX nos links da Amazon Brasil"
-              autoCleanUrl={(raw) => {
-                if (!raw) return '';
-                const trimmed = raw.trim();
-                const tagMatch = trimmed.match(/[?&]tag=([a-zA-Z0-9_-]+)/);
-                if (tagMatch && tagMatch[1]) return tagMatch[1];
-                return trimmed;
-              }}
+              autoCleanUrl={(raw) => extractCleanTrackingId(raw, 'amazon')}
             />
 
             {/* Shopee */}
@@ -1287,9 +1275,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-orange-300"
               placeholder="ex: 12345678"
               value={apiKeys.shopeeTrackingId || apiKeys.shopeeKey || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeTrackingId: newVal, shopeeKey: newVal })}
+              onSave={(newVal) => {
+                const clean = extractCleanTrackingId(newVal, 'shopee');
+                onSaveApiKeys({ ...apiKeys, shopeeTrackingId: clean, shopeeKey: clean });
+              }}
               onHowToObtain={() => setActiveHelpModal('shopee')}
               hint="Injeta ?smtt=XXX ou seu parâmetro de rastreio na Shopee"
+              autoCleanUrl={(raw) => extractCleanTrackingId(raw, 'shopee')}
             />
 
             <AffiliateItemCard
@@ -1297,7 +1289,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-orange-300"
               placeholder="ex: 18361171011"
               value={apiKeys.shopeeAppId || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeAppId: newVal })}
+              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeAppId: newVal.trim() })}
               onHowToObtain={() => setActiveHelpModal('shopee')}
               hint="AppID obtido no console de Afiliados Shopee (Opcional)"
             />
@@ -1307,7 +1299,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-orange-300"
               placeholder="ex: PQ2FO5P35ONW..."
               value={apiKeys.shopeeSecret || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeSecret: newVal })}
+              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, shopeeSecret: newVal.trim() })}
               onHowToObtain={() => setActiveHelpModal('shopee')}
               hint="Senha de API obtida no console Shopee (Opcional)"
             />
@@ -1318,9 +1310,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-red-300"
               placeholder="ex: aff_12345"
               value={apiKeys.aliexpressAffiliateId || apiKeys.aliExpressKey || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, aliexpressAffiliateId: newVal, aliExpressKey: newVal })}
+              onSave={(newVal) => {
+                const clean = extractCleanTrackingId(newVal, 'aliexpress');
+                onSaveApiKeys({ ...apiKeys, aliexpressAffiliateId: clean, aliExpressKey: clean });
+              }}
               onHowToObtain={() => setActiveHelpModal('aliexpress')}
               hint="Injeta ?aff_id=XXX nos links do AliExpress Portals"
+              autoCleanUrl={(raw) => extractCleanTrackingId(raw, 'aliexpress')}
             />
 
             {/* Shein */}
@@ -1329,10 +1325,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               labelColor="text-stone-300"
               placeholder="ex: token_shein_123"
               value={apiKeys.sheinAffiliateToken || apiKeys.sheinKey || ''}
-              onSave={(newVal) => onSaveApiKeys({ ...apiKeys, sheinAffiliateToken: newVal, sheinKey: newVal })}
+              onSave={(newVal) => {
+                const clean = extractCleanTrackingId(newVal, 'shein');
+                onSaveApiKeys({ ...apiKeys, sheinAffiliateToken: clean, sheinKey: clean });
+              }}
               onHowToObtain={() => setActiveHelpModal('shein')}
               hint="Injeta ?url_from=XXX nos links da Shein Publisher"
               isFullWidth={true}
+              autoCleanUrl={(raw) => extractCleanTrackingId(raw, 'shein')}
             />
 
           </div>

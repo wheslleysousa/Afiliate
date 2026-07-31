@@ -89,7 +89,8 @@ export function formatCopy(product: ProductData): string {
   }
 
   // 6. Link
-  lines.push(`🛍️ Compre aqui: ${product.original_link || ''}`);
+  const targetLink = product.affiliate_link || product.original_link || '';
+  lines.push(`🛍️ Compre aqui: ${targetLink}`);
   lines.push("");
 
   // 7. Footer Disclaimer

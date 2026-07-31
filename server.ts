@@ -274,8 +274,13 @@ function calculateDiscountPct(priceFrom: string | null | undefined, priceTo: str
 // Helper to generate Shopee Affiliate Promotion Link using GraphQL and HMAC-SHA256 signature
 async function generateShopeePromotionLink(originalUrl: string, appId?: string, secret?: string): Promise<string | null> {
   try {
-    const finalAppId = appId?.trim() || "18361171011";
-    const finalSecret = secret?.trim() || "PQ2FO5P35ONWVQS2L5YEYWGLPKJFEHDS";
+    const finalAppId = appId?.trim();
+    const finalSecret = secret?.trim();
+
+    if (!finalAppId || !finalSecret) {
+      console.log("[Shopee Affiliate API] Credenciais da API de Afiliados da Shopee não configuradas. Pulando conversão de link de afiliado.");
+      return null;
+    }
 
     const timestamp = Math.floor(Date.now() / 1000);
     
@@ -310,14 +315,28 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
 
     console.log(`[Shopee Affiliate API] Requesting link conversion for: ${originalUrl} with AppID: ${finalAppId}`);
 
-    const response = await fetch("https://open-api.affiliate.shopee.com/api/v1/graphql", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": authorizationHeader,
-      },
-      body: bodyStr,
-    });
+    let response;
+    try {
+      console.log("[Shopee Affiliate API] Tentando conectar na API Brasil (.com.br)...");
+      response = await fetch("https://open-api.affiliate.shopee.com.br/api/v1/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authorizationHeader,
+        },
+        body: bodyStr,
+      });
+    } catch (e: any) {
+      console.warn(`[Shopee Affiliate API] Erro na API Brasil (.com.br): ${e?.message || e}. Tentando endpoint global...`);
+      response = await fetch("https://open-api.affiliate.shopee.com/api/v1/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authorizationHeader,
+        },
+        body: bodyStr,
+      });
+    }
 
     if (response.ok) {
       const result: any = await response.json();
@@ -1431,11 +1450,17 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
 }
 
 // Shopee Scraper & Official API Extractor
-async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: string, shopeeSecret?: string) {
+async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: string, shopeeSecret?: string, geminiCandidateKeys?: string[]) {
   try {
     const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
 
-    let match = finalUrl.match(/-i\.(\d+)\.(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || finalUrl.match(/product\/(\d+)\/(\d+)/);
+    let match = finalUrl.match(/-i\.(\d+)\.(\d+)/) || 
+                url.match(/-i\.(\d+)\.(\d+)/) || 
+                finalUrl.match(/product\/(\d+)\/(\d+)/) ||
+                url.match(/product\/(\d+)\/(\d+)/) ||
+                finalUrl.match(/\/(\d+)\/(\d+)(?:\?|$|\/)/) ||
+                url.match(/\/(\d+)\/(\d+)(?:\?|$|\/)/);
+
     if (!match && html) {
       match = html.match(/-i\.(\d+)\.(\d+)/) || html.match(/product\/(\d+)\/(\d+)/) || html.match(/itemid[=":\s]+(\d+)[^"'\n]*shopid[=":\s]+(\d+)/i);
       if (!match) {
@@ -1449,7 +1474,109 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
 
     let apiData: any = null;
 
-    if (match) {
+    // 0. Try using official Shopee Affiliate API getProductInfoList first if credentials exist
+    if (shopeeAppId && shopeeSecret) {
+      try {
+        const finalAppId = shopeeAppId.trim();
+        const finalSecret = shopeeSecret.trim();
+        if (finalAppId && finalSecret) {
+          const timestamp = Math.floor(Date.now() / 1000);
+          const query = {
+            query: `query {
+              getProductInfoList(productUrlList: ["${finalUrl}"]) {
+                errCode
+                errMsg
+                data {
+                  productList {
+                    productName
+                    imageUrl
+                    price
+                    priceMin
+                    priceMax
+                    productLink
+                    priceBeforeDiscount
+                    discount
+                  }
+                }
+              }
+            }`
+          };
+
+          const bodyStr = JSON.stringify(query);
+          const message = finalAppId + timestamp + bodyStr;
+          const signature = crypto
+            .createHmac("sha256", finalSecret)
+            .update(message)
+            .digest("hex");
+
+          const authorizationHeader = `SHA256 Credential=${finalAppId}, Signature=${signature}, Timestamp=${timestamp}`;
+
+          console.log(`[Shopee Affiliate API] Querying product details via getProductInfoList for: ${finalUrl}`);
+          
+          let response;
+          try {
+            response = await fetch("https://open-api.affiliate.shopee.com.br/api/v1/graphql", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": authorizationHeader,
+              },
+              body: bodyStr,
+            });
+          } catch (e: any) {
+            console.warn(`[Shopee Affiliate API] BR endpoint failed, trying global: ${e?.message || e}`);
+            response = await fetch("https://open-api.affiliate.shopee.com/api/v1/graphql", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": authorizationHeader,
+              },
+              body: bodyStr,
+            });
+          }
+
+          if (response.ok) {
+            const result: any = await response.json();
+            const responseData = result?.data?.getProductInfoList;
+            if (responseData?.errCode === 0 || responseData?.errCode === "0") {
+              const prodList = responseData?.data?.productList;
+              if (prodList && prodList.length > 0 && prodList[0]) {
+                const prod = prodList[0];
+                const title = prod.productName || "";
+                const mainImageUrl = prod.imageUrl || null;
+                
+                const price_to_val = prod.price || prod.priceMin || 0;
+                const price_to = cleanPrice(price_to_val);
+                
+                const price_from_val = prod.priceBeforeDiscount || 0;
+                const price_from = price_from_val > price_to_val ? cleanPrice(price_from_val) : null;
+                
+                apiData = {
+                  title,
+                  description: null,
+                  image_url: mainImageUrl,
+                  pictures: mainImageUrl ? [mainImageUrl] : [],
+                  video_url: null,
+                  videos: [],
+                  price_from,
+                  price_to: price_to || "Consulte no link",
+                  installments: null,
+                  max_installments_interest_free: null,
+                  coupon: null
+                };
+                console.log(`[Shopee Affiliate API] Successfully retrieved product data via getProductInfoList`);
+              }
+            } else {
+              console.warn(`[Shopee Affiliate API] getProductInfoList error: ${responseData?.errCode} - ${responseData?.errMsg}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[Shopee Affiliate API] Error during getProductInfoList request:", err);
+      }
+    }
+
+    if (!apiData && match) {
       const shopId = match[1];
       const itemId = match[2];
 
@@ -1528,10 +1655,6 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
           console.warn("[Shopee Scraper] API call error", e);
         }
       }
-    }
-
-    if (apiData && apiData.title) {
-      return apiData;
     }
 
     // 2. Parse HTML & Embedded JSON Scripts
@@ -1619,6 +1742,75 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
     const coupon = extractCouponText($, html, apiData);
     const free_shipping = checkFreeShipping(null, html);
     const pix_price = extractPixPrice($, html, price_to);
+
+    const isGenericOrBlocked = !apiData || !apiData.title || apiData.title.includes("Verificação") || apiData.title.includes("não identificado") ||
+                               finalTitle.includes("Verificação") || finalTitle.includes("não identificado") || price_to === "Consulte no link";
+
+    if (isGenericOrBlocked && geminiCandidateKeys && geminiCandidateKeys.length > 0) {
+      try {
+        console.log(`[Shopee Scraper] Ativando fallback do Gemini Search Grounding para link Shopee: ${url}`);
+        const searchPrompt = `Você é um extrator de dados inteligente. Pesquise na web usando o Google pelo produto deste link exato da Shopee: "${url}" ou "${finalUrl}". Encontre as informações reais do produto e retorne exatamente um objeto JSON sem formatação markdown (sem \`\`\`json ou aspas triplas):
+{
+  "title": "título real e completo do produto",
+  "price_to": "preço atual formatado, ex: 129,90",
+  "price_from": "preço antigo formatado ou null",
+  "description": "descrição curta do produto",
+  "image_url": "link da imagem do produto se encontrado, senão null"
+}`;
+
+        const { result: searchResponse } = await callGeminiWithRotation(geminiCandidateKeys, async (ai) => {
+          return await generateGeminiContentWithFallback(ai, "gemini-3.5-flash", {
+            contents: searchPrompt,
+            config: {
+              tools: [{ googleSearch: {} }],
+              responseMimeType: "application/json"
+            }
+          });
+        });
+
+        if (searchResponse && searchResponse.text) {
+          const parsed = JSON.parse(searchResponse.text.trim());
+          if (parsed && parsed.title && !parsed.title.includes("Verificação") && !parsed.title.includes("não identificado")) {
+            console.log(`[Shopee Scraper] Sucesso na extração via Gemini Search Grounding: ${parsed.title}`);
+            const geminiPriceTo = parsed.price_to ? cleanPrice(parsed.price_to) : price_to;
+            const geminiPriceFrom = parsed.price_from ? cleanPrice(parsed.price_from) : null;
+            return {
+              title: parsed.title.trim(),
+              description: parsed.description ? parsed.description.slice(0, 500).trim() : (description ? description.slice(0, 500).trim() : null),
+              image_url: parsed.image_url || pictures[0] || image_url || null,
+              pictures: parsed.image_url ? [parsed.image_url, ...pictures] : (pictures.length > 0 ? pictures : (image_url ? [image_url] : [])),
+              video_url: null,
+              videos: [],
+              price_from: geminiPriceFrom,
+              price_to: geminiPriceTo || "Consulte no link",
+              installments,
+              max_installments_interest_free,
+              coupon,
+              stars: stars || null,
+              sales_count: sales_count || null,
+              free_shipping: free_shipping !== undefined ? free_shipping : false,
+              pix_price: pix_price || null
+            };
+          }
+        }
+      } catch (geminiErr: any) {
+        console.warn("[Shopee Scraper] Fallback Gemini Search Grounding falhou:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    if (apiData && apiData.title) {
+      return {
+        ...apiData,
+        description: apiData.description || (description ? description.slice(0, 500).trim() : null),
+        installments: installments || apiData.installments,
+        max_installments_interest_free: max_installments_interest_free || apiData.max_installments_interest_free,
+        coupon: coupon || apiData.coupon,
+        stars: stars || null,
+        sales_count: sales_count || null,
+        free_shipping: free_shipping !== undefined ? free_shipping : false,
+        pix_price: pix_price || null
+      };
+    }
 
     return {
       title: finalTitle,
@@ -2069,10 +2261,9 @@ function getCandidateGeminiKeys(apiKeys: any): string[] {
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: string, params: any) {
   const modelsToTry = [
     primaryModel,
-    "gemini-3.6-flash",
-    "gemini-2.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
   ];
   const triedModels = new Set<string>();
 
@@ -2242,7 +2433,8 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
         mercadoLivreExpiresAt: apiKeys?.mercadoLivreExpiresAt,
       });
     } else if (platform === "shopee") {
-      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey || apiKeys?.shopeeTrackingId, apiKeys?.shopeeAppId, apiKeys?.shopeeSecret);
+      const candidateKeys = getCandidateGeminiKeys(apiKeys);
+      data = await scrapeShopee(workingUrl, apiKeys?.shopeeKey || apiKeys?.shopeeTrackingId, apiKeys?.shopeeAppId, apiKeys?.shopeeSecret, candidateKeys);
       
       // Generate official Shopee Affiliate promotion short link via GraphQL with HMAC signature
       try {
@@ -2292,7 +2484,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
           
           const { result: descResponse } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-            return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+            return await generateGeminiContentWithFallback(ai, "gemini-3.5-flash", {
               contents: descPrompt,
             });
           });
@@ -2405,7 +2597,7 @@ DADOS DO PRODUTO:
 - Link de Compra: {LINK}`;
 
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.5-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -2589,7 +2781,7 @@ Responda em formato JSON válido e bem estruturado.`;
 
   try {
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.5-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -2889,8 +3081,9 @@ app.get(['/api/extension/status', '/extension/status'], (req, res) => {
 // Vite / Production middleware
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
-  const hasBuiltApp = fs.existsSync(path.join(distPath, "index.html"));
-  const isProduction = process.env.NODE_ENV === "production" || hasBuiltApp;
+  const indexPath = path.join(distPath, "index.html");
+  const hasBuiltApp = fs.existsSync(indexPath);
+  const isProduction = process.env.NODE_ENV === "production" && hasBuiltApp;
 
   if (!isProduction) {
     console.log("Starting server in DEVELOPMENT mode with Vite dev middleware...");
@@ -2903,7 +3096,11 @@ async function startServer() {
     console.log("Starting server in PRODUCTION mode, serving pre-built files from:", distPath);
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Application index.html not found.");
+      }
     });
   }
 

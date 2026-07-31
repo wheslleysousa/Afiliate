@@ -206,6 +206,43 @@ export async function upsertToMarketplace(
   return { globalId, isNew, priceChanged };
 }
 
+/**
+ * Adiciona um produto existente do Marketplace Global diretamente na lista "Meus Produtos" do usuário
+ */
+export async function addGlobalProductToUserList(uid: string, product: GlobalProduct): Promise<boolean> {
+  if (!uid || !product?.id) return false;
+  try {
+    const now = new Date().toISOString();
+    const minedRef = doc(db, 'users', uid, 'minedProducts', product.id);
+    const minedSnap = await getDoc(minedRef);
+
+    if (!minedSnap.exists()) {
+      const minedEntry: MinedProductRef = {
+        productId: product.id,
+        platform: product.platform,
+        minedAt: now,
+        favorite: false,
+        status: 'active',
+      };
+      await setDoc(minedRef, minedEntry);
+    } else {
+      await updateDoc(minedRef, { minedAt: now });
+    }
+
+    // Atualizar lista de mineradores e contador no produto global
+    const productRef = doc(db, 'products', product.id);
+    await updateDoc(productRef, {
+      miners: arrayUnion(uid),
+      mineCount: increment(1),
+    }).catch(() => {});
+
+    return true;
+  } catch (e) {
+    console.error('Erro ao adicionar produto aos Meus Produtos:', e);
+    return false;
+  }
+}
+
 // ─── Contador diário de mineração ────────────────────────────────────────────
 
 /** Retorna a data de hoje no formato "YYYY-MM-DD" */

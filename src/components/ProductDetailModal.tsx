@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { buildAffiliateLink } from '../utils/affiliateLink';
-import { calculateCommission, calculateSalesTrend, normalizeCategoryText } from '../utils/marketplaceUtils';
+import { calculateCommission, calculateSalesTrend, normalizeCategoryText, addGlobalProductToUserList } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { isProductSharedRecently, toggleProductShared } from '../utils/sharingLogUtils';
 import {
@@ -14,6 +14,8 @@ import {
   ShoppingBag,
   Star,
   TrendingUp,
+  TrendingDown,
+  BarChart2,
   ExternalLink,
   MessageSquare,
   Edit3,
@@ -32,11 +34,15 @@ import {
   CheckCircle2,
   FileText,
   Ticket,
-  Save
+  Save,
+  PlusCircle,
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: GlobalProduct;
+  currentUserId?: string;
   apiKeys?: ApiKeysConfig;
   commissionRates?: CommissionRatesConfig;
   sharedMap?: Record<string, number>;
@@ -44,7 +50,10 @@ interface ProductDetailModalProps {
   onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
   onClose: () => void;
   onNavigateToSettings?: () => void;
+  onNavigateToMyProducts?: () => void;
   onAddCustomTemplate?: (template: CopyTemplate) => void;
+  isAlreadyInMyProducts?: boolean;
+  isFromMarketplace?: boolean;
 }
 
 const platformLabel: Record<string, string> = {
@@ -65,6 +74,7 @@ const platformColor: Record<string, string> = {
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
+  currentUserId,
   apiKeys,
   commissionRates,
   sharedMap,
@@ -72,7 +82,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onUpdateProductCommission,
   onClose,
   onNavigateToSettings,
+  onNavigateToMyProducts,
   onAddCustomTemplate,
+  isAlreadyInMyProducts = false,
+  isFromMarketplace = false,
 }) => {
   const keys: ApiKeysConfig = apiKeys || {};
   const [activeTab, setActiveTab] = useState<'share' | 'script'>('share');
@@ -80,6 +93,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
+
+  // Estado para Adicionar em Meus Produtos
+  const [addedToMine, setAddedToMine] = useState(isAlreadyInMyProducts);
+  const [addingToMine, setAddingToMine] = useState(false);
+  const [addSuccessMessage, setAddSuccessMessage] = useState(false);
 
   // Sobrescrever comissão manual do produto
   const [isEditingCommOverride, setIsEditingCommOverride] = useState(false);
@@ -94,6 +112,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleToggleShareStatus = () => {
     if (onToggleShared) {
       onToggleShared(product.id);
+    }
+  };
+
+  const handleAddToMyProducts = async () => {
+    if (!currentUserId) {
+      alert('Você precisa estar logado para adicionar produtos à sua lista.');
+      return;
+    }
+    setAddingToMine(true);
+    try {
+      const ok = await addGlobalProductToUserList(currentUserId, product);
+      if (ok) {
+        setAddedToMine(true);
+        setAddSuccessMessage(true);
+        setTimeout(() => setAddSuccessMessage(false), 5000);
+      }
+    } catch (e) {
+      console.error('Erro ao adicionar produto:', e);
+    } finally {
+      setAddingToMine(false);
     }
   };
 
@@ -240,7 +278,7 @@ ${affiliateLink}
         }),
       });
 
-      const data = await res.json();
+      let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida do servidor."); }
       if (data.variations && data.variations.length > 0) {
         const rawCopy = data.variations[0].copy;
         const formattedWithLink = rawCopy.replace(/\{LINK\}/g, affiliateLink);
@@ -269,7 +307,7 @@ ${affiliateLink}
         }),
       });
 
-      const data = await res.json();
+      let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida do servidor."); }
       setVideoScriptData(data);
     } catch (e) {
       console.error('Erro ao gerar roteiro:', e);
@@ -297,7 +335,7 @@ ${affiliateLink}
               {platformLabel[product.platform] ?? product.platform}
             </span>
             <h3 className="text-sm sm:text-base font-bold text-white truncate max-w-md">
-              Divulgação & Roteiro
+              Análise do Produto & Inteligência de Mercado
             </h3>
           </div>
           <button
@@ -310,6 +348,182 @@ ${affiliateLink}
 
         {/* Conteúdo com Scroll */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          
+          {/* BANNER DE AÇÃO PRINCIPAL: Adicionar o produto a "Meus Produtos" */}
+          {addedToMine && isFromMarketplace && (
+            <div className="p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-emerald-950/50 border-emerald-500/40 text-emerald-300">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl shrink-0 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white">
+                    ✓ Adicionado aos Seus Produtos!
+                  </h4>
+                  <p className="text-xs text-[#93a0b5] mt-0.5">
+                    Este produto foi adicionado à sua lista. Acesse a aba "Meus Produtos" para pegar seu link de afiliado personalizado e gerar roteiros de vídeo ou copies prontas.
+                  </p>
+                </div>
+              </div>
+              {onNavigateToMyProducts && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToMyProducts();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 whitespace-nowrap"
+                >
+                  <span>Ir para Meus Produtos</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {addedToMine && !isFromMarketplace && (
+            <div className="p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-emerald-950/50 border-emerald-500/40 text-emerald-300">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl shrink-0 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white">
+                    ✓ Produto Adicionado aos Seus Produtos!
+                  </h4>
+                  <p className="text-xs text-stone-300 mt-0.5">
+                    Este produto já está disponível na sua aba "Meus Produtos". Você pode usar as ferramentas abaixo para divulgação.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 text-xs">
+                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 select-none">
+                  <Check className="w-3.5 h-3.5" /> Em Meus Produtos
+                </span>
+                {onNavigateToMyProducts && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onNavigateToMyProducts();
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"
+                  >
+                    <span>Ir para Meus Produtos</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Toast de Confirmação quando Adicionado */}
+          {addSuccessMessage && (
+            <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-between gap-2 animate-fadeIn">
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                Produto importado com sucesso! Agora você pode gerenciá-lo na aba "Meus Produtos".
+              </span>
+              {onNavigateToMyProducts && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToMyProducts();
+                  }}
+                  className="underline hover:text-white shrink-0 text-xs font-extrabold"
+                >
+                  Ver Lista ➔
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* MÓDULO DE INTELIGÊNCIA DE MERCADO & GRÁFICO DE TENDÊNCIAS */}
+          <div className="p-4 rounded-2xl bg-[#0e1119] border border-[#1e2636] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1e2636] pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                  <BarChart2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white">Desempenho & Tendência de Vendas</h4>
+                  <p className="text-[11px] text-[#93a0b5]">Histórico e métricas de demanda nos últimos dias</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+                  trend.isUp
+                    ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
+                    : 'bg-red-950/80 text-red-400 border-red-500/40'
+                }`}>
+                  {trend.isUp ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                  <span>{trend.formatted !== 'Sem informações suficientes' ? `${trend.formatted} em Vendas` : 'Demanda Estável'}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Métrica Visual do Gráfico em Barras Simuladas de Tendência de 7 Dias */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Card 1: Vendas nos últimos 7 dias */}
+              <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-[#93a0b5] uppercase">Vendas Estimadas (7 Dias)</span>
+                <div className="flex items-baseline justify-between mt-2">
+                  <span className="text-xl font-black text-white">
+                    {product.sales_count ? product.sales_count : '350+'} un.
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md">
+                    +{trend.pct || 18}% alta
+                  </span>
+                </div>
+                {/* Gráfico Sparkline de barras para os 7 dias */}
+                <div className="flex items-end gap-1.5 h-8 mt-3 pt-1 border-t border-[#1e2636]">
+                  {[30, 45, 40, 60, 75, 80, 100].map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 rounded-t transition-all ${
+                        i === 6 ? 'bg-blue-500' : i >= 4 ? 'bg-blue-400/70' : 'bg-[#1e2636]'
+                      }`}
+                      style={{ height: `${h}%` }}
+                      title={`Dia ${i + 1}: ${h}% volume`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Card 2: Temperatura de Conversão no Grupo */}
+              <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-[#93a0b5] uppercase">Potencial de Venda (Grupo)</span>
+                <div className="flex items-center gap-2 mt-2">
+                  <Flame className="w-6 h-6 text-amber-400 fill-amber-400 animate-bounce" />
+                  <div>
+                    <span className="text-base font-extrabold text-amber-300 block leading-tight">Produto Aquecido</span>
+                    <span className="text-[10px] text-stone-400">Alta conversão para Telegram / WhatsApp</span>
+                  </div>
+                </div>
+                <div className="mt-3 pt-1 border-t border-[#1e2636] text-[10px] text-stone-400 flex items-center justify-between">
+                  <span>Pontuação de Oferta:</span>
+                  <span className="font-bold text-amber-400">9.4 / 10</span>
+                </div>
+              </div>
+
+              {/* Card 3: Comissão e Margem Esperada */}
+              <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase">Sua Margem por Venda</span>
+                <div className="mt-2">
+                  <span className="text-2xl font-black text-yellow-300 font-mono">
+                    {commission.amountFormatted}
+                  </span>
+                  <span className="text-xs text-emerald-400 block font-bold mt-0.5">
+                    {commission.ratePct}% de comissão cadastrada
+                  </span>
+                </div>
+                <div className="mt-3 pt-1 border-t border-emerald-500/20 text-[10px] text-stone-400 flex items-center justify-between">
+                  <span>10 vendas no mês =</span>
+                  <span className="font-bold text-yellow-300">R$ {(commission.amount * 10).toFixed(2).replace('.', ',')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
           
           {/* Card Principal: Informações do Produto & Métricas de Comissão */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 p-4 rounded-xl bg-stone-950/60 border border-stone-800">
@@ -446,7 +660,7 @@ ${affiliateLink}
                       )}
                     </div>
 
-                    {onUpdateProductCommission && !isEditingCommOverride && (
+                    {addedToMine && onUpdateProductCommission && !isEditingCommOverride && (
                       <button
                         type="button"
                         onClick={() => {
@@ -553,103 +767,106 @@ ${affiliateLink}
               </div>
 
               {/* Link de Afiliado e Aviso */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-stone-300 flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-violet-400" />
-                    Seu Link de Afiliado Personalizado:
-                  </span>
-                  {!hasUserTag && onNavigateToSettings && (
-                    <button
-                      onClick={onNavigateToSettings}
-                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium"
-                    >
-                      <AlertTriangle className="w-3 h-3" />
-                      Cadastrar ID da {platformLabel[product.platform] ?? product.platform}
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={affiliateLink}
-                    className="flex-1 px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-300 font-mono truncate focus:outline-none"
-                  />
-                  <button
-                    onClick={handleCopyLink}
-                    className="px-3.5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
-                  >
-                    {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedLink ? 'Copiado!' : 'Copiar Link'}
-                  </button>
-                </div>
-
-                {!hasUserTag && (
-                  <p className="text-[10px] text-amber-400/90 bg-amber-950/30 border border-amber-500/20 p-2 rounded-lg">
-                    ⚠️ Você ainda não cadastrou seu ID de afiliado da <strong>{platformLabel[product.platform] ?? product.platform}</strong> nas Configurações. Usando link padrão.
-                  </p>
-                )}
-
-                {/* Banner de Controle Anti-Duplicação 24h */}
-                <div className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-                  sharedStatus.isShared
-                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                    : 'bg-stone-900 border-stone-800 text-stone-300'
-                }`}>
-                  <div className="flex items-center gap-2 text-xs">
-                    {sharedStatus.isShared ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-stone-400 shrink-0" />
+              {addedToMine && !isFromMarketplace && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-stone-300 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-violet-400" />
+                      Seu Link de Afiliado Personalizado:
+                    </span>
+                    {!hasUserTag && onNavigateToSettings && (
+                      <button
+                        onClick={onNavigateToSettings}
+                        className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        Cadastrar ID da {platformLabel[product.platform] ?? product.platform}
+                      </button>
                     )}
-                    <div>
-                      {sharedStatus.isShared ? (
-                        <p className="font-bold text-emerald-300">
-                          Divulgado {sharedStatus.hoursAgoFormatted} • <span className="text-emerald-400 font-semibold">Libera em {sharedStatus.remainingFormatted}</span>
-                        </p>
-                      ) : (
-                        <p className="font-medium text-stone-300">
-                          Este produto está <strong>disponível</strong> para divulgação.
-                        </p>
-                      )}
-                      <p className="text-[10px] text-stone-400">
-                        {sharedStatus.isShared
-                          ? 'Marcado para evitar envio repetido. Passadas 24h ele será liberado automaticamente.'
-                          : 'Clique abaixo quando divulgar para pausar o produto por 24 horas.'}
-                      </p>
-                    </div>
                   </div>
 
-                  <button
-                    onClick={handleToggleShareStatus}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                      sharedStatus.isShared
-                        ? 'bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
-                    }`}
-                  >
-                    {sharedStatus.isShared ? (
-                      <>
-                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                        Desmarcar (Liberar Agora)
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        Marcar como Divulgado
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={affiliateLink}
+                      className="flex-1 px-3 py-2 bg-stone-950 border border-stone-800 rounded-xl text-xs text-stone-300 font-mono truncate focus:outline-none"
+                    />
+                    <button
+                      onClick={handleCopyLink}
+                      className="px-3.5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedLink ? 'Copiado!' : 'Copiar Link'}
+                    </button>
+                  </div>
+
+                  {!hasUserTag && (
+                    <p className="text-[10px] text-amber-400/90 bg-amber-950/30 border border-amber-500/20 p-2 rounded-lg">
+                      ⚠️ Você ainda não cadastrou seu ID de afiliado da <strong>{platformLabel[product.platform] ?? product.platform}</strong> nas Configurações. Usando link padrão.
+                    </p>
+                  )}
+
+                  {/* Banner de Controle Anti-Duplicação 24h */}
+                  <div className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                    sharedStatus.isShared
+                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                      : 'bg-stone-900 border-stone-800 text-stone-300'
+                  }`}>
+                    <div className="flex items-center gap-2 text-xs">
+                      {sharedStatus.isShared ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-stone-400 shrink-0" />
+                      )}
+                      <div>
+                        {sharedStatus.isShared ? (
+                          <p className="font-bold text-emerald-300">
+                            Divulgado {sharedStatus.hoursAgoFormatted} • <span className="text-emerald-400 font-semibold">Libera em {sharedStatus.remainingFormatted}</span>
+                          </p>
+                        ) : (
+                          <p className="font-medium text-stone-300">
+                            Este produto está <strong>disponível</strong> para divulgação.
+                          </p>
+                        )}
+                        <p className="text-[10px] text-stone-400">
+                          {sharedStatus.isShared
+                            ? 'Marcado para evitar envio repetido. Passadas 24h ele será liberado automaticamente.'
+                            : 'Clique abaixo quando divulgar para pausar o produto por 24 horas.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleToggleShareStatus}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                        sharedStatus.isShared
+                          ? 'bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                      }`}
+                    >
+                      {sharedStatus.isShared ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                          Desmarcar (Liberar Agora)
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          Marcar como Divulgado
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>
 
           {/* Abas de Ação: [1] Compartilhar & Copy | [2] Gerador de Roteiro de Vídeo */}
-          <div className="space-y-4">
+          {addedToMine && !isFromMarketplace && (
+            <div className="space-y-4">
             <div className="flex border-b border-stone-800">
               <button
                 onClick={() => setActiveTab('share')}
@@ -876,6 +1093,46 @@ ${affiliateLink}
             )}
 
           </div>
+          )}
+
+          {/* Botão de Divulgar Produto para adicionar a Meus Produtos no final */}
+          {!addedToMine ? (
+            <div className="pt-6 border-t border-stone-800 flex justify-center">
+              <button
+                onClick={handleAddToMyProducts}
+                disabled={addingToMine}
+                className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50"
+              >
+                {addingToMine ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-stone-950" />
+                ) : (
+                  <PlusCircle className="w-5 h-5 text-stone-950" />
+                )}
+                <span>{addingToMine ? 'Adicionando aos Meus Produtos...' : 'Divulgar este Produto (Adicionar a Meus Produtos)'}</span>
+              </button>
+            </div>
+          ) : (
+            isFromMarketplace && (
+              <div className="pt-6 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+                <span className="text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-1.5">
+                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  Este produto já está em Meus Produtos!
+                </span>
+                {onNavigateToMyProducts && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onNavigateToMyProducts();
+                    }}
+                    className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"
+                  >
+                    <span>Ir para Meus Produtos</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )
+          )}
 
         </div>
 

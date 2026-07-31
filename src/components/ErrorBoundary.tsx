@@ -1,37 +1,37 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 
-interface Props {
+export interface ErrorBoundaryProps {
   children?: ReactNode;
 }
 
-interface State {
+export interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
     hasError: false,
     error: null,
     errorInfo: null,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error, errorInfo: null };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
 
-  private handleReload = () => {
+  private handleReload = (): void => {
     window.location.reload();
   };
 
-  private handleClearCacheAndReload = () => {
+  private handleClearCacheAndReload = (): void => {
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
-  public render() {
+  public render(): ReactNode {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-[#0a0d14] text-stone-100 flex items-center justify-center p-4 font-sans">
@@ -88,3 +88,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;
