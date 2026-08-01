@@ -407,6 +407,18 @@ function startSessionsManager() {
 // 4. SINCRONIZAÇÃO DE GRUPOS POR SESSÃO (users/{uid}/waGroups)
 // ------------------------------------------------------------------------------
 
+function formatPhoneBR(rawNum) {
+  if (!rawNum) return '';
+  const cleanNum = rawNum.replace(/\D/g, '');
+  if (cleanNum.startsWith('55') && cleanNum.length === 13) {
+    const ddd = cleanNum.slice(2, 4);
+    const part1 = cleanNum.slice(4, 9);
+    const part2 = cleanNum.slice(9);
+    return `+55 (${ddd}) ${part1}-${part2}`;
+  }
+  return `+${cleanNum}`;
+}
+
 async function syncGroups(sessionId, sock) {
   if (!sock) return;
   console.log(`🔄 [Sessão: ${sessionId}] Sincronizando grupos do WhatsApp com o Firestore...`);
@@ -422,10 +434,27 @@ async function syncGroups(sessionId, sock) {
     for (const group of groupList) {
       if (!group.id.endsWith('@g.us')) continue;
 
-      const participants = group.participants || [];
+      const rawParticipants = group.participants || [];
+      const participants = [];
+
+      for (const p of rawParticipants) {
+        const pJid = p.id || '';
+        if (!pJid || pJid.endsWith('@lid')) continue;
+
+        const isAdmin = p.admin === 'admin' || p.admin === 'superadmin';
+        const rawNum = pJid.split(':')[0].split('@')[0];
+        const phone = formatPhoneBR(rawNum);
+
+        participants.push({
+          id: pJid,
+          phone: phone,
+          isAdmin: isAdmin,
+        });
+      }
+
       const participantsCount = participants.length;
 
-      const isBotAdmin = participants.some((p) => {
+      const isBotAdmin = rawParticipants.some((p) => {
         const pJid = p.id ? p.id.split(':')[0] + '@s.whatsapp.net' : '';
         return pJid === botJid && (p.admin === 'admin' || p.admin === 'superadmin');
       });
@@ -447,6 +476,7 @@ async function syncGroups(sessionId, sock) {
         photoUrl: photoUrl || null,
         size: participantsCount,
         participantsCount: participantsCount,
+        participants: participants,
         description: group.desc || null,
         isAdmin: isBotAdmin,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
