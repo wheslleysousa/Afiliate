@@ -60,11 +60,58 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     setLoading(true);
 
     try {
-      // Process initial participants string into clean numbers array
-      const rawNumbers = participantsInput
+      // Helper to format phone display with DDD
+      const formatPhoneDisplay = (raw?: string): string => {
+        if (!raw) return '';
+        const clean = raw.replace(/@.*$/, '').replace(/\D/g, '');
+        if (!clean) return raw;
+
+        let withCountry = clean;
+        if (clean.length === 10 || clean.length === 11) {
+          withCountry = '55' + clean;
+        }
+
+        if (withCountry.startsWith('55') && (withCountry.length === 12 || withCountry.length === 13)) {
+          const ddd = withCountry.slice(2, 4);
+          const num = withCountry.slice(4);
+          if (num.length === 9) {
+            return `+55 (${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+          } else if (num.length === 8) {
+            return `+55 (${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+          }
+          return `+55 (${ddd}) ${num}`;
+        } else if (clean.length >= 8) {
+          return `+${clean}`;
+        }
+        return raw;
+      };
+
+      // Process initial participants string into clean numbers and structured participant objects
+      const rawLines = participantsInput
         .split(/[\n,;]+/)
-        .map((num) => num.replace(/\D/g, '').trim())
-        .filter((num) => num.length >= 10);
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const parsedParticipants = rawLines.map((entry, idx) => {
+        let pName = '';
+        let phoneStr = entry;
+        if (entry.includes(':')) {
+          const parts = entry.split(':');
+          pName = parts[0].trim();
+          phoneStr = parts[1].trim();
+        }
+        const cleanDigits = phoneStr.replace(/\D/g, '');
+        const formatted = formatPhoneDisplay(cleanDigits || phoneStr);
+        return {
+          id: `part_${Date.now()}_${idx}`,
+          name: pName || formatted || `Participante ${idx + 1}`,
+          phone: formatted || phoneStr,
+          rawPhone: cleanDigits || phoneStr,
+          isAdmin: false,
+        };
+      }).filter((p) => p.phone);
+
+      const rawNumbers = parsedParticipants.map((p) => p.rawPhone).filter(Boolean);
 
       const tempId = `group_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -77,8 +124,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
         type,
         status: 'pending_creation',
         initialParticipants: rawNumbers,
+        participants: parsedParticipants,
         isAdmin: true,
-        participantsCount: rawNumbers.length + 1,
+        participantsCount: parsedParticipants.length + 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

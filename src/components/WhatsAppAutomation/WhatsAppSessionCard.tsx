@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { WaSession } from '../../types';
 import { QRCodeSVG } from 'qrcode.react';
@@ -11,6 +11,7 @@ import {
   LogOut,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Edit3,
   Save,
   Trash2,
@@ -40,6 +41,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
   // Edit label inline state
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editLabelInput, setEditLabelInput] = useState('');
+
+  // Disconnect confirmation modal state
+  const [disconnectModalSession, setDisconnectModalSession] = useState<WaSession | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Delete confirmation modal state
+  const [deleteModalSession, setDeleteModalSession] = useState<WaSession | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Subscribe to waSessions collection
   useEffect(() => {
@@ -117,25 +126,29 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     }
   };
 
-  const handleRequestLogout = async (session: WaSession) => {
+  const confirmDisconnect = async () => {
+    if (!disconnectModalSession || !uid) return;
+    const session = disconnectModalSession;
     const sId = session.sessionId || session.id;
-    if (!uid || !sId) return;
+    if (!sId) return;
 
-    if (!window.confirm(`Tem certeza que deseja desconectar a conta "${session.label || sId}"?`)) return;
-
+    setIsDisconnecting(true);
     try {
       const sessionRef = doc(db, 'users', uid, 'waSessions', sId);
-      await setDoc(sessionRef, { requestedLogout: true }, { merge: true });
+      await setDoc(sessionRef, { requestedLogout: true, updatedAt: serverTimestamp() }, { merge: true });
       setAlertMessage({
         type: 'success',
         text: `Solicitação de desconexão enviada para a conta "${session.label || sId}".`,
       });
+      setDisconnectModalSession(null);
     } catch (err: any) {
       console.error('Erro ao solicitar logout:', err);
       setAlertMessage({
         type: 'error',
         text: 'Não foi possível enviar o pedido de desconexão. Tente novamente.',
       });
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -159,24 +172,39 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
     }
   };
 
-  const handleDeleteSession = async (session: WaSession) => {
+  const confirmDelete = async () => {
+    if (!deleteModalSession || !uid) return;
+    const session = deleteModalSession;
     const sId = session.sessionId || session.id;
-    if (!uid || !sId) return;
+    if (!sId) return;
 
-    if (!window.confirm(`Excluir definitivamente a conta "${session.label || sId}"?`)) return;
-
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'users', uid, 'waSessions', sId));
+
+      // Also clean up any waGroups associated with this sessionId
+      const groupsRef = collection(db, 'users', uid, 'waGroups');
+      const q = query(groupsRef, where('sessionId', '==', sId));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
       setAlertMessage({
         type: 'success',
-        text: 'Conta do WhatsApp excluída com sucesso.',
+        text: `Conta "${session.label || sId}" e seus grupos associados foram excluídos com sucesso.`,
       });
+      setDeleteModalSession(null);
     } catch (err: any) {
       console.error('Erro ao excluir sessão:', err);
       setAlertMessage({
         type: 'error',
         text: 'Ocorreu um erro ao excluir esta conta de WhatsApp.',
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -390,8 +418,9 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
 
                     {status === 'connected' && (
                       <button
-                        onClick={() => handleRequestLogout(session)}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                        onClick={() => setDisconnectModalSession(session)}
+                        className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                        title="Desconectar WhatsApp"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Desconectar
@@ -399,24 +428,24 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                     )}
 
                     {status === 'disconnected' && (
-                      <>
-                        <button
-                          onClick={() => handleRequestConnect(session)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          Escanear QR Code
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteSession(session)}
-                          className="p-1.5 text-stone-500 hover:text-red-400 hover:bg-stone-800 rounded-lg transition-colors"
-                          title="Excluir Conta"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleRequestConnect(session)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        Escanear QR Code
+                      </button>
                     )}
+
+                    {/* Excluir button option available for all session states */}
+                    <button
+                      onClick={() => setDeleteModalSession(session)}
+                      className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                      title="Excluir Conta do WhatsApp"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Excluir</span>
+                    </button>
                   </div>
                 </div>
 
@@ -568,6 +597,125 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Confirmar Desconexão */}
+      {disconnectModalSession && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1e2636]">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <LogOut className="w-5 h-5 text-amber-400" />
+                Confirmar Desconexão
+              </h3>
+              <button
+                onClick={() => setDisconnectModalSession(null)}
+                className="text-stone-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Tem certeza que deseja desconectar o WhatsApp{' '}
+                <strong className="text-white font-bold">
+                  "{disconnectModalSession.label || disconnectModalSession.sessionId}"
+                </strong>
+                ?
+              </p>
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3.5 rounded-xl text-xs text-amber-300 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <span className="leading-relaxed">
+                  Ao desconectar, o envio de mensagens e campanhas automáticas para este número será suspenso até que um novo QR Code seja lido.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
+              <button
+                type="button"
+                onClick={() => setDisconnectModalSession(null)}
+                disabled={isDisconnecting}
+                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDisconnect}
+                disabled={isDisconnecting}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
+              >
+                {isDisconnecting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
+                Desconectar Conta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmar Exclusão */}
+      {deleteModalSession && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1e2636]">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-400" />
+                Excluir Conta do WhatsApp
+              </h3>
+              <button
+                onClick={() => setDeleteModalSession(null)}
+                className="text-stone-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Tem certeza que deseja excluir permanentemente a conta{' '}
+                <strong className="text-white font-bold">
+                  "{deleteModalSession.label || deleteModalSession.sessionId}"
+                </strong>
+                ?
+              </p>
+              <div className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl text-xs text-red-300 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                <span className="leading-relaxed">
+                  Esta ação é irreversível. A conexão deste número será removida permanentemente do seu painel.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
+              <button
+                type="button"
+                onClick={() => setDeleteModalSession(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Sim, Excluir Conta
+              </button>
+            </div>
           </div>
         </div>
       )}
