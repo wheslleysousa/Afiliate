@@ -381,11 +381,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto p-2 bg-[#151a26]/30 rounded-xl border border-[#1e2636]">
-                {availableGroups.map((g) => {
+                {availableGroups.map((g, idx) => {
                   const isChecked = targetGroupIds.includes(g.groupId);
                   return (
                     <div
-                      key={g.groupId}
+                      key={(g as any).docId || (g as any).id || `${g.groupId}_${idx}`}
                       onClick={() => toggleGroup(g.groupId)}
                       className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all ${
                         isChecked

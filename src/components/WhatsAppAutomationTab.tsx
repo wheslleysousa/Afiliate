@@ -65,10 +65,22 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
-        const list: WaGroup[] = snap.docs.map((d) => ({
-          groupId: d.id,
-          ...d.data(),
-        })) as WaGroup[];
+        const uniqueMap = new Map<string, WaGroup>();
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const gid = data.groupId || d.id;
+          const groupObj: WaGroup = {
+            id: d.id,
+            docId: d.id,
+            groupId: gid,
+            ...data,
+          } as unknown as WaGroup;
+
+          if (!uniqueMap.has(gid)) {
+            uniqueMap.set(gid, groupObj);
+          }
+        });
+        const list = Array.from(uniqueMap.values());
         setWaGroups(list);
         setLoadingGroups(false);
       },

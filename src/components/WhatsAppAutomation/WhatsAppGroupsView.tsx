@@ -58,10 +58,22 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const list: WaGroup[] = snapshot.docs.map((d) => ({
-          groupId: d.id,
-          ...d.data(),
-        })) as WaGroup[];
+        const uniqueMap = new Map<string, WaGroup>();
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          const gid = data.groupId || d.id;
+          const groupObj: WaGroup = {
+            id: d.id,
+            docId: d.id,
+            groupId: gid,
+            ...data,
+          } as unknown as WaGroup;
+
+          if (!uniqueMap.has(gid)) {
+            uniqueMap.set(gid, groupObj);
+          }
+        });
+        const list = Array.from(uniqueMap.values());
 
         // Sort by name
         list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -261,13 +273,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       {/* Groups Grid */}
       {!loading && filteredGroups.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredGroups.map((group) => {
+          {filteredGroups.map((group, idx) => {
             const memberCount = group.size || group.participantsCount || 0;
             const isPending = (group as any).status === 'pending_creation';
 
             return (
               <div
-                key={group.groupId}
+                key={(group as any).docId || (group as any).id || `${group.groupId}_${idx}`}
                 onClick={() => {
                   setSelectedGroup(group);
                   setDetailTab('info');

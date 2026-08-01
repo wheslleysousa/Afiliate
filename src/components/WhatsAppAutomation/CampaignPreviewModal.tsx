@@ -331,7 +331,7 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
           {!loading &&
             items.map((item, idx) => (
               <div
-                key={item.product.id || idx}
+                key={`prev-item-${item.product.id || idx}-${idx}`}
                 className="bg-[#151a26] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start hover:border-emerald-500/40 transition-all"
               >
                 {/* Product Thumbnail */}

@@ -266,7 +266,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
       {/* Campaign List Grid */}
       {!loading && campaigns.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {campaigns.map((camp) => {
+          {campaigns.map((camp, idx) => {
             const targetNames = (camp.targetGroupIds || [])
               .map((id) => groupMap.get(id) || id)
               .join(', ');
@@ -275,7 +275,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
 
             return (
               <div
-                key={camp.id}
+                key={camp.id || `camp-${idx}`}
                 className={`bg-[#0e1119] border p-5 rounded-2xl transition-all space-y-4 flex flex-col justify-between ${
                   camp.enabled
                     ? 'border-[#1e2636] hover:border-blue-500/50'

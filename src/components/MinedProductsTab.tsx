@@ -426,9 +426,9 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-              {visible.map((item) => (
+              {visible.map((item, idx) => (
                 <MinedCard
-                  key={item.productId}
+                  key={item.productId ? `${item.productId}_${idx}` : `mined-${idx}`}
                   item={item}
                   apiKeys={apiKeys}
                   commissionRates={commissionRates}

@@ -209,9 +209,9 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
           )}
 
           {!loadingQueue &&
-            filteredQueue.map((item) => (
+            filteredQueue.map((item, idx) => (
               <div
-                key={item.id}
+                key={item.id || `qitem-${idx}`}
                 className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start hover:border-blue-500/30 transition-all"
               >
                 {item.imageUrl ? (
@@ -281,11 +281,11 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
           )}
 
           {!loadingLogs &&
-            filteredLogs.map((log) => {
+            filteredLogs.map((log, idx) => {
               const isSuccess = log.status === 'sent';
               return (
                 <div
-                  key={log.id}
+                  key={log.id || `logitem-${idx}`}
                   className={`bg-[#0e1119] border p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start ${
                     isSuccess ? 'border-[#1e2636]' : 'border-red-500/30'
                   }`}

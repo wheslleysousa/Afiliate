@@ -382,7 +382,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
 
               return (
                 <div
-                  key={p.id}
+                  key={p.id || `analytics-p-${idx}`}
                   className="p-4 hover:bg-stone-850 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   {/* Left: Product Rank + Image + Details */}

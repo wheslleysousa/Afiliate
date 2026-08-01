@@ -302,14 +302,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
       {/* Sessions Grid */}
       {!loading && sessions.length > 0 && (
         <div className="grid grid-cols-1 gap-6">
-          {sessions.map((session) => {
+          {sessions.map((session, idx) => {
             const sId = session.sessionId || session.id || '';
             const status = session.status || 'disconnected';
             const isEditingThis = editingSessionId === sId;
 
             return (
               <div
-                key={sId}
+                key={session.id || session.sessionId || `session-${idx}`}
                 className="bg-[#151a26] border border-[#1e2636] rounded-xl p-5 space-y-4 relative overflow-hidden transition-all hover:border-[#2a3447]"
               >
                 {/* Top Card Info Bar */}
