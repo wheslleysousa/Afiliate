@@ -577,7 +577,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           </div>
           <button
             disabled={isCleaning}
-            onClick={handleCleanDisconnectedGroups}
+            onClick={() => setShowDeleteDisconnectedModal(true)}
             className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
           >
             {isCleaning ? (
@@ -640,7 +640,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       {!loading && filteredGroups.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredGroups.map((group, idx) => {
-            const memberCount = group.size || group.participantsCount || 0;
+            const memberCount = group.size || group.participantsCount || (group.participants ? group.participants.length : 0);
             const isPending = (group as any).status === 'pending_creation';
 
             return (
@@ -711,7 +711,10 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-stone-400">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={(e) => handleDeleteGroupDoc(group, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirmGroup(group);
+                      }}
                       className="p-1 text-stone-500 hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
                       title="Excluir grupo da lista"
                     >
@@ -760,7 +763,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1">
                     <Users className="w-3.5 h-3.5 text-emerald-400" />
-                    {selectedGroup.size || selectedGroup.participantsCount || 0} membros
+                    {selectedGroup.size || selectedGroup.participantsCount || (selectedGroup.participants ? selectedGroup.participants.length : 0)} membros
                   </span>
                   {selectedGroup.isAdmin && (
                     <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">

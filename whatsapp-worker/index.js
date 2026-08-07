@@ -439,11 +439,28 @@ async function syncGroups(sessionId, sock) {
 
       for (const p of rawParticipants) {
         const pJid = p.id || '';
-        if (!pJid || pJid.endsWith('@lid')) continue;
+        if (!pJid) continue;
 
         const isAdmin = p.admin === 'admin' || p.admin === 'superadmin';
-        const rawNum = pJid.split(':')[0].split('@')[0];
-        const phone = formatPhoneBR(rawNum);
+        let rawNum = pJid.split(':')[0].split('@')[0];
+
+        if (p.phoneNumber) {
+          rawNum = String(p.phoneNumber).replace(/\D/g, '');
+        }
+
+        let phone = '';
+        if (pJid.endsWith('@s.whatsapp.net')) {
+          phone = formatPhoneBR(rawNum);
+        } else if (pJid.endsWith('@lid')) {
+          // Check if LID exposes numeric phone
+          if (rawNum && /^\d+$/.test(rawNum) && rawNum.length >= 10 && !rawNum.startsWith('102') && !rawNum.startsWith('103')) {
+            phone = formatPhoneBR(rawNum);
+          } else {
+            phone = 'Oculto pelo WhatsApp (@lid)';
+          }
+        } else {
+          phone = formatPhoneBR(rawNum);
+        }
 
         participants.push({
           id: pJid,
@@ -452,7 +469,8 @@ async function syncGroups(sessionId, sock) {
         });
       }
 
-      const participantsCount = participants.length;
+      // Total group size is guaranteed to be at least group.size or rawParticipants.length
+      const totalSize = group.size || rawParticipants.length || participants.length || 0;
 
       const isBotAdmin = rawParticipants.some((p) => {
         const pJid = p.id ? p.id.split(':')[0] + '@s.whatsapp.net' : '';
@@ -474,8 +492,8 @@ async function syncGroups(sessionId, sock) {
         sessionId: sessionId,
         name: group.subject || 'Grupo sem nome',
         photoUrl: photoUrl || null,
-        size: participantsCount,
-        participantsCount: participantsCount,
+        size: totalSize,
+        participantsCount: totalSize,
         participants: participants,
         description: group.desc || null,
         isAdmin: isBotAdmin,
