@@ -492,15 +492,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-emerald-400" />
-              Grupos & Comunidades ({filteredGroups.length})
+              Grupos e Comunidades
             </h3>
-            <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-              Sincronizado
-            </span>
           </div>
-          <p className="text-xs text-stone-400 mt-1">
-            Gerencie os grupos detectados do seu WhatsApp ou crie novos grupos para suas campanhas de afiliados.
-          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
@@ -513,14 +507,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 onChange={(e) => setAccountFilter(e.target.value)}
                 className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
               >
-                <option value="connected">🟢 Apenas Contas Conectadas ({connectedSessions.length})</option>
-                <option value="all">Todas as Contas (Incluir Histórico)</option>
-                {waSessions.map((s) => {
+                <option value="connected">Apenas Contas Conectadas ({connectedSessions.length})</option>
+                <option value="all">Todas as contas</option>
+                {waSessions.map((s, i) => {
                   const sId = s.sessionId || s.id || '';
-                  const isConn = s.status === 'connected';
                   return (
                     <option key={sId} value={sId}>
-                      {isConn ? '🟢' : '🔴'} {s.label || 'Conta WhatsApp'} {s.phoneNumber ? `(${s.phoneNumber})` : ''}
+                      {s.label || `Conta WhatsApp ${i + 1}`} {s.phoneNumber ? `(${s.phoneNumber})` : ''}
                     </option>
                   );
                 })}
@@ -540,17 +533,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             />
           </div>
 
-          {/* Button: Export All CSV */}
-          <button
-            onClick={exportAllGroupsContactsCSV}
-            className="w-full sm:w-auto px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 border border-[#1e2636] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0"
-            title="Exportar todos os números dos grupos em arquivo CSV"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            Exportar CSV
-          </button>
-
-          {/* Button: Create Group or Community */}
+          {/* Button: Create Group */}
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
@@ -812,28 +795,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => {
-                          const existing = currentParticipants
-                            .filter((p) => p.phone && p.phone !== 'Você')
-                            .map((p) => (p.name && !p.name.includes('+55') ? `${p.name}: ${p.phone}` : p.phone))
-                            .join('\n');
-                          setManageInputText(existing);
-                          setManageGroupModal(selectedGroup);
-                        }}
-                        className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-emerald-300 border border-[#1e2636] rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                        title="Adicionar ou editar números reais com DDD"
-                      >
-                        <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-                        Números Reais
-                      </button>
-
-                      <button
                         onClick={() => exportGroupContactsCSV(selectedGroup)}
                         className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                         title="Exportar contatos deste grupo em CSV"
                       >
                         <Download className="w-3.5 h-3.5 text-emerald-400" />
-                        Exportar CSV
+                        Baixar Contatos CSV
                       </button>
                     </div>
                   </div>
@@ -852,27 +819,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
                       <div className="bg-[#151a26]/70 p-4 rounded-xl border border-[#1e2636] flex items-center justify-between gap-4">
                         <div>
-                          <h4 className="text-xs font-bold text-white">Gerenciar Integrantes & Exportação</h4>
+                          <h4 className="text-xs font-bold text-white">Contatos dos Grupos</h4>
                           <p className="text-[11px] text-stone-400 mt-0.5">
-                            Adicione ou atualize os números reais dos integrantes e baixe uma planilha organizada com DDD.
+                            Extração automática de participantes via integração real.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => {
-                              const existing = currentParticipants
-                                .filter((p) => p.phone && p.phone !== 'Você')
-                                .map((p) => (p.name && !p.name.includes('+55') ? `${p.name}: ${p.phone}` : p.phone))
-                                .join('\n');
-                              setManageInputText(existing);
-                              setManageGroupModal(selectedGroup);
-                            }}
-                            className="px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 border border-[#1e2636]"
-                          >
-                            <UserPlus className="w-4 h-4 text-emerald-400" />
-                            Adicionar Números
-                          </button>
-
                           <button
                             onClick={() => exportGroupContactsCSV(selectedGroup)}
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg"
@@ -888,53 +840,24 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   {/* Tab: Members / Contacts List */}
                   {detailTab === 'members' && (
                     <div className="space-y-3">
-                      {/* Notice if total count in WhatsApp > stored contacts */}
-                      {totalCount > loadedCount && (
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-200 flex items-start gap-2.5">
-                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                          <div className="space-y-1">
-                            <p className="font-semibold text-amber-300">
-                              O WhatsApp indica {totalCount} membros neste grupo ({loadedCount} gravado no sistema).
-                            </p>
-                            <p className="text-[11px] text-amber-300/80">
-                              Quando o WhatsApp conecta, ele envia primeiro o resumo do grupo. Para registrar os números reais restantes imediatamente, clique no botão <strong>"Adicionar Números"</strong> ao lado e cole a lista de telefones com DDD!
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Search member & Export action */}
                       <div className="flex items-center gap-2">
                         <div className="relative flex-1">
                           <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
                           <input
                             type="text"
-                            placeholder="Buscar participante ou número..."
+                            placeholder="Buscar participante..."
                             value={memberSearch}
                             onChange={(e) => setMemberSearch(e.target.value)}
                             className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
                           />
                         </div>
                         <button
-                          onClick={() => {
-                            const existing = currentParticipants
-                              .filter((p) => p.phone && p.phone !== 'Você')
-                              .map((p) => (p.name && !p.name.includes('+55') ? `${p.name}: ${p.phone}` : p.phone))
-                              .join('\n');
-                            setManageInputText(existing);
-                            setManageGroupModal(selectedGroup);
-                          }}
-                          className="px-3 py-2 bg-stone-800 hover:bg-stone-700 text-emerald-300 border border-[#1e2636] text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0"
-                        >
-                          <UserPlus className="w-4 h-4 text-emerald-400" />
-                          <span className="hidden sm:inline">Adicionar Números</span>
-                        </button>
-                        <button
                           onClick={() => exportGroupContactsCSV(selectedGroup)}
                           className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 shadow-md"
                         >
                           <Download className="w-4 h-4" />
-                          <span className="hidden sm:inline">Exportar CSV</span>
+                          <span className="hidden sm:inline">Baixar Contatos CSV</span>
                         </button>
                       </div>
 
@@ -948,27 +871,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
                           if (filtered.length === 0) {
                       return (
-                        <div className="p-5 text-center text-xs text-stone-400 bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-3">
-                          <div>
-                            <p className="font-semibold text-stone-300">
-                              {memberSearch
-                                ? 'Nenhum membro encontrado para a busca.'
-                                : 'Nenhum número de participante registrado ainda.'}
-                            </p>
-                            <p className="text-[11px] text-stone-500 mt-1 max-w-sm mx-auto">
-                              Insira os números de WhatsApp dos integrantes com DDD para que apareçam na lista e possam ser exportados em planilha.
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setManageInputText('');
-                              setManageGroupModal(selectedGroup);
-                            }}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl inline-flex items-center gap-2 shadow-md"
-                          >
-                            <UserPlus className="w-4 h-4" />
-                            Adicionar Números Reais Agora
-                          </button>
+                        <div className="p-5 text-center text-xs text-stone-400 bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-2">
+                          <p className="font-semibold text-stone-300">
+                            {memberSearch
+                              ? 'Nenhum participante encontrado para a busca.'
+                              : 'Nenhum participante fornecido pela integração WhatsApp ainda.'}
+                          </p>
                         </div>
                       );
                     }
@@ -1130,27 +1038,19 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       {/* Confirmation Modal - Single Group Deletion */}
       {deleteConfirmGroup && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0e1119] border border-red-500/30 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
+          <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
             <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl shrink-0">
                 <Trash2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Confirmar Exclusão do Grupo</h3>
-                <p className="text-xs text-red-300/80">Esta ação não pode ser desfeita</p>
+                <h3 className="text-base font-bold text-white">Excluir grupo?</h3>
               </div>
             </div>
 
             <div className="space-y-3 text-xs text-stone-300">
               <p>
-                Tem certeza de que deseja excluir permanentemente o registro do grupo{' '}
-                <strong className="text-white bg-[#151a26] px-2 py-1 rounded border border-[#1e2636]">
-                  {deleteConfirmGroup.name || 'Grupo Sem Nome'}
-                </strong>
-                ?
-              </p>
-              <p className="text-stone-400 text-[11px] leading-relaxed">
-                A exclusão removerá o registro deste grupo e a lista de contatos associada no seu banco de dados.
+                Essa ação é irreversível. Tem certeza de que deseja excluir este grupo?
               </p>
             </div>
 
@@ -1174,8 +1074,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   </>
                 ) : (
                   <>
-                    <Trash2 className="w-4 h-4" />
-                    Sim, Excluir Grupo
+                    Excluir
                   </>
                 )}
               </button>

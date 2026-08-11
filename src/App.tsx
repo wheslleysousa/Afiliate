@@ -9,10 +9,19 @@ import { MinedProductsTab } from './components/MinedProductsTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
+import { TemplatesTab } from './components/TemplatesTab';
+import { ExtensionTab } from './components/ExtensionTab';
+import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
 import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct, CommissionRatesConfig, CopyTemplate } from './types';
-import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck } from 'lucide-react';
+import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck, Globe, Clock } from 'lucide-react';
+import {
+  getSavedTimezone,
+  saveTimezoneToStorage,
+  getTimezoneInfo,
+  formatCurrentTimeInTimezone
+} from './utils/timezoneUtils';
 import firebaseConfigJson from '../firebase-applet-config.json';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -84,6 +93,8 @@ export default function App() {
   };
 
   const handleDeleteCustomTemplate = async (templateId: string) => {
+    // Atualização otimista imediata na interface
+    setCustomTemplates((prev) => prev.filter((t) => t.id !== templateId));
     if (!currentUser?.id) return;
     try {
       const docRef = doc(db, 'users', currentUser.id, 'templates', templateId);
@@ -123,6 +134,35 @@ export default function App() {
   // Alarm & Lembretes State
   const [alarmSettings, setAlarmSettings] = useState<AlarmSettings>(() => getAlarmSettings());
   const [showAlarmModal, setShowAlarmModal] = useState<boolean>(false);
+
+  // Timezone State
+  const [currentTimezone, setCurrentTimezone] = useState<string>(() => getSavedTimezone());
+  const [showTimezoneModal, setShowTimezoneModal] = useState<boolean>(false);
+  const [currentTimeFormatted, setCurrentTimeFormatted] = useState<string>(() =>
+    formatCurrentTimeInTimezone(getSavedTimezone())
+  );
+
+  // Relógio em tempo real do fuso horário
+  useEffect(() => {
+    const updateTicker = () => {
+      setCurrentTimeFormatted(formatCurrentTimeInTimezone(currentTimezone));
+    };
+    updateTicker();
+    const interval = setInterval(updateTicker, 1000);
+    return () => clearInterval(interval);
+  }, [currentTimezone]);
+
+  const handleSelectTimezone = async (tzId: string) => {
+    setCurrentTimezone(tzId);
+    saveTimezoneToStorage(tzId);
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id), { timezone: tzId }, { merge: true });
+      } catch (e) {
+        console.error('Erro ao atualizar fuso horário no Firestore:', e);
+      }
+    }
+  };
 
   // Selected product to copy state
   const [selectedProductForCopy, setSelectedProductForCopy] = useState<GlobalProduct | null>(null);
@@ -280,6 +320,10 @@ export default function App() {
           const uSnap = await getDoc(doc(db, 'users', fbUser.uid));
           if (uSnap.exists()) {
             userDocData = uSnap.data();
+            if (userDocData?.timezone) {
+              setCurrentTimezone(userDocData.timezone);
+              saveTimezoneToStorage(userDocData.timezone);
+            }
           }
         } catch (e) {
           console.error('Erro ao buscar dados do perfil no Firestore:', e);
@@ -648,6 +692,8 @@ export default function App() {
                 {activeTab === 'marketplace' && 'Marketplace Global'}
                 {activeTab === 'my-products' && 'Meus Produtos'}
                 {activeTab === 'analytics' && 'Analytics de Afiliado'}
+                {activeTab === 'whatsapp-auto' && 'Automação Zap'}
+                {activeTab === 'templates' && 'Templates de Copy'}
                 {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
@@ -655,6 +701,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Interactive Timezone Selector Badge */}
+            <button
+              onClick={() => setShowTimezoneModal(true)}
+              title="Clique para alterar o fuso horário"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#151a26] hover:bg-[#1f2738] border border-[#1e2636] hover:border-blue-500/40 text-[#eef2f9] transition-all cursor-pointer font-medium"
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="font-bold">{getTimezoneInfo(currentTimezone).flag} {getTimezoneInfo(currentTimezone).offset}</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold hidden sm:inline">
+                {currentTimeFormatted}
+              </span>
+            </button>
+
             {/* Daily Mine Counter Badge */}
             <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
               dailyMineCount >= PLAN_LIMITS.free
@@ -752,6 +811,7 @@ export default function App() {
           {activeTab === 'analytics' && (
             <AnalyticsTab
               currentUserId={currentUser?.id}
+              minedProducts={minedItems.map((m) => m.productData).filter(Boolean) as GlobalProduct[]}
               apiKeys={apiKeys}
               commissionRates={commissionRates}
             />
@@ -764,12 +824,25 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'templates' && (
+            <TemplatesTab
+              customTemplates={customTemplates}
+              onAddCustomTemplate={handleAddCustomTemplate}
+              onDeleteCustomTemplate={handleDeleteCustomTemplate}
+              apiKeys={apiKeys}
+            />
+          )}
+
+          {activeTab === 'extension' && <ExtensionTab />}
+
           {activeTab === 'settings' && (
             <SettingsTab
               user={currentUser}
               apiKeys={apiKeys}
               alarmSettings={alarmSettings}
               commissionRates={commissionRates}
+              currentTimezone={currentTimezone}
+              onOpenTimezoneModal={() => setShowTimezoneModal(true)}
               onSaveAlarmSettings={handleSaveAlarmSettings}
               onSaveApiKeys={handleSaveApiKeys}
               onSaveCommissionRates={handleSaveCommissionRates}
@@ -789,16 +862,21 @@ export default function App() {
           />
         )}
 
+        {/* Modal de Seleção de Fuso Horário */}
+        {showTimezoneModal && (
+          <TimezoneModal
+            currentTimezone={currentTimezone}
+            onSelectTimezone={handleSelectTimezone}
+            onClose={() => setShowTimezoneModal(false)}
+          />
+        )}
+
         {/* Footer */}
         <footer className="border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
             <div className="flex items-center gap-2">
               <span className="font-bold text-stone-200">Afiliate</span>
-              <span>— Todos os direitos reservados</span>
-            </div>
-            <div className="flex items-center gap-2 text-[#93a0b5] font-medium text-xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Conectado ao Firebase Firestore ({firebaseConfigJson.projectId})</span>
+              <span>© {new Date().getFullYear()} — Todos os direitos reservados.</span>
             </div>
           </div>
         </footer>

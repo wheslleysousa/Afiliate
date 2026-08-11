@@ -7,7 +7,8 @@ export interface AlarmSettings {
   startHour: string;       // "08:00"
   endHour: string;         // "22:00"
   soundEnabled: boolean;
-  soundType?: string;      // 'chime', 'digital', 'radar', 'gong', 'energetic', 'ping', 'whistle', 'synth'
+  soundType?: string;      // 'chime', 'digital', 'radar', 'gong', 'energetic', 'ping', 'whistle', 'synth', 'custom'
+  customSoundUrl?: string; // base64 / blob URL for custom uploaded sound
   lastTriggeredAt?: number;
 }
 
@@ -73,6 +74,17 @@ export function playAlarmSound(typeOverride?: string) {
     if (!typeOverride && !settings.soundEnabled) return;
 
     const soundType = typeOverride || settings.soundType || 'chime';
+
+    if (soundType === 'custom' && settings.customSoundUrl) {
+      try {
+        const audio = new Audio(settings.customSoundUrl);
+        audio.play().catch((e) => console.warn('Erro ao tocar áudio personalizado:', e));
+        return;
+      } catch (e) {
+        console.warn('Erro ao carregar áudio personalizado:', e);
+      }
+    }
+
     const ctx = new AudioContext();
     const now = ctx.currentTime;
 

@@ -103,43 +103,32 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Top Banner Header */}
-      <div className="bg-[#0e1119] border border-[#1e2636] p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2 relative z-10 max-w-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-950/40">
-              <Bot className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-extrabold text-white tracking-tight">
-                  Painel de Automação de Disparo
-                </h2>
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Multi-Sessão Worker Sync
-                </span>
-              </div>
-              <p className="text-xs text-stone-400 mt-0.5">
-                Gerencie múltiplas contas do WhatsApp, crie campanhas com disparos direcionados por conta, ritmo antiban e acompanhe os envios.
-              </p>
-            </div>
+      <div className="bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-950/40">
+            <Bot className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-xl font-extrabold text-white tracking-tight">
+              Automação Zap
+            </h2>
+            <h3 className="text-sm font-semibold text-stone-300 mt-0.5">
+              Painel de Automação WhatsApp
+            </h3>
           </div>
         </div>
 
-        {/* Worker Status Box */}
-        <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl text-xs text-stone-300 space-y-1 shrink-0 w-full md:w-auto">
+        {/* Contas Conectadas Stat Box */}
+        <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl text-xs text-stone-300 space-y-1.5 shrink-0 w-full md:w-auto">
           <div className="flex items-center gap-2 text-stone-200 font-bold">
             <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            Sincronização Multi-Conta
+            Contas conectadas: <span className="text-white font-extrabold">{waSessions.length}</span>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-stone-400">
-            <span>Contas ativas: <strong className="text-emerald-400">{connectedSessionsCount}/{waSessions.length}</strong></span>
+          <div className="flex items-center gap-4 text-[11px] text-stone-400 pt-0.5 border-t border-[#1e2636]">
+            <span>Ativas: <strong className="text-emerald-400">{connectedSessionsCount}</strong></span>
             <span>Grupos: <strong className="text-blue-400">{waGroups.length}</strong></span>
           </div>
         </div>
-
-        {/* Subtle Background Glow */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* WhatsApp Connection Cards (Multi-Sessão) */}

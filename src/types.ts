@@ -4,6 +4,7 @@ export interface UserProfile {
   email: string;
   createdAt: string;
   avatarUrl?: string;
+  timezone?: string;
   role?: 'admin' | 'user';
 }
 
@@ -29,6 +30,8 @@ export interface ApiKeysConfig {
   aliexpressAffiliateId?: string;     // AliExpress: ?aff_id=XXX
   sheinAffiliateToken?: string;       // Shein: ?url_from=XXX
 }
+
+export type UserApiKeys = ApiKeysConfig;
 
 // Configuração de Comissões por Categoria e Plataforma
 export interface CategoryCommissionMap {
@@ -85,7 +88,7 @@ export type ScrapedProduct = ProductData;
 export interface CopyTemplate {
   id: string;
   name: string;
-  category: 'urgency' | 'direct' | 'review' | 'minimalist' | 'group' | 'custom';
+  category: 'urgency' | 'direct' | 'review' | 'minimalist' | 'group' | 'custom' | 'ai_generated' | string;
   template: string;
   description?: string;
 }
@@ -138,6 +141,7 @@ export interface GlobalProduct {
   free_shipping?: boolean;
   stars?: string | null;
   sales_count?: string | null;
+  sales_7d?: number | null;
   discount_pct?: number | null;
   category?: string | null;
   commission_rate?: number | null;
@@ -160,7 +164,17 @@ export interface MinedProductRef {
   minedAt: string;         // ISO timestamp
   favorite: boolean;
   status: 'active' | 'archived';
+  lastSharedAt?: number | string | null;
+  archived?: boolean;
+  productData?: GlobalProduct;
 }
+
+export type EnrichedMinedProduct = GlobalProduct & {
+  favorite?: boolean;
+  archived?: boolean;
+  lastSharedAt?: string | null;
+  minedAt?: string;
+};
 
 /** Contador diário de produtos minerados por usuário */
 export interface DailyStat {
@@ -226,7 +240,7 @@ export interface WaCampaign {
   createdAt?: any;
 }
 
-export type QueueStatus = 'pending' | 'sent' | 'failed';
+export type QueueStatus = 'pending' | 'processing' | 'sent' | 'failed' | 'paused';
 
 export interface WaSendQueueItem {
   id?: string;
@@ -287,5 +301,7 @@ export type AppTab =
   | "my-products"
   | "analytics"
   | "whatsapp-auto"
+  | "templates"
+  | "extension"
   | "settings"
   | "api-docs";

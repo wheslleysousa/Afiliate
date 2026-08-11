@@ -239,21 +239,13 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#1e2636]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1e2636]">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
             <Smartphone className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white">Contas do WhatsApp Conectadas ({sessions.length})</h3>
-              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                Multi-Sessão Individual
-              </span>
-            </div>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Conecte um ou mais números do WhatsApp. Cada usuário possui conexões e dados 100% isolados e privados.
-            </p>
+            <h3 className="text-base font-bold text-white">Contas do WhatsApp Conectadas ({sessions.length})</h3>
           </div>
         </div>
 
@@ -262,20 +254,8 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center gap-2 shrink-0 self-start sm:self-center"
         >
           <Plus className="w-4 h-4" />
-          Cadastrar Número do WhatsApp
+          Cadastrar número do WhatsApp
         </button>
-      </div>
-
-      {/* Worker requirement info */}
-      <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-stone-400">
-        <div className="flex items-center gap-2 font-mono text-[11px] text-stone-300">
-          <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>Worker de Disparo Ativo em Segundo Plano</span>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] text-stone-400">
-          <Server className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-          <span>Sua conta está sincronizada em tempo real via Firestore</span>
-        </div>
       </div>
 
       {/* Loading State */}
@@ -505,8 +485,8 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-stone-400 text-right">
-                      Sessão ativa e pronta para disparos
+                    <div className="text-[11px] font-bold text-emerald-400">
+                      Conectado
                     </div>
                   </div>
                 ) : (

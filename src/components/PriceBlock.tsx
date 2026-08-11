@@ -3,25 +3,42 @@ import type { GlobalProduct, ProductData } from '../types';
 import { formatPrice } from '../utils/formatPrice';
 
 interface PriceBlockProps {
-  product: Partial<ProductData> | Partial<GlobalProduct>;
+  product?: Partial<ProductData> | Partial<GlobalProduct>;
+  price_to?: string | null;
+  priceTo?: string | null;
+  price_from?: string | null;
+  priceFrom?: string | null;
+  pix_price?: string | null;
+  discount_pct?: number | null;
+  installments?: string | null;
+  installments_interest_free?: boolean;
+  coupon?: string | null;
+  freeShipping?: boolean;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
 }
 
 export const PriceBlock: React.FC<PriceBlockProps> = ({
   product,
+  price_to: rawPriceTo,
+  priceTo,
+  price_from: rawPriceFrom,
+  priceFrom,
+  pix_price: rawPixPrice,
+  discount_pct: rawDiscountPct,
+  installments: rawInstallments,
+  installments_interest_free: rawSemJuros,
+  coupon: rawCoupon,
   className = '',
   size = 'md',
 }) => {
-  const {
-    price_to,
-    price_from,
-    pix_price,
-    discount_pct,
-    installments,
-    installments_interest_free,
-    coupon,
-  } = product;
+  const price_to = product?.price_to || rawPriceTo || priceTo || '0,00';
+  const price_from = product?.price_from || rawPriceFrom || priceFrom || null;
+  const pix_price = product?.pix_price || rawPixPrice || null;
+  const discount_pct = product?.discount_pct ?? rawDiscountPct ?? null;
+  const installments = product?.installments || rawInstallments || null;
+  const installments_interest_free = product?.installments_interest_free ?? rawSemJuros ?? false;
+  const coupon = product?.coupon || rawCoupon || null;
 
   // Checar se preço antigo existe e é diferente do preço atual
   const hasFrom = Boolean(

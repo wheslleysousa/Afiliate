@@ -11,52 +11,44 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
-import { PriceHistoryModal } from './PriceHistoryModal';
 import { ProductDetailModal } from './ProductDetailModal';
 import { PriceBlock } from './PriceBlock';
-import { Badge, CommissionBadge } from './Badge';
 import { formatPrice } from '../utils/formatPrice';
-import { buildAffiliateLink } from '../utils/affiliateLink';
-import { calculateCommission, calculateSalesTrend, addGlobalProductToUserList } from '../utils/marketplaceUtils';
+import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import {
   Globe,
   Search,
-  RefreshCw,
+  SlidersHorizontal,
   Loader2,
   ChevronDown,
-  Tag,
-  Share2,
-  ArrowUpDown,
-  Utensils,
-  Sparkle,
-  Gamepad2,
-  Home,
-  Tv,
-  Shirt,
-  Wrench,
-  HeartPulse,
+  X,
   Layers,
+  ShoppingBag,
+  Filter,
   Check,
-  Copy,
-  PlusCircle,
-  BarChart2,
-  CheckCircle2,
-  ArrowRight,
+  TrendingUp,
+  Percent,
 } from 'lucide-react';
 
-const PLATFORMS = ['mercadolivre', 'shopee', 'amazon', 'aliexpress', 'shein'] as const;
-const PAGE_SIZE = 24;
+const PLATFORMS = [
+  { id: '', label: 'Todas as Plataformas' },
+  { id: 'mercadolivre', label: 'Mercado Livre' },
+  { id: 'shopee', label: 'Shopee' },
+  { id: 'amazon', label: 'Amazon' },
+  { id: 'aliexpress', label: 'AliExpress' },
+  { id: 'shein', label: 'Shein' },
+];
 
 const CATEGORIES = [
-  { id: '', label: 'Todas as Categorias', icon: Layers },
-  { id: 'Alimentos & Bebidas', label: 'Alimentos & Bebidas', icon: Utensils },
-  { id: 'Beleza', label: 'Beleza', icon: Sparkle },
-  { id: 'Brinquedos & Hobbies', label: 'Brinquedos & Hobbies', icon: Gamepad2 },
-  { id: 'Casa & Cozinha', label: 'Casa & Cozinha', icon: Home },
-  { id: 'Eletrônicos', label: 'Eletrônicos', icon: Tv },
-  { id: 'Moda', label: 'Moda', icon: Shirt },
-  { id: 'Ferramentas', label: 'Ferramentas', icon: Wrench },
-  { id: 'Saúde', label: 'Saúde', icon: HeartPulse },
+  { id: '', label: 'Todas as Categorias' },
+  { id: 'Alimentos & Bebidas', label: 'Alimentos & Bebidas' },
+  { id: 'Beleza', label: 'Beleza' },
+  { id: 'Brinquedos & Hobbies', label: 'Brinquedos & Hobbies' },
+  { id: 'Casa & Cozinha', label: 'Casa & Cozinha' },
+  { id: 'Eletrônicos', label: 'Eletrônicos' },
+  { id: 'Moda', label: 'Moda' },
+  { id: 'Ferramentas', label: 'Ferramentas' },
+  { id: 'Saúde', label: 'Saúde' },
 ];
 
 const platformLabel: Record<string, string> = {
@@ -69,11 +61,13 @@ const platformLabel: Record<string, string> = {
 
 const platformColor: Record<string, string> = {
   mercadolivre: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  shopee:       'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  shopee:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
   shein:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
+
+const PAGE_SIZE = 24;
 
 interface MarketplaceTabProps {
   currentUserId?: string;
@@ -93,29 +87,24 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   currentUserId,
   apiKeys,
   commissionRates,
-  sharedMap,
-  onToggleShared,
-  onUseProduct,
-  onNavigateToSettings,
-  onNavigateToMyProducts,
-  onUpdateProductCommission,
   onAddCustomTemplate,
-  userMinedIds = new Set<string>(),
 }) => {
   const [products, setProducts] = useState<GlobalProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  
-  // Filtros & Ordenação
+
+  // Busca e Filtros
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<'commission_amount' | 'commission_rate' | 'trend' | 'price_asc'>('commission_amount');
-  const [error, setError] = useState<string | null>(null);
+  
+  // Modal de Filtros
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
-  // Modal de Detalhes / Divulgação do Produto
+  // Modal de Detalhes do Produto
   const [selectedProductForModal, setSelectedProductForModal] = useState<GlobalProduct | null>(null);
 
   const fetchProducts = useCallback(async (reset = false) => {
@@ -126,7 +115,6 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
     } else {
       setLoadingMore(true);
     }
-    setError(null);
 
     try {
       let q = query(
@@ -154,9 +142,8 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
       setProducts((prev) => (reset ? docs : [...prev, ...docs]));
       setLastDoc(snap.docs[snap.docs.length - 1] ?? null);
       setHasMore(snap.docs.length === PAGE_SIZE);
-    } catch (e: any) {
+    } catch (e) {
       console.error('[Marketplace] Erro ao carregar produtos:', e);
-      setError('Não foi possível carregar o marketplace. Tente novamente.');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -168,15 +155,14 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformFilter]);
 
-  // Filtro de busca local e categoria
+  // Filtragem local por busca e categoria
   let filtered = products.filter((p) => {
     const matchesSearch = !search.trim() || p.title.toLowerCase().includes(search.trim().toLowerCase());
     const matchesCategory = !categoryFilter || (p.category && p.category.toLowerCase() === categoryFilter.toLowerCase());
-
     return matchesSearch && matchesCategory;
   });
 
-  // Ordenar produtos
+  // Ordenação
   filtered.sort((a, b) => {
     const commA = calculateCommission(a.price_to, a.platform, a, null, null, commissionRates);
     const commB = calculateCommission(b.price_to, b.platform, b, null, null, commissionRates);
@@ -200,152 +186,166 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
     return 0;
   });
 
+  const activeFiltersCount = (platformFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + (sortBy !== 'commission_amount' ? 1 : 0);
+
   return (
-    <div className="flex flex-col gap-5 sm:gap-6">
-      {/* Header com Estatísticas */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400">
-            <Globe className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Marketplace Global de Afiliados</h2>
-            <p className="text-xs text-[#93a0b5]">
-              {filtered.length} produto{filtered.length !== 1 ? 's' : ''} disponível{filtered.length !== 1 ? 'eis' : ''} com comissão estimada em tempo real
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => fetchProducts(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#151a26] hover:bg-stone-800 text-stone-200 text-xs font-semibold border border-[#1e2636] hover:border-blue-500/50 transition-all shrink-0"
-        >
-          <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
-          Atualizar Produtos
-        </button>
-      </div>
-
-      {/* Categorias (Filtro por Categoria) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {CATEGORIES.map((cat) => {
-          const Icon = cat.icon;
-          const isActive = categoryFilter === cat.id;
-          return (
-            <button
-              key={cat.id || 'all'}
-              onClick={() => setCategoryFilter(cat.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                isActive
-                  ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
-                  : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636] hover:border-stone-700'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {cat.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Controles: Busca, Menu Suspenso de Ordenação e Filtro por Plataforma */}
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-        {/* Busca */}
-        <div className="relative sm:col-span-5">
+    <div className="space-y-6">
+      {/* Search Header: Pesquisa + Botão Filtro */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl">
+        {/* Campo de Pesquisa */}
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5]" />
           <input
             type="text"
-            placeholder="Buscar por produto ou palavra-chave..."
+            placeholder="Pesquisar produto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-white placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
-        {/* Filtro por Plataforma */}
-        <div className="relative sm:col-span-3">
-          <select
-            value={platformFilter}
-            onChange={(e) => setPlatformFilter(e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
-          >
-            <option value="">Todas as Plataformas</option>
-            {PLATFORMS.map((p) => (
-              <option key={p} value={p}>
-                {platformLabel[p]}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5] pointer-events-none" />
-        </div>
-
-        {/* Menu Suspenso de Ordenação */}
-        <div className="relative sm:col-span-4">
-          <select
-            value={sortBy}
-            onChange={(e: any) => setSortBy(e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-2.5 bg-[#0e1119] border border-blue-500/40 rounded-xl text-xs sm:text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer bg-blue-950/20"
-          >
-            <option value="commission_amount">Sort: Maior Valor de Comissão (R$)</option>
-            <option value="commission_rate">Sort: Maior Comissão % (%)</option>
-            <option value="trend">Sort: Vendas em Alta ↗</option>
-            <option value="price_asc">Sort: Menor Preço (R$)</option>
-          </select>
-          <ArrowUpDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
-        </div>
+        {/* Botão de Filtro */}
+        <button
+          onClick={() => setIsFilterModalOpen(true)}
+          className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 border transition-all shrink-0 ${
+            activeFiltersCount > 0
+              ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+              : 'bg-[#151a26] hover:bg-stone-800 text-stone-200 border-[#1e2636]'
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4 text-blue-400" />
+          <span>Filtro</span>
+          {activeFiltersCount > 0 && (
+            <span className="ml-1 w-5 h-5 rounded-full bg-white text-blue-600 text-[10px] font-black flex items-center justify-center">
+              {activeFiltersCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Erro */}
-      {error && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 text-red-400 text-xs sm:text-sm">
-          {error}
+      {/* Badges de Filtros Ativos */}
+      {activeFiltersCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-[#93a0b5]">Filtros ativos:</span>
+          {platformFilter && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-white">
+              Plataforma: {platformLabel[platformFilter] || platformFilter}
+              <button onClick={() => setPlatformFilter('')} className="hover:text-red-400">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {categoryFilter && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-white">
+              Categoria: {categoryFilter}
+              <button onClick={() => setCategoryFilter('')} className="hover:text-red-400">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            onClick={() => {
+              setPlatformFilter('');
+              setCategoryFilter('');
+              setSortBy('commission_amount');
+            }}
+            className="text-[11px] font-bold text-blue-400 hover:text-blue-300 underline"
+          >
+            Limpar todos
+          </button>
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
         </div>
       )}
 
-      {/* Grade de Produtos */}
+      {/* Grid de Produtos */}
       {!loading && (
         <>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-stone-500 bg-black rounded-2xl border border-stone-800">
-              <Globe className="w-12 h-12 mb-3 opacity-30 text-blue-500" />
-              <p className="text-sm font-semibold text-stone-300">Nenhum produto encontrado com estes filtros.</p>
-              <p className="text-xs mt-1 text-stone-500">Tente buscar por outro termo ou limpar os filtros.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-[#0e1119] rounded-2xl border border-[#1e2636] p-6 space-y-2">
+              <ShoppingBag className="w-12 h-12 text-stone-600 mb-1" />
+              <p className="text-sm font-extrabold text-white">Nenhum produto encontrado</p>
+              <p className="text-xs text-[#93a0b5]">
+                Tente ajustar o termo de pesquisa ou remover os filtros aplicados.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {filtered.map((product) => (
-                <MarketplaceCard
-                  key={product.id}
-                  product={product}
-                  currentUserId={currentUserId}
-                  apiKeys={apiKeys}
-                  commissionRates={commissionRates}
-                  onOpenDetail={() => setSelectedProductForModal(product)}
-                  isMined={userMinedIds.has(product.id)}
-                />
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filtered.map((product) => {
+                const comm = calculateCommission(
+                  product.price_to,
+                  product.platform,
+                  product,
+                  null,
+                  null,
+                  commissionRates
+                );
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => setSelectedProductForModal(product)}
+                    className="bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/50 rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all hover:scale-[1.02] group shadow-lg"
+                  >
+                    <div className="space-y-2">
+                      <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-xl overflow-hidden flex items-center justify-center p-2">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.title}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <ShoppingBag className="w-10 h-10 text-stone-600" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] || 'bg-stone-800 text-stone-300'}`}>
+                          {platformLabel[product.platform] || product.platform}
+                        </span>
+                        {product.category && (
+                          <span className="text-[10px] font-semibold text-[#93a0b5] truncate max-w-[110px]">
+                            {product.category}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-xs font-bold text-white line-clamp-2 leading-snug">
+                        {product.title}
+                      </h3>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#1e2636] space-y-1.5">
+                      <PriceBlock
+                        product={product}
+                        size="sm"
+                      />
+
+                      <div className="flex items-center justify-between text-[11px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-xl text-emerald-400 font-extrabold">
+                        <span>Comissão est.:</span>
+                        <span>{formatPrice(comm.amount)} ({comm.ratePct}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* Botão Carregar Mais */}
-          {hasMore && !search && !categoryFilter && (
-            <div className="flex justify-center pt-3">
+          {/* Carregar Mais */}
+          {hasMore && !search && (
+            <div className="flex justify-center pt-4">
               <button
                 onClick={() => fetchProducts(false)}
                 disabled={loadingMore}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-black hover:bg-stone-900 text-stone-200 text-xs font-bold border border-stone-800 hover:border-blue-500/50 transition-all disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-[#0e1119] hover:bg-[#151a26] text-white text-xs font-extrabold border border-[#1e2636] transition-all flex items-center gap-2"
               >
-                {loadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-blue-400" />
-                )}
+                {loadingMore ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <ChevronDown className="w-4 h-4 text-blue-400" />}
                 Carregar mais produtos
               </button>
             </div>
@@ -353,215 +353,100 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
         </>
       )}
 
-      {/* Modal Completo de Divulgação do Produto */}
+      {/* Modal de Filtros */}
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#1e2636] pb-3">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-blue-400" /> Filtros do Marketplace
+              </h3>
+              <button onClick={() => setIsFilterModalOpen(false)} className="text-[#93a0b5] hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Seleção de Plataforma */}
+              <div>
+                <label className="text-xs font-bold text-stone-300 block mb-1.5">Plataforma</label>
+                <select
+                  value={platformFilter}
+                  onChange={(e) => setPlatformFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  {PLATFORMS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seleção de Categoria */}
+              <div>
+                <label className="text-xs font-bold text-stone-300 block mb-1.5">Categoria</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ordenação */}
+              <div>
+                <label className="text-xs font-bold text-stone-300 block mb-1.5">Ordenar Por</label>
+                <select
+                  value={sortBy}
+                  onChange={(e: any) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="commission_amount">Maior Valor de Comissão (R$)</option>
+                  <option value="commission_rate">Maior % de Comissão (%)</option>
+                  <option value="trend">Vendas em Alta ↗</option>
+                  <option value="price_asc">Menor Preço (R$)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#1e2636]">
+              <button
+                onClick={() => {
+                  setPlatformFilter('');
+                  setCategoryFilter('');
+                  setSortBy('commission_amount');
+                }}
+                className="text-xs font-bold text-stone-400 hover:text-white"
+              >
+                Limpar Filtros
+              </button>
+              <button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/20"
+              >
+                Aplicar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes do Produto */}
       {selectedProductForModal && (
         <ProductDetailModal
           product={selectedProductForModal}
           currentUserId={currentUserId}
           apiKeys={apiKeys}
           commissionRates={commissionRates}
-          sharedMap={sharedMap}
-          onToggleShared={onToggleShared}
-          onUpdateProductCommission={onUpdateProductCommission}
           onClose={() => setSelectedProductForModal(null)}
-          onNavigateToSettings={onNavigateToSettings}
-          onNavigateToMyProducts={onNavigateToMyProducts}
           onAddCustomTemplate={onAddCustomTemplate}
-          isAlreadyInMyProducts={userMinedIds.has(selectedProductForModal.id)}
-          isFromMarketplace={true}
-        />
-      )}
-    </div>
-  );
-};
-
-// ─── Card Individual do Produto no Marketplace ─────────────────────────────────
-
-interface MarketplaceCardProps {
-  product: GlobalProduct;
-  currentUserId?: string;
-  apiKeys?: ApiKeysConfig;
-  commissionRates?: CommissionRatesConfig;
-  onOpenDetail: () => void;
-  isMined?: boolean;
-}
-
-const MarketplaceCard: React.FC<MarketplaceCardProps> = ({
-  product,
-  currentUserId,
-  apiKeys,
-  commissionRates,
-  onOpenDetail,
-  isMined = false,
-}) => {
-  const [imgError, setImgError] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const [isSavedLocally, setIsSavedLocally] = useState(isMined);
-  const [savingLocally, setSavingLocally] = useState(false);
-
-  useEffect(() => {
-    setIsSavedLocally(isMined);
-  }, [isMined]);
-
-  const handleQuickAdd = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isSavedLocally) return;
-    if (!currentUserId) {
-      alert('Você precisa estar logado para adicionar este produto.');
-      return;
-    }
-    setSavingLocally(true);
-    try {
-      const ok = await addGlobalProductToUserList(currentUserId, product);
-      if (ok) {
-        setIsSavedLocally(true);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSavingLocally(false);
-    }
-  };
-
-  const hasDiscount = !!(product.price_from && product.price_from !== product.price_to);
-
-  // Comissão Estimada
-  const commission = calculateCommission(
-    product.price_to,
-    product.platform,
-    product,
-    null,
-    null,
-    commissionRates
-  );
-
-  // Tendência de Vendas (Cresceu/Diminuiu)
-  const trend = calculateSalesTrend(product);
-
-  return (
-    <div
-      onClick={onOpenDetail}
-      className="group cursor-pointer flex flex-col bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/60 rounded-2xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/10 relative"
-    >
-      {/* Imagem do Produto + Badges Integrados */}
-      <div className="relative aspect-square bg-[#07090f] overflow-hidden">
-        {product.image_url && !imgError ? (
-          <img
-            src={product.image_url}
-            alt={product.title}
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[#151a26] text-[#93a0b5]">
-            <Tag className="w-10 h-10" />
-          </div>
-        )}
-
-        {/* Badge da Plataforma (Canto Superior Esquerdo) */}
-        <span className={`absolute top-2 left-2 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md transition-all ${platformColor[product.platform] ?? 'bg-stone-800 text-stone-300'}`}>
-          {platformLabel[product.platform] ?? product.platform}
-        </span>
-
-        {/* Badge % de Comissão em Destaque Verde/Amarelo no Canto da Imagem */}
-        <div className="absolute bottom-2 right-2 z-10">
-          <Badge variant="green-yellow">
-            <span>+{commission.ratePct}% comissão</span>
-          </Badge>
-        </div>
-
-        {/* Badge de Tendência de Vendas */}
-        {trend.pct !== null && (
-          <span
-            className={`absolute top-2 right-2 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-md backdrop-blur-md flex items-center gap-0.5 transition-all ${
-              trend.isUp
-                ? 'bg-emerald-950/90 text-emerald-400 border-emerald-500/40'
-                : 'bg-red-950/90 text-red-400 border-red-500/40'
-            }`}
-          >
-            {trend.formatted}
-          </span>
-        )}
-      </div>
-
-      {/* Conteúdo do Card */}
-      <div className="flex flex-col flex-1 p-2.5 sm:p-3 gap-2">
-        {/* Título do Produto */}
-        <h4 className="text-xs font-semibold text-stone-200 leading-snug line-clamp-2 group-hover:text-blue-400 transition-colors">
-          {product.title || 'Produto sem título'}
-        </h4>
-
-        {/* Bloco de Preço Padronizado */}
-        <PriceBlock product={product} className="mt-auto" />
-
-        {/* Bloco de Comissão Estimada e Categoria */}
-        <div className="bg-[#151a26]/40 border border-[#1e2636] p-2 rounded-xl flex flex-col gap-1 text-xs">
-          <div className="text-emerald-400 font-bold">
-            Comissão estimada: {commission.ratePct}% = R$ {commission.amount.toFixed(2).replace('.', ',')}
-          </div>
-          {product.category ? (
-            <div className="text-[10px] text-[#93a0b5] truncate" title={product.category}>
-              🏷️ estimativa (categoria: {product.category})
-            </div>
-          ) : (
-            <div className="text-[10px] text-amber-400 font-medium">
-              ⚠️ estimativa (categoria ausente - usando padrão)
-            </div>
-          )}
-        </div>
-
-        {/* Botões de Ação */}
-        <div className="flex items-center gap-1.5 mt-1">
-          {isSavedLocally ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenDetail();
-              }}
-              className="w-full py-2 sm:py-2.5 px-3 bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Em Meus Produtos</span>
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenDetail();
-                }}
-                className="flex-1 py-2 sm:py-2.5 px-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-1 whitespace-nowrap"
-                title="Analisar estatísticas de vendas e divulgar este produto"
-              >
-                <BarChart2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Divulgar</span>
-              </button>
-
-              <button
-                onClick={handleQuickAdd}
-                disabled={savingLocally}
-                className="py-2 sm:py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-stone-950 rounded-xl text-xs font-black transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
-                title="Adicionar diretamente a Meus Produtos"
-              >
-                {savingLocally ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-stone-950" />
-                ) : (
-                  <PlusCircle className="w-3.5 h-3.5 text-stone-950" />
-                )}
-                <span className="hidden sm:inline">Adicionar</span>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Modal Histórico de Preço individual se necessário */}
-      {showHistory && (
-        <PriceHistoryModal
-          product={product}
-          onClose={() => setShowHistory(false)}
         />
       )}
     </div>

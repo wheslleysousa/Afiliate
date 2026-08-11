@@ -7,6 +7,7 @@ import * as cheerio from "cheerio";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import cors from "cors";
+import AdmZip from "adm-zip";
 
 dotenv.config();
 
@@ -2786,6 +2787,92 @@ DADOS DO PRODUTO:
   }
 });
 
+// Gemini AI Template Generator Endpoint
+app.post("/api/gemini/generate-template", async (req, res) => {
+  try {
+    const { category, niche, customPrompt, apiKeys } = req.body;
+    const candidateKeys = getCandidateGeminiKeys(apiKeys);
+
+    if (candidateKeys.length === 0) {
+      return res.status(500).json({ error: "Nenhuma chave de API do Gemini foi configurada nas Configurações do app." });
+    }
+
+    const prompt = `Você é um mestre em Copywriting para Vendas no WhatsApp, Telegram e Redes Sociais no Brasil.
+Sua missão é criar um MODELO DE TEMPLATE DE MENSAGEM PADRÃO (reutilizável para produtos de afiliados).
+
+PARÂMETROS SOLICITADOS:
+- Estilo/Objetivo: ${category || "Urgência & Escassez"}
+- Nicho/Tema do Produto: ${niche || "Geral / Achadinhos"}
+- Instruções Personalizadas do Usuário: ${customPrompt || "Nenhuma"}
+
+REGRAS RÍGIDAS DE CONSTRUÇÃO DO TEMPLATE:
+1. Você DEVE usar obrigatoriamente as variáveis dinâmicas em chaves duplas:
+   - {{produto}} para o nome do produto
+   - {{preco}} para o preço atual promocional
+   - {{comissao}} para a comissão estimada
+   - {{link}} para o link de afiliado
+2. Use formatação nativa do WhatsApp (*negrito*, _itálico_, ~tachado~) e emojis adequados.
+3. NUNCA coloque nomes reais de produtos específicos ou valores numéricos fixos no texto; use APENAS as variáveis {{produto}}, {{preco}}, {{comissao}} e {{link}}.
+4. Crie um nome/título curto, profissional e atraente para o template (ex: "🔥 Achadinho Viral com Desconto Secreto").
+5. Crie uma breve descrição explicativa de quando usar esse modelo (ex: "Ideal para disparos em grupos VIP e listas de transmissões urgentes").
+
+Responda EXATAMENTE em formato JSON.`;
+
+    const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.5-flash", {
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING, description: "Nome curto e direto para o template criado" },
+              description: { type: Type.STRING, description: "Breve explicação do objetivo do template" },
+              template: { type: Type.STRING, description: "O texto do template com as variáveis {{produto}}, {{preco}}, {{link}}, etc." }
+            },
+            required: ["name", "description", "template"]
+          },
+          temperature: 0.6
+        }
+      });
+    });
+
+    if (response.text) {
+      try {
+        const parsed = JSON.parse(response.text.trim());
+        return res.json(parsed);
+      } catch (e) {
+        console.error("Erro ao fazer parse do JSON do template:", e);
+      }
+    }
+  } catch (err: any) {
+    console.error("Erro na geração de template com Gemini:", err);
+  }
+
+  // Fallback inteligente local
+  const fallbackTemplates = [
+    {
+      name: "🔥 Achadinho Imperdível com Cupom",
+      description: "Modelo focado em recomendação direta com gatilho de preço baixo",
+      template: `🚨 *ACHADINHO BOMBANDO!* 🔥\n\n{{produto}}\n\n💰 *Por apenas: {{preco}}!*\n👉 *Comprar com Desconto:* {{link}}\n\n⏳ *Aproveite antes que o estoque acabe!*`
+    },
+    {
+      name: "⚡️ Oferta Relâmpago VIP",
+      description: "Mensagem curta e de alta conversão para grupos e directs",
+      template: `⚡️ *OFERTA RELÂMPAGO DO DIA!*\n\n{{produto}}\n\nDe R$ {{preco}} por um preço inacreditável!\n\n🔗 *Garanta o seu aqui:* {{link}}`
+    }
+  ];
+
+  const selectedFallback = fallbackTemplates[Math.floor(Math.random() * fallbackTemplates.length)];
+
+  return res.json({
+    fallbackUsed: true,
+    name: selectedFallback.name,
+    description: selectedFallback.description,
+    template: selectedFallback.template
+  });
+});
+
 // ─── POST /api/gemini/video-script ───────────────────────────────────────────
 app.post("/api/gemini/video-script", async (req, res) => {
   const { product, videoType, duration, geminiApiKey, geminiApiKeys } = req.body;
@@ -3148,6 +3235,284 @@ app.get(['/api/extension/status', '/extension/status'], (req, res) => {
     },
     timestamp: new Date().toISOString(),
   });
+});
+
+// ─── GET /api/extension/download ──────────────────────────────────────────────
+app.get(['/api/extension/download', '/extension/download'], (req, res) => {
+  try {
+    const extensionDir = path.join(process.cwd(), "extension");
+    
+    if (fs.existsSync(extensionDir) && fs.existsSync(path.join(extensionDir, "manifest.json"))) {
+      const zip = new AdmZip();
+      zip.addLocalFolder(extensionDir);
+      const zipBuffer = zip.toBuffer();
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=affiliate-miner-v2.6.2.zip");
+      return res.send(zipBuffer);
+    }
+
+    const zip = new AdmZip();
+
+    const manifestJson = JSON.stringify({
+      manifest_version: 3,
+      name: "Afiliados Master Extensão",
+      version: "1.0.0",
+      description: "Mineração e captura de ofertas com 1 clique no Mercado Livre, Shopee, Amazon, AliExpress e Shein.",
+      permissions: ["activeTab", "storage", "scripting"],
+      host_permissions: [
+        "https://*.mercadolivre.com.br/*",
+        "https://*.mercadolibre.com/*",
+        "https://*.shopee.com.br/*",
+        "https://*.shopee.com/*",
+        "https://*.amazon.com.br/*",
+        "https://*.amazon.com/*",
+        "https://*.aliexpress.com/*",
+        "https://*.shein.com/*"
+      ],
+      action: {
+        default_popup: "popup.html",
+        default_title: "Afiliados Master"
+      },
+      background: {
+        service_worker: "background.js"
+      },
+      content_scripts: [
+        {
+          matches: [
+            "https://*.mercadolivre.com.br/*",
+            "https://*.mercadolibre.com/*",
+            "https://*.shopee.com.br/*",
+            "https://*.shopee.com/*",
+            "https://*.amazon.com.br/*",
+            "https://*.amazon.com/*",
+            "https://*.aliexpress.com/*",
+            "https://*.shein.com/*"
+          ],
+          js: ["content.js"]
+        }
+      ]
+    }, null, 2);
+
+    const popupHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Afiliados Master</title>
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0e1119;
+      color: #ffffff;
+      box-sizing: border-box;
+    }
+    h2 {
+      font-size: 14px;
+      margin: 0 0 4px 0;
+      color: #c084fc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    p {
+      font-size: 11px;
+      color: #93a0b5;
+      margin: 0 0 12px 0;
+      line-height: 1.4;
+    }
+    .card {
+      background-color: #151a26;
+      border: 1px solid #1e2636;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: bold;
+      color: #d6d3d1;
+      margin-bottom: 4px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      background-color: #0e1119;
+      border: 1px solid #1e2636;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 11px;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #9333ea;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background-color: #a855f7;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 11px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h2>⚡ Afiliados Master Extensão</h2>
+  <p>Capture produtos diretamente da loja aberta no navegador.</p>
+  
+  <div class="card">
+    <label for="serverUrl">URL do Painel Backend</label>
+    <input type="text" id="serverUrl" placeholder="https://seu-painel.run.app" />
+    
+    <label for="userId">UID do Usuário (opcional)</label>
+    <input type="text" id="userId" placeholder="A1B2C3D4E5" />
+    
+    <button id="captureBtn">Capturar & Enviar Produto</button>
+  </div>
+  
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>`;
+
+    const popupJs = `document.addEventListener('DOMContentLoaded', () => {
+  const serverUrlInput = document.getElementById('serverUrl');
+  const userIdInput = document.getElementById('userId');
+  const captureBtn = document.getElementById('captureBtn');
+  const statusDiv = document.getElementById('status');
+
+  chrome.storage.local.get(['serverUrl', 'userId'], (res) => {
+    if (res.serverUrl) serverUrlInput.value = res.serverUrl;
+    if (res.userId) userIdInput.value = res.userId;
+  });
+
+  captureBtn.addEventListener('click', async () => {
+    const serverUrl = (serverUrlInput.value || window.location.origin).trim().replace(/\\/$/, '');
+    const userId = userIdInput.value.trim() || 'default_user';
+
+    chrome.storage.local.set({ serverUrl, userId });
+
+    statusDiv.className = '';
+    statusDiv.innerText = 'Capturando dados da página...';
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      statusDiv.className = 'error';
+      statusDiv.innerText = 'Nenhuma aba ativa encontrada.';
+      return;
+    }
+
+    chrome.tabs.sendMessage(tab.id, { action: 'get_product_data' }, async (response) => {
+      if (chrome.runtime.lastError || !response) {
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'Acesse a página do produto na loja suportada e tente novamente.';
+        return;
+      }
+
+      try {
+        statusDiv.innerText = 'Enviando produto ao Marketplace...';
+        const res = await fetch(\`\${serverUrl}/api/extension/bulk-upsert\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: userId,
+            products: [response]
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          statusDiv.className = 'success';
+          statusDiv.innerText = '✓ Produto enviado com sucesso!';
+        } else {
+          statusDiv.className = 'error';
+          statusDiv.innerText = data.error || 'Erro ao enviar produto.';
+        }
+      } catch (err) {
+        statusDiv.className = 'error';
+        statusDiv.innerText = 'Falha de conexão com o servidor.';
+      }
+    });
+  });
+});`;
+
+    const contentJs = `console.log("[Afiliados Master Extensão] Content script ativo.");
+
+function extractProductInfo() {
+  const url = window.location.href;
+  let platform = 'desconhecido';
+  if (url.includes('mercadolivre') || url.includes('mercadolibre')) platform = 'mercadolivre';
+  else if (url.includes('shopee')) platform = 'shopee';
+  else if (url.includes('amazon')) platform = 'amazon';
+  else if (url.includes('aliexpress')) platform = 'aliexpress';
+  else if (url.includes('shein')) platform = 'shein';
+
+  let title = document.title;
+  const h1 = document.querySelector('h1');
+  if (h1 && h1.innerText.trim()) title = h1.innerText.trim();
+
+  let price_to = '0,00';
+  const priceFraction = document.querySelector('.andes-money-amount__fraction') || document.querySelector('[class*="price"]');
+  if (priceFraction && priceFraction.innerText) {
+    price_to = priceFraction.innerText.trim();
+  }
+
+  let image_url = null;
+  const imgEl = document.querySelector('img[src*="http"]');
+  if (imgEl) image_url = imgEl.src;
+
+  return {
+    platform,
+    title,
+    price_to,
+    image_url,
+    original_link: url
+  };
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'get_product_data') {
+    sendResponse(extractProductInfo());
+  }
+  return true;
+});`;
+
+    const backgroundJs = `chrome.runtime.onInstalled.addListener(() => {
+  console.log("[Afiliados Master Extensão] Instalada com sucesso!");
+});`;
+
+    zip.addFile("manifest.json", Buffer.from(manifestJson, "utf8"));
+    zip.addFile("popup.html", Buffer.from(popupHtml, "utf8"));
+    zip.addFile("popup.js", Buffer.from(popupJs, "utf8"));
+    zip.addFile("content.js", Buffer.from(contentJs, "utf8"));
+    zip.addFile("background.js", Buffer.from(backgroundJs, "utf8"));
+
+    const zipBuffer = zip.toBuffer();
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=afiliados-master-extensao.zip");
+    res.send(zipBuffer);
+  } catch (err: any) {
+    console.error("[/api/extension/download] Erro ao gerar zip:", err);
+    res.status(500).json({ error: "Erro ao gerar arquivo zip da extensão." });
+  }
 });
 
 // Vite / Production middleware
