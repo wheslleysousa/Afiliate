@@ -385,24 +385,44 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Mercado Livre */}
             <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
-              <span className="text-xs font-bold text-yellow-400 block">Mercado Livre Afiliados</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-yellow-400 block">Mercado Livre Oficial & Afiliados</span>
+                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-yellow-400/10 text-yellow-300 border border-yellow-400/20">
+                  OAuth 2.0
+                </span>
+              </div>
+              
               <div>
                 <label className="text-[11px] font-semibold text-stone-300 block mb-1">
                   Tracking ID / Link de Afiliado
                 </label>
                 <input
                   type="text"
-                  placeholder="ex: sowh5608494"
+                  placeholder="Cole seu Tracking ID (ex: sowh5608494) ou link de afiliado"
                   value={keys.mercadolivreTrackingId || ''}
-                  onChange={(e) => setKeys({ ...keys, mercadolivreTrackingId: e.target.value })}
+                  onChange={(e) => {
+                    let val = e.target.value.trim();
+                    if (val.includes('tracking_id=')) {
+                      try {
+                        const match = val.match(/[?&]tracking_id=([^&]+)/);
+                        if (match && match[1]) {
+                          val = match[1];
+                        }
+                      } catch (err) {}
+                    }
+                    setKeys({ ...keys, mercadolivreTrackingId: val });
+                  }}
                   className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-yellow-500"
                 />
+                <p className="text-[9px] text-[#93a0b5] mt-1">
+                  Se você colar um link de afiliado do Mercado Livre, nós extrairemos seu Tracking ID automaticamente.
+                </p>
               </div>
 
               <div className="pt-2 border-t border-[#1e2636]">
                 <a
                   href="/api/auth/mercadolivre/connect"
-                  className="w-full py-2 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-[#0e1119] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-yellow-500/10"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>Conectar Conta Oficial Mercado Livre</span>

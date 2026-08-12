@@ -596,8 +596,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     let bearerToken = typeof mlConfig === 'string' ? mlConfig : (mlConfig?.mercadoLivreKey || process.env.MERCADOLIVRE_KEY);
     let refreshToken = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreRefreshToken : undefined;
     let expiresAt = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreExpiresAt : undefined;
-    const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-    const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+    const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
+    const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
 
     // Preemptive Auto-Renew using Refresh Token if expired (or close to expiry)
     if (refreshToken && appId && clientSecret) {
@@ -2264,8 +2264,8 @@ app.post("/api/ml-exchange-code", async (req, res) => {
       return res.status(400).json({ error: "O código de autorização é obrigatório." });
     }
 
-    const mAppId = appId?.trim() || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-    const mClientSecret = clientSecret?.trim() || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+    const mAppId = appId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
+    const mClientSecret = clientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
 
     console.log(`[ML OAuth Exchange] Trocando code pelo access_token com App ID: ${mAppId} e Redirect URI: ${redirectUri}`);
 
@@ -3047,8 +3047,8 @@ app.post("/api/test-key", async (req, res) => {
     }
 
     if (provider === "mercadolivre") {
-      const appId = keys?.mercadoLivreAppId?.trim() || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-      const clientSecret = keys?.mercadoLivreClientSecret?.trim() || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+      const appId = keys?.mercadoLivreAppId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
+      const clientSecret = keys?.mercadoLivreClientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
       const accessToken = keys?.mercadoLivreKey?.trim();
 
       if (appId && clientSecret) {
