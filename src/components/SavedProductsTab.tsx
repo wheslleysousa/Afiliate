@@ -28,11 +28,14 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
       item.product.platform.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const [confirmDeleteModalItem, setConfirmDeleteModalItem] = useState<SavedHistoryItem | null>(null);
+
   const handleDeleteItem = (idToDelete: string) => {
     onDelete(idToDelete);
     const remaining = items.filter((item) => item.id !== idToDelete);
     setSelectedItem(remaining[0] || null);
     setActiveVarIdx(0);
+    setConfirmDeleteModalItem(null);
   };
 
   const currentItem = (selectedItem && items.some(i => i.id === selectedItem.id))
@@ -190,7 +193,7 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
               </div>
 
               <button
-                onClick={() => handleDeleteItem(currentItem.id)}
+                onClick={() => setConfirmDeleteModalItem(currentItem)}
                 title="Excluir do histórico"
                 className="p-2 text-stone-500 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-all"
               >
@@ -314,6 +317,65 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
         )}
 
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmDeleteModalItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Excluir Produto</h3>
+                <p className="text-xs text-stone-400">Remover este produto do histórico?</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl flex items-center gap-3">
+              {confirmDeleteModalItem.product.image_url ? (
+                <img
+                  src={confirmDeleteModalItem.product.image_url}
+                  alt={confirmDeleteModalItem.product.title}
+                  className="w-12 h-12 rounded-lg object-cover border border-[#1e2636] shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 bg-stone-800 rounded-lg flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-6 h-6 text-stone-500" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-white truncate">
+                  {confirmDeleteModalItem.product.title}
+                </h4>
+                <p className="text-[11px] text-emerald-400 font-extrabold mt-0.5">
+                  R$ {confirmDeleteModalItem.product.price_to}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Deseja realmente excluir este produto e todas as suas variações de copy?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setConfirmDeleteModalItem(null)}
+                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-xl text-xs font-bold border border-[#1e2636] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDeleteItem(confirmDeleteModalItem.id)}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-950/50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -287,64 +287,80 @@ export const PLAN_LIMITS = {
 // ─── Calculadores de Comissão e Tendência de Vendas ─────────────────────────
 
 export const DEFAULT_COMMISSION_CONFIG: CommissionRatesConfig = {
+  shopee: {
+    default: 10,
+    categories: {
+      moda: 14,
+      beleza: 14,
+      casa: 12,
+      brinquedos: 10,
+      esportes: 10,
+      pet: 10,
+      saude: 10,
+      ferramentas: 8,
+      eletrodomesticos: 7,
+      eletronicos: 6,
+      informatica: 5,
+      celulares: 4,
+      games: 5
+    }
+  },
   mercadolivre: {
     default: 4,
     categories: {
+      moda: 16,
       esportes: 16,
       ferramentas: 14,
       saude: 12,
       pet: 12,
-      livros: 10,
-      beleza: 8,
-      casa: 8,
-      moda: 8,
-      eletronicos: 7,
-      informatica: 6,
-      celulares: 5
-    }
-  },
-  shopee: {
-    default: 10,
-    categories: {
-      moda: 15,
-      beleza: 14,
+      beleza: 12,
       casa: 10,
-      esportes: 8,
-      brinquedos: 7,
-      eletrodomesticos: 5,
-      eletronicos: 4,
-      celulares: 3
+      livros: 10,
+      brinquedos: 10,
+      eletronicos: 8,
+      informatica: 7,
+      eletrodomesticos: 6,
+      celulares: 5,
+      games: 6
     }
   },
   amazon: {
     default: 4,
     categories: {
-      moda: 10,
+      moda: 15,
       beleza: 10,
-      livros: 8,
-      casa: 8,
+      livros: 10,
+      casa: 9,
       esportes: 8,
-      brinquedos: 6,
-      games: 4,
-      eletronicos: 3,
-      informatica: 3,
-      celulares: 2
+      brinquedos: 8,
+      pet: 8,
+      ferramentas: 8,
+      saude: 8,
+      games: 6,
+      eletronicos: 6,
+      informatica: 5,
+      celulares: 4
     }
   },
   aliexpress: {
     default: 5,
     categories: {
-      moda: 7,
-      casa: 6,
-      eletronicos: 3,
-      celulares: 3
+      moda: 15,
+      casa: 10,
+      beleza: 10,
+      brinquedos: 7,
+      eletronicos: 7,
+      esportes: 7,
+      informatica: 5,
+      celulares: 5
     }
   },
   shein: {
     default: 10,
     categories: {
-      moda: 12,
-      beleza: 12
+      moda: 15,
+      beleza: 14,
+      casa: 10
     }
   }
 };

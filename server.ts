@@ -2806,13 +2806,20 @@ PARÂMETROS SOLICITADOS:
 - Instruções Personalizadas do Usuário: ${customPrompt || "Nenhuma"}
 
 REGRAS RÍGIDAS DE CONSTRUÇÃO DO TEMPLATE:
-1. Você DEVE usar obrigatoriamente as variáveis dinâmicas em chaves duplas:
-   - {{produto}} para o nome do produto
-   - {{preco}} para o preço atual promocional
-   - {{comissao}} para a comissão estimada
-   - {{link}} para o link de afiliado
+1. Você DEVE usar obrigatoriamente as variáveis dinâmicas em chaves duplas conforme necessário:
+   - {{produto}} para o nome/título do produto
+   - {{preco}} para o preço atual promocional (novo)
+   - {{preco_antigo}} para o preço original de tabela (riscado)
+   - {{preco_pix}} para o valor no PIX com desconto
+   - {{desconto}} para a porcentagem de desconto (ex: -30% ou 30% OFF)
+   - {{parcelamento}} ou {{parcelas_sem_juros}} para opções de parcelas
+   - {{frete}} para indicação de frete grátis ou valor
+   - {{cupom}} para código de cupom de desconto
+   - {{loja}} para o nome da loja/marketplace (ex: Mercado Livre, Shopee)
+   - {{comissao}} para a comissão estimada em R$
+   - {{link}} para o link de afiliado oficial
 2. Use formatação nativa do WhatsApp (*negrito*, _itálico_, ~tachado~) e emojis adequados.
-3. NUNCA coloque nomes reais de produtos específicos ou valores numéricos fixos no texto; use APENAS as variáveis {{produto}}, {{preco}}, {{comissao}} e {{link}}.
+3. NUNCA coloque nomes reais de produtos específicos ou valores numéricos fixos no texto; use APENAS as variáveis dinâmicas em chaves duplas acima.
 4. Crie um nome/título curto, profissional e atraente para o template (ex: "🔥 Achadinho Viral com Desconto Secreto").
 5. Crie uma breve descrição explicativa de quando usar esse modelo (ex: "Ideal para disparos em grupos VIP e listas de transmissões urgentes").
 
@@ -3241,14 +3248,25 @@ app.get(['/api/extension/status', '/extension/status'], (req, res) => {
 app.get(['/api/extension/download', '/extension/download'], (req, res) => {
   try {
     const extensionDir = path.join(process.cwd(), "extension");
+    const manifestPath = path.join(extensionDir, "manifest.json");
     
-    if (fs.existsSync(extensionDir) && fs.existsSync(path.join(extensionDir, "manifest.json"))) {
+    if (fs.existsSync(extensionDir) && fs.existsSync(manifestPath)) {
+      let version = "1.0.0";
+      let name = "afiliate-miner";
+      try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        version = manifest.version || "1.0.0";
+        name = (manifest.name || "afiliate-miner").toLowerCase().replace(/\s+/g, "-");
+      } catch (e) {
+        console.error("Erro ao ler manifest.json para download:", e);
+      }
+      
       const zip = new AdmZip();
       zip.addLocalFolder(extensionDir);
       const zipBuffer = zip.toBuffer();
 
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", "attachment; filename=affiliate-miner-v2.6.2.zip");
+      res.setHeader("Content-Disposition", `attachment; filename=${name}.zip`);
       return res.send(zipBuffer);
     }
 

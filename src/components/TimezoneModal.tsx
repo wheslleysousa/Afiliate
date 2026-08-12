@@ -74,26 +74,47 @@ export const TimezoneModal: React.FC<TimezoneModalProps> = ({
         </div>
 
         {/* Selected Timezone Card Status */}
-        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{selectedInfo.flag}</span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold text-white">{selectedInfo.name}</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  {selectedInfo.offset}
-                </span>
+        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{selectedInfo.flag}</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-white">{selectedInfo.name}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    {selectedInfo.offset}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#93a0b5] mt-0.5">{selectedInfo.location}</p>
               </div>
-              <p className="text-[11px] text-[#93a0b5] mt-0.5">{selectedInfo.location}</p>
+            </div>
+
+            <div className="text-right shrink-0">
+              <span className="text-xs font-mono font-bold text-emerald-400 block">
+                {liveTimes[currentTimezone] || formatCurrentTimeInTimezone(currentTimezone)}
+              </span>
+              <span className="text-[10px] text-[#93a0b5]">Ativo Agora</span>
             </div>
           </div>
 
-          <div className="text-right shrink-0">
-            <span className="text-xs font-mono font-bold text-emerald-400 block">
-              {liveTimes[currentTimezone] || formatCurrentTimeInTimezone(currentTimezone)}
-            </span>
-            <span className="text-[10px] text-[#93a0b5]">Ativo Agora</span>
-          </div>
+          <button
+            onClick={() => {
+              try {
+                const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (detected) {
+                  onSelectTimezone(detected);
+                  onClose();
+                }
+              } catch (e) {
+                onSelectTimezone('America/Sao_Paulo');
+                onClose();
+              }
+            }}
+            className="w-full py-2 px-3 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+            Detectar Fuso Horário do Meu Dispositivo
+          </button>
         </div>
 
         {/* Input de Busca */}

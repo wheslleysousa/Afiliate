@@ -23,9 +23,16 @@ import {
 interface WhatsAppAutomationTabProps {
   uid: string;
   apiKeys?: ApiKeysConfig;
+  customTemplates?: any[];
+  defaultTemplateId?: string;
 }
 
-export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ uid, apiKeys }) => {
+export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
+  uid,
+  apiKeys,
+  customTemplates = [],
+  defaultTemplateId,
+}) => {
   const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'queue-logs'>('campaigns');
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
@@ -98,41 +105,10 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
     setActiveSubTab('campaigns');
   };
 
-  const connectedSessionsCount = waSessions.filter((s) => s.status === 'connected').length;
-
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Top Banner Header */}
-      <div className="bg-[#0e1119] border border-[#1e2636] p-5 rounded-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-950/40">
-            <Bot className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Automação Zap
-            </h2>
-            <h3 className="text-sm font-semibold text-stone-300 mt-0.5">
-              Painel de Automação WhatsApp
-            </h3>
-          </div>
-        </div>
-
-        {/* Contas Conectadas Stat Box */}
-        <div className="bg-[#151a26] border border-[#1e2636] p-3.5 rounded-xl text-xs text-stone-300 space-y-1.5 shrink-0 w-full md:w-auto">
-          <div className="flex items-center gap-2 text-stone-200 font-bold">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            Contas conectadas: <span className="text-white font-extrabold">{waSessions.length}</span>
-          </div>
-          <div className="flex items-center gap-4 text-[11px] text-stone-400 pt-0.5 border-t border-[#1e2636]">
-            <span>Ativas: <strong className="text-emerald-400">{connectedSessionsCount}</strong></span>
-            <span>Grupos: <strong className="text-blue-400">{waGroups.length}</strong></span>
-          </div>
-        </div>
-      </div>
-
-      {/* WhatsApp Connection Cards (Multi-Sessão) */}
-      <WhatsAppSessionCard uid={uid} />
+      {/* WhatsApp Connection Cards (Bloco Unificado com Métricas e Cadastro) */}
+      <WhatsAppSessionCard uid={uid} waGroupsCount={waGroups.length} />
 
       {/* Subtab Selector */}
       <div className="flex items-center gap-2 border-b border-[#1e2636] pb-2 overflow-x-auto">
@@ -181,6 +157,8 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({ ui
           waSessions={waSessions}
           apiKeys={apiKeys}
           preselectedGroupId={preselectedGroupId}
+          customTemplates={customTemplates}
+          defaultTemplateId={defaultTemplateId}
         />
       )}
 

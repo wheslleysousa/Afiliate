@@ -242,20 +242,25 @@ export function applyTemplate(
   affiliateLink: string,
   commissionRates?: any
 ): string {
-  let text = template;
+  let text = template || '';
 
-  // Calcular % de desconto se não vier do produto
+  // 1. Calcular % de desconto se não vier explicitamente
   const discountPct = product.discount_pct ??
     (() => {
       try {
-        const from = parseFloat((product.price_from || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-        const to   = parseFloat((product.price_to  || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+        const fromStr = (product.price_from || '').replace(/[R$\s.]/g, '').replace(',', '.');
+        const toStr = (product.price_to || '').replace(/[R$\s.]/g, '').replace(',', '.');
+        const from = parseFloat(fromStr);
+        const to = parseFloat(toStr);
         if (from > 0 && to > 0 && from > to) return Math.round((1 - to / from) * 100);
       } catch { /**/ }
       return null;
     })();
 
-  // Calcular comissão
+  const discountText = discountPct ? `${discountPct}% OFF` : '';
+  const discountSign = discountPct ? `-${discountPct}%` : '';
+
+  // 2. Calcular comissão
   const comm = calculateCommission(
     product.price_to,
     product.platform,
@@ -265,41 +270,225 @@ export function applyTemplate(
     commissionRates
   );
 
-  const isSemJuros = Boolean(
-    product.installments_interest_free === true ||
-    (product.installments && /sem juros/i.test(product.installments))
-  );
-  const parcelaSemJuros = isSemJuros ? (product.installments || '') : '';
+  // 3. Preços formatados com R$ se necessário
+  const rawPriceFrom = (product.price_from || '').trim();
+  const rawPriceTo = (product.price_to || '').trim();
+  const rawPixPrice = (product.pix_price || product.price_to || '').trim();
+  const rawCardPrice = (product.card_price || product.price_to || '').trim();
 
-  const replacements: Record<string, string> = {
-    '{titulo}':        product.title || '',
-    '{preco}':         product.price_to || '',
-    '{precoPix}':      product.pix_price || product.price_to || '',
-    '{precoCartao}':   product.price_to || '',
-    '{precoAntigo}':   product.price_from || '',
-    '{desconto}':      discountPct ? `-${discountPct}%` : '',
-    '{parcelamento}':  product.installments || '',
-    '{parcelaSemJuros}': parcelaSemJuros,
-    '{cupom}':         product.coupon ? `🎟 Cupom: ${product.coupon}` : (product.coupon_text ? `🎟 Cupom: ${product.coupon_text}` : ''),
-    '{frete}':         product.free_shipping ? '🚚 Frete GRÁTIS' : (product.shipping || 'Frete a calcular'),
-    '{descricao}':     (product.description || '').slice(0, 200),
-    '{linkAfiliado}':  affiliateLink || product.original_link || '',
-    '{plataforma}':    product.platform || '',
-    '{estrelas}':      product.stars ? `⭐ ${product.stars}` : '',
-    '{vendas}':        product.sales_count ? `📦 ${product.sales_count} vendas` : '',
-    '{comissao}':      comm ? `R$ ${comm.amount.toFixed(2).replace('.', ',')}` : 'R$ 0,00',
-    '{comissaoPct}':   comm ? `${comm.ratePct}%` : '0%',
+  const formatPrice = (val: string) => {
+    if (!val) return '';
+    if (/^R\$/i.test(val)) return val;
+    return `R$ ${val}`;
   };
 
-  // Substituir variáveis simples
+  const precoNovoStr = formatPrice(rawPriceTo);
+  const precoAntigoStr = formatPrice(rawPriceFrom);
+  const precoPixStr = formatPrice(rawPixPrice);
+  const precoCartaoStr = formatPrice(rawCardPrice);
+
+  // 4. Parcelamento
+  const rawInst = (product.installments || '').trim();
+  const isSemJuros = Boolean(
+    product.installments_interest_free === true ||
+    (rawInst && /sem juros/i.test(rawInst)) ||
+    (product.max_installments_interest_free && /sem juros/i.test(product.max_installments_interest_free))
+  );
+
+  let parcelasSemJurosStr = '';
+  let parcelasComJurosStr = '';
+
+  if (rawInst) {
+    if (/sem juros/i.test(rawInst) || isSemJuros) {
+      parcelasSemJurosStr = rawInst;
+      if (!/sem juros/i.test(parcelasSemJurosStr)) {
+        parcelasSemJurosStr += ' sem juros';
+      }
+    } else if (/com juros/i.test(rawInst)) {
+      parcelasComJurosStr = rawInst;
+    } else {
+      parcelasSemJurosStr = `${rawInst} sem juros`;
+      parcelasComJurosStr = `${rawInst} com juros`;
+    }
+  }
+
+  const parcelamentoGeneral = rawInst
+    ? (isSemJuros && !/sem juros/i.test(rawInst) ? `${rawInst} sem juros` : rawInst)
+    : (product.max_installments_interest_free ? `${product.max_installments_interest_free}` : '');
+
+  // 5. Frete
+  let freteStr = '';
+  if (product.free_shipping || (product.shipping && /grátis|gratis/i.test(product.shipping))) {
+    freteStr = '🚚 Frete GRÁTIS';
+  } else if (product.shipping && product.shipping.trim()) {
+    freteStr = `🚚 Frete: ${product.shipping.trim()}`;
+  } else {
+    freteStr = '🚚 Frete a calcular';
+  }
+
+  // 6. Cupom
+  const couponCode = (product.coupon || product.coupon_text || '').trim();
+  const cupomStr = couponCode ? `🎟️ Cupom: ${couponCode}` : '';
+
+  // 7. Loja / Plataforma
+  const rawPlatform = (product.platform || '').toLowerCase();
+  let storeName = 'Loja Oficial';
+  if (rawPlatform.includes('mercadolivre') || rawPlatform.includes('ml')) storeName = 'Mercado Livre';
+  else if (rawPlatform.includes('shopee')) storeName = 'Shopee';
+  else if (rawPlatform.includes('amazon')) storeName = 'Amazon';
+  else if (rawPlatform.includes('aliexpress')) storeName = 'AliExpress';
+  else if (rawPlatform.includes('shein')) storeName = 'Shein';
+
+  // 8. Link
+  const targetLink = affiliateLink || product.affiliate_link || product.original_link || '';
+
+  // 9. Estrelas e Vendas
+  const starsStr = product.stars ? `⭐ ${product.stars}` : '';
+  const salesStr = product.sales_count ? `📦 ${product.sales_count} vendas` : '';
+
+  // 10. Comissão
+  const commAmountStr = comm ? `R$ ${comm.amount.toFixed(2).replace('.', ',')}` : 'R$ 0,00';
+  const commPctStr = comm ? `${comm.ratePct}%` : '0%';
+
+  // Mapeamento de tags simples e duplas
+  const replacements: Record<string, string> = {
+    // Título / Produto
+    '{titulo}': product.title || '',
+    '{produto}': product.title || '',
+    '{nome}': product.title || '',
+    '{product_name}': product.title || '',
+    '{{titulo}}': product.title || '',
+    '{{produto}}': product.title || '',
+    '{{nome}}': product.title || '',
+    '{{product_name}}': product.title || '',
+
+    // Preço Novo / Preço Atual
+    '{preco}': precoNovoStr,
+    '{precoNovo}': precoNovoStr,
+    '{preco_novo}': precoNovoStr,
+    '{precoAtual}': precoNovoStr,
+    '{{preco}}': precoNovoStr,
+    '{{preco_novo}}': precoNovoStr,
+    '{{preco_atual}}': precoNovoStr,
+
+    // Preço Antigo / Riscado
+    '{precoAntigo}': precoAntigoStr,
+    '{preco_antigo}': precoAntigoStr,
+    '{precoRiscado}': precoAntigoStr,
+    '{preco_riscado}': precoAntigoStr,
+    '{{precoAntigo}}': precoAntigoStr,
+    '{{preco_antigo}}': precoAntigoStr,
+    '{{preco_riscado}}': precoAntigoStr,
+
+    // Preço Pix
+    '{precoPix}': precoPixStr,
+    '{preco_pix}': precoPixStr,
+    '{{precoPix}}': precoPixStr,
+    '{{preco_pix}}': precoPixStr,
+
+    // Preço Cartão
+    '{precoCartao}': precoCartaoStr,
+    '{preco_cartao}': precoCartaoStr,
+    '{{precoCartao}}': precoCartaoStr,
+    '{{preco_cartao}}': precoCartaoStr,
+
+    // Desconto
+    '{desconto}': discountSign || discountText,
+    '{descontoPct}': discountSign,
+    '{porcentagemDesconto}': discountText,
+    '{porcentagem_desconto}': discountText,
+    '{{desconto}}': discountSign || discountText,
+    '{{porcentagem_desconto}}': discountText,
+
+    // Parcelamento
+    '{parcelamento}': parcelamentoGeneral,
+    '{parcelas}': parcelamentoGeneral,
+    '{{parcelamento}}': parcelamentoGeneral,
+    '{{parcelas}}': parcelamentoGeneral,
+
+    // Parcelas sem juros
+    '{parcelaSemJuros}': parcelasSemJurosStr,
+    '{parcelasSemJuros}': parcelasSemJurosStr,
+    '{parcelas_sem_juros}': parcelasSemJurosStr,
+    '{{parcela_sem_juros}}': parcelasSemJurosStr,
+    '{{parcelas_sem_juros}}': parcelasSemJurosStr,
+
+    // Parcelas com juros
+    '{parcelaComJuros}': parcelasComJurosStr,
+    '{parcelasComJuros}': parcelasComJurosStr,
+    '{parcelas_com_juros}': parcelasComJurosStr,
+    '{{parcela_com_juros}}': parcelasComJurosStr,
+    '{{parcelas_com_juros}}': parcelasComJurosStr,
+
+    // Frete
+    '{frete}': freteStr,
+    '{freteGratis}': freteStr,
+    '{frete_gratis}': freteStr,
+    '{{frete}}': freteStr,
+    '{{frete_gratis}}': freteStr,
+
+    // Cupom
+    '{cupom}': cupomStr,
+    '{cupomDesconto}': cupomStr,
+    '{{cupom}}': cupomStr,
+    '{{cupom_desconto}}': cupomStr,
+
+    // Link de Afiliado
+    '{linkAfiliado}': targetLink,
+    '{link}': targetLink,
+    '{link_afiliado}': targetLink,
+    '{{linkAfiliado}}': targetLink,
+    '{{link}}': targetLink,
+    '{{link_afiliado}}': targetLink,
+
+    // Plataforma / Loja
+    '{plataforma}': storeName,
+    '{loja}': storeName,
+    '{{plataforma}}': storeName,
+    '{{loja}}': storeName,
+
+    // Descrição
+    '{descricao}': (product.description || '').slice(0, 200),
+    '{{descricao}}': (product.description || '').slice(0, 200),
+
+    // Estrelas e Vendas
+    '{estrelas}': starsStr,
+    '{{estrelas}}': starsStr,
+    '{vendas}': salesStr,
+    '{{vendas}}': salesStr,
+
+    // Comissão
+    '{comissao}': commAmountStr,
+    '{{comissao}}': commAmountStr,
+    '{comissaoPct}': commPctStr,
+    '{{comissao_pct}}': commPctStr,
+
+    // Tags legadas em maiúsculas:
+    '{TITLE}': product.title || '',
+    '{PRICE_TO}': precoNovoStr,
+    '{PRICE_FROM}': precoAntigoStr,
+    '{LINK}': targetLink,
+    '{INSTALLMENTS}': parcelamentoGeneral,
+    '{COUPON}': cupomStr,
+    '{DISCOUNT_PERCENT}': discountText,
+  };
+
+  // Substituir variáveis
   for (const [key, val] of Object.entries(replacements)) {
     text = text.replaceAll(key, val);
   }
 
-  // Remover linhas vazias geradas por variáveis ausentes
+  // Limpar linhas onde variáveis vazias deixaram símbolos órfãos
   text = text
     .split('\n')
-    .filter(line => line.trim() !== '')
+    .map((line) => {
+      let cleanLine = line.replace(/~~\s*~~/g, '').trim();
+      if (cleanLine === 'De  por' || cleanLine === 'De por' || cleanLine === '🎟️' || cleanLine === '💳' || cleanLine === '🚚') {
+        return '';
+      }
+      return cleanLine;
+    })
+    .filter((line) => line !== '')
     .join('\n');
 
   return text;

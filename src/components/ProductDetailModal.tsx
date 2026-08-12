@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate, ProductData } from '../types';
 import { buildAffiliateLink } from '../utils/affiliateLink';
 import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
+import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
 import {
   X,
   Share2,
@@ -29,6 +30,8 @@ interface ProductDetailModalProps {
   commissionRates?: CommissionRatesConfig;
   onClose: () => void;
   onAddCustomTemplate?: (template: CopyTemplate) => void;
+  customTemplates?: CopyTemplate[];
+  defaultTemplateId?: string;
 }
 
 const platformLabel: Record<string, string> = {
@@ -52,10 +55,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   apiKeys,
   commissionRates,
   onClose,
+  customTemplates = [],
+  defaultTemplateId,
 }) => {
   const keys: ApiKeysConfig = apiKeys || {};
   const [imgError, setImgError] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('default');
+  const [activeTemplateId, setActiveTemplateId] = useState<string>(
+    defaultTemplateId || 'whatsapp-urgency'
+  );
   const [customMessage, setCustomMessage] = useState<string>('');
   const [generatingAiCopy, setGeneratingAiCopy] = useState(false);
 
@@ -75,10 +82,28 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const trend = calculateSalesTrend(product);
   const hasFrom = product.price_from && product.price_from !== product.price_to;
 
-  // Template padrão de mensagem
-  const defaultMessage = `🚨 *OFERTA IMPERDÍVEL!* 🔥\n\n${product.title}\n\n${hasFrom ? `~De: ${formatPrice(product.price_from!)}~\n` : ''}💰 *Por apenas: ${formatPrice(product.price_to)}!*\n${product.installments ? `💳 ${product.installments}\n` : ''}\n👉 *GARANTA O SEU AQUI:* \n${affiliateLink}`;
+  const allAvailableTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
+  const activeTemplate = allAvailableTemplates.find((t) => t.id === activeTemplateId) || DEFAULT_TEMPLATES[0];
 
-  const currentMessage = customMessage || defaultMessage;
+  useEffect(() => {
+    // Converter GlobalProduct para ProductData
+    const prodData: ProductData = {
+      title: product.title,
+      description: product.description || '',
+      price_to: product.price_to,
+      price_from: product.price_from || null,
+      installments: product.installments || null,
+      coupon: product.coupon || null,
+      shipping: product.shipping || null,
+      platform: product.platform,
+      original_link: product.original_link,
+      image_url: product.image_url || '',
+    };
+    const formatted = applyTemplate(activeTemplate.template, prodData, affiliateLink, commissionRates);
+    setCustomMessage(formatted);
+  }, [activeTemplateId, product, affiliateLink, customTemplates, commissionRates]);
+
+  const currentMessage = customMessage;
 
   // Promover produto (abrir WhatsApp diretamente)
   const handlePromoteWhatsApp = () => {
@@ -258,11 +283,45 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Message Preview Box */}
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">
-                Mensagem Formatada para WhatsApp:
-              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                <label className="text-xs font-bold text-stone-300">
+                  Mensagem Formatada para WhatsApp:
+                </label>
+                
+                {/* Subtle Template Active Indicator and Selector */}
+                <div className="flex items-center gap-1.5 text-[11px] text-[#93a0b5]">
+                  <span>Template ativo:</span>
+                  <span className="font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                    {activeTemplate?.name || 'Padrão'}
+                  </span>
+                  
+                  <select
+                    value={activeTemplateId}
+                    onChange={(e) => setActiveTemplateId(e.target.value)}
+                    className="bg-[#0e1119] border border-[#1e2636] text-amber-300 hover:text-amber-200 text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500 cursor-pointer transition-colors"
+                  >
+                    <optgroup label="Modelos Predefinidos">
+                      {DEFAULT_TEMPLATES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {customTemplates && customTemplates.length > 0 && (
+                      <optgroup label="Meus Modelos e IA">
+                        {customTemplates.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              </div>
+
               <textarea
-                rows={5}
+                rows={6}
                 value={currentMessage}
                 onChange={(e) => setCustomMessage(e.target.value)}
                 className="w-full p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-stone-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500"

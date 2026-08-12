@@ -81,6 +81,8 @@ interface MarketplaceTabProps {
   onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
   onAddCustomTemplate?: (template: CopyTemplate) => void;
   userMinedIds?: Set<string>;
+  customTemplates?: CopyTemplate[];
+  defaultTemplateId?: string;
 }
 
 export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
@@ -88,6 +90,8 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   apiKeys,
   commissionRates,
   onAddCustomTemplate,
+  customTemplates = [],
+  defaultTemplateId,
 }) => {
   const [products, setProducts] = useState<GlobalProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -447,6 +451,8 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
           commissionRates={commissionRates}
           onClose={() => setSelectedProductForModal(null)}
           onAddCustomTemplate={onAddCustomTemplate}
+          customTemplates={customTemplates}
+          defaultTemplateId={defaultTemplateId}
         />
       )}
     </div>

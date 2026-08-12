@@ -1,4 +1,5 @@
 import { ScrapedProduct } from '../types';
+import { applyTemplate } from '../data/defaultTemplates';
 
 export function calculateDiscountPercent(priceFromStr?: string | null, priceToStr?: string | null): number | null {
   if (!priceFromStr || !priceToStr) return null;
@@ -10,46 +11,8 @@ export function calculateDiscountPercent(priceFromStr?: string | null, priceToSt
 }
 
 export function generateFormattedCopy(templateStr: string, product: ScrapedProduct): string {
-  let result = templateStr;
-
-  const discount = calculateDiscountPercent(product.price_from, product.price_to);
-  const discountStr = discount ? `${discount}% OFF` : '';
-
-  // Standard tags
-  result = result.replace(/{TITLE}/g, product.title || 'Produto');
-  result = result.replace(/{PRICE_TO}/g, product.price_to || '0,00');
-  result = result.replace(/{LINK}/g, product.original_link || '');
-
-  // Conditional or optional tags handling
-  if (product.price_from) {
-    result = result.replace(/{PRICE_FROM}/g, product.price_from);
-  } else {
-    // Remove lines containing {PRICE_FROM} or ~R$ {PRICE_FROM}~ if null
-    result = result.split('\n').filter(line => !line.includes('{PRICE_FROM}')).join('\n');
-  }
-
-  if (product.installments) {
-    result = result.replace(/{INSTALLMENTS}/g, product.installments);
-  } else {
-    result = result.split('\n').filter(line => !line.includes('{INSTALLMENTS}')).join('\n');
-  }
-
-  if (product.coupon) {
-    result = result.replace(/{COUPON}/g, product.coupon);
-  } else {
-    result = result.split('\n').filter(line => !line.includes('{COUPON}')).join('\n');
-  }
-
-  if (discountStr) {
-    result = result.replace(/{DISCOUNT_PERCENT}/g, discountStr);
-  } else {
-    result = result.split('\n').filter(line => !line.includes('{DISCOUNT_PERCENT}')).join('\n');
-  }
-
-  // Clean double blank lines
-  result = result.replace(/\n{3,}/g, '\n\n').trim();
-
-  return result;
+  const link = product.affiliate_link || product.original_link || '';
+  return applyTemplate(templateStr, product, link);
 }
 
 export function getPlatformInfo(platformStr: string) {

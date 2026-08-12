@@ -23,6 +23,7 @@ interface NewProductTabProps {
   customTemplates?: CopyTemplate[];
   onAddCustomTemplate?: (template: CopyTemplate) => void;
   onDeleteCustomTemplate?: (id: string) => void;
+  defaultTemplateId?: string;
 }
 
 export const NewProductTab: React.FC<NewProductTabProps> = ({
@@ -36,6 +37,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
   customTemplates = [],
   onAddCustomTemplate,
   onDeleteCustomTemplate,
+  defaultTemplateId,
 }) => {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

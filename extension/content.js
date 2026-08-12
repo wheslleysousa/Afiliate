@@ -331,13 +331,16 @@ function injectOverlayCSS() {
 
     .am-highlight-border {
       position: relative !important;
+      outline: 2px solid #2563eb !important;
+      outline-offset: -2px !important;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.15) !important;
       border-radius: 8px !important;
-      transition: all 0.2s ease !important;
+      transition: all 0.25s ease-in-out !important;
     }
     .am-highlight-border:hover {
-      outline: 2px solid rgba(37, 99, 235, 0.6) !important;
+      outline: 3px solid #3b82f6 !important;
       outline-offset: -2px !important;
-      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2) !important;
+      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35) !important;
     }
 
     .am-card-mine-btn {
@@ -1019,29 +1022,39 @@ function makeElementDraggable(elmnt) {
 
 function getProductCardSelectors() {
   return [
+    // Mercado Livre
     '.ui-search-result__wrapper',
+    'li.ui-search-layout__item',
     '.poly-card',
-    '.ui-search-layout__item',
+    '.ui-search-result',
+    // Shopee
     '.shopee-search-item-result__item',
-    '[data-sqe="item"]',
     'ul.shopee-search-item-result__items > li',
-    'div[class*="shopee-search-item-result"]',
-    'li[class*="shopee-search-item-result"]',
-    'a[data-sqe="link"]',
-    'a[href*="/product/"]',
-    'div[class*="product-card"]',
-    'div[class*="col-"] > a[href*="-i."]',
-    'section > div > a[href*="/product/"]',
-    '[data-component-type="s-search-result"]',
+    'div[data-sqe="item"]',
+    'div.col-sp-2-4',
+    '.shopee-item-card',
+    'div[class*="shopee-item-card"]',
+    // Amazon
+    'div[data-component-type="s-search-result"]',
     'div[data-asin]:not([data-asin=""])',
-    '.s-result-item[data-asin]:not([data-asin=""])',
+    '.s-result-item',
+    'div[class*="s-result-item"]',
+    // TikTok Shop
     'div[class*="ProductCard"]',
     'div[class*="product-card"]',
-    'div[data-e2e="product-card"]',
+    'div[class*="ProductItem"]',
+    'div[class*="product-item"]',
+    'div[class*="RecommendItem"]',
+    'div[class*="CardContainer"]',
+    'div[class*="CardWrap"]',
+    'div[class*="product_card"]',
+    'div[class*="product-list-item"]',
+    'div[class*="DivCard"]',
+    '[data-testid*="product"]',
+    // Shein & AliExpress & Others
     'div[class*="search-result-item"]',
-    'div[class*="item-card"]',
-    '.product-card-item',
-    '.goods-item'
+    '.goods-item',
+    '.product-item'
   ];
 }
 
@@ -1049,34 +1062,42 @@ function getProductCardSelectors() {
    5. HIGHLIGHTING & INJECTED CARD BUTTONS
    ═══════════════════════════════════════ */
 function updatePageHighlighting() {
-  const cards = document.querySelectorAll(getProductCardSelectors().join(', '));
-  cards.forEach((card) => {
-    if (extActive) {
-      card.classList.add('am-highlight-border');
-      card.style.overflow = 'visible';
-      if (!card.querySelector('.am-card-mine-btn')) {
-        const btn = document.createElement('button');
-        btn.className = 'am-card-mine-btn';
-        btn.innerHTML = `⚡ Minerar`;
-        btn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const success = mineCardProduct(card, true);
-          if (success !== false) {
-            btn.innerHTML = `✅ Minerado!`;
-            btn.classList.add('mined-success');
-            setTimeout(() => {
-              btn.innerHTML = `⚡ Minerar`;
-              btn.classList.remove('mined-success');
-            }, 2500);
-          }
-        };
-        card.appendChild(btn);
-      }
-    } else {
+  if (!extActive) {
+    document.querySelectorAll('.am-highlight-border').forEach((card) => {
       card.classList.remove('am-highlight-border');
       const b = card.querySelector('.am-card-mine-btn');
       if (b) b.remove();
+    });
+    return;
+  }
+
+  const rawCards = document.querySelectorAll(getProductCardSelectors().join(', '));
+  rawCards.forEach((card) => {
+    // Evitar destacar containers internos se um pai já estiver destacado
+    if (card.closest('.am-highlight-border') && !card.classList.contains('am-highlight-border')) {
+      return;
+    }
+
+    card.classList.add('am-highlight-border');
+
+    if (!card.querySelector('.am-card-mine-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'am-card-mine-btn';
+      btn.innerHTML = `⚡ Minerar`;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const success = mineCardProduct(card, true);
+        if (success !== false) {
+          btn.innerHTML = `✅ Minerado!`;
+          btn.classList.add('mined-success');
+          setTimeout(() => {
+            btn.innerHTML = `⚡ Minerar`;
+            btn.classList.remove('mined-success');
+          }, 2500);
+        }
+      };
+      card.appendChild(btn);
     }
   });
 }
@@ -1172,18 +1193,55 @@ function extractAndesPrice(container) {
     return intPart;
   }
 
-  const raw = (container.textContent || '');
+  const raw = (container.textContent || '').trim();
   if (/%/.test(raw)) return 0;
 
-  const cleaned = raw.replace(/R\$\s*/g, '').trim();
+  // Clean currency symbols and spaces
+  let cleaned = raw.replace(/[R$\s]+/g, '').replace(/\u00A0/g, '').trim();
 
-  const m = cleaned.match(/(\d[\d.]*),(\d{2})/);
-  if (m) return parseFloat(m[1].replace(/\./g, '') + '.' + m[2]);
+  // Match comma as decimal (BRL format: 1.234,56 or 234,56)
+  const mBrl = cleaned.match(/(\d[\d.]*),(\d{2})/);
+  if (mBrl) return parseFloat(mBrl[1].replace(/\./g, '') + '.' + mBrl[2]);
 
-  if (/R\$/.test(raw)) {
-    const m2 = cleaned.match(/(\d[\d.]*)/);
-    if (m2) return parseFloat(m2[1].replace(/\./g, ''));
+  // Match dot as decimal (USD format: 1,234.56 or 234.56)
+  const mUsd = cleaned.match(/(\d[\d,]*)\.(\d{2})/);
+  if (mUsd) return parseFloat(mUsd[1].replace(/,/g, '') + '.' + mUsd[2]);
+
+  // Match simple numbers with no decimals
+  const mSimple = cleaned.match(/^(\d[\d.]*)$/);
+  if (mSimple) return parseFloat(mSimple[1].replace(/\./g, ''));
+
+  const mSimpleComma = cleaned.match(/^(\d[\d,]*)$/);
+  if (mSimpleComma) return parseFloat(mSimpleComma[1].replace(/,/g, ''));
+
+  // General regex search for price-like structures
+  const mGeneral = cleaned.match(/(\d+[\d.,]*)/);
+  if (mGeneral) {
+    let priceStr = mGeneral[1];
+    if (priceStr.includes(',') && priceStr.includes('.')) {
+      if (priceStr.indexOf('.') < priceStr.indexOf(',')) {
+        return parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
+      } else {
+        return parseFloat(priceStr.replace(/,/g, ''));
+      }
+    } else if (priceStr.includes(',')) {
+      const parts = priceStr.split(',');
+      if (parts[parts.length - 1].length === 2) {
+        return parseFloat(priceStr.replace(',', '.'));
+      } else {
+        return parseFloat(priceStr.replace(/,/g, ''));
+      }
+    } else if (priceStr.includes('.')) {
+      const parts = priceStr.split('.');
+      if (parts[parts.length - 1].length === 2) {
+        return parseFloat(priceStr);
+      } else {
+        return parseFloat(priceStr.replace(/\./g, ''));
+      }
+    }
+    return parseFloat(priceStr) || 0;
   }
+
   return 0;
 }
 
@@ -1203,80 +1261,137 @@ function extractRealProductData(element) {
         '[data-component-type="s-search-result"], div[data-asin], li, article'
       ) || element;
       const cardText = scopeEl.textContent || element.textContent || '';
+      const platform = getPlatformKey();
 
-      // 1. Title Extraction
-      const titleEl = element.querySelector(
-        '.ui-search-item__title, .poly-component__title, [data-sqe="name"], ' +
-        '[data-testid="item-title"], .shopee-search-item-result__name, ' +
-        '#productTitle, #title, h1#title, h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h2, h3'
-      ) || scopeEl.querySelector(
-        '.ui-search-item__title, .poly-component__title, [data-sqe="name"], ' +
-        '[data-testid="item-title"], .shopee-search-item-result__name, ' +
-        '#productTitle, #title, h1#title, h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h2, h3'
-      );
-      if (titleEl) {
-        title = titleEl.textContent.trim();
-      } else {
-        // Fallbacks for Shopee and Amazon
-        const imgAlt = scopeEl.querySelector('img')?.alt || scopeEl.querySelector('img')?.title;
-        const linkTitle = scopeEl.querySelector('a[title]')?.getAttribute('title');
-        if (imgAlt && imgAlt.length > 5) title = imgAlt.trim();
-        else if (linkTitle && linkTitle.length > 5) title = linkTitle.trim();
-        else {
-          const firstHead = scopeEl.querySelector('h1, h2, h3, a');
-          if (firstHead) title = firstHead.textContent.replace(/\s+/g, ' ').trim();
-        }
+      // Platform-specific listing card pre-parsing
+      if (platform === 'shopee') {
+        const shopeeTitle = element.querySelector('.shopee-search-item-result__name, div[data-sqe="name"], div[class*="product-name"], div[class*="name" i], .shopee-item-card__name');
+        if (shopeeTitle) title = shopeeTitle.textContent.trim();
+        
+        const shopeePriceEl = element.querySelector('div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], [class*="price" i] span, [class*="price" i]');
+        if (shopeePriceEl) pixPrice = extractAndesPrice(shopeePriceEl);
+        
+        const shopeeOldPriceEl = element.querySelector('div[class*="price-before-discount" i], .shopee-item-card__original-price, del');
+        if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
+        
+        const shopeeSalesEl = element.querySelector('div[class*="sold" i], div[class*="vendas" i], div[class*="sold-count" i], [class*="sold" i]');
+        if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
+        
+        const shopeeImg = element.querySelector('img');
+        if (shopeeImg) image = shopeeImg.src || shopeeImg.dataset.src || '';
+      } 
+      else if (platform === 'amazon') {
+        const amzTitle = element.querySelector('h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h3 span');
+        if (amzTitle) title = amzTitle.textContent.trim();
+        
+        const amzPriceEl = element.querySelector('.a-price .a-offscreen, span.a-price, span.a-color-price');
+        if (amzPriceEl) pixPrice = extractAndesPrice(amzPriceEl);
+        
+        const amzOldPriceEl = element.querySelector('span.a-text-strike, .a-price.a-text-price .a-offscreen');
+        if (amzOldPriceEl) oldPrice = extractAndesPrice(amzOldPriceEl);
+        
+        const amzSalesEl = element.querySelector('span.a-size-small.a-color-secondary, [class*="social-proofing" i]');
+        if (amzSalesEl) sales = parseSalesCount(amzSalesEl.textContent);
+        
+        const amzImg = element.querySelector('img.s-image, img');
+        if (amzImg) image = amzImg.src || amzImg.dataset.src || '';
+      }
+      else if (platform === 'tiktok') {
+        const ttTitle = element.querySelector('div[class*="ProductTitle" i], p[class*="title" i], div[class*="product-title" i], [class*="title" i]');
+        if (ttTitle) title = ttTitle.textContent.trim();
+        
+        const ttPriceEl = element.querySelector('div[class*="Price" i], span[class*="price" i], [class*="price" i]');
+        if (ttPriceEl) pixPrice = extractAndesPrice(ttPriceEl);
+        
+        const ttOldPriceEl = element.querySelector('span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del');
+        if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
+        
+        const ttSalesEl = element.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
+        if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
+        
+        const ttImg = element.querySelector('img');
+        if (ttImg) image = ttImg.src || ttImg.dataset.src || '';
       }
 
-      // 2. Old Price Extraction
-      const oldEls = element.querySelectorAll(
-        '.poly-price__old, .ui-search-price__part--original, s, del, ' +
-        '.a-price.a-text-price .a-offscreen, span.a-text-strike'
-      );
-      for (const el of oldEls) {
-        const p = extractAndesPrice(el);
-        if (p > oldPrice) oldPrice = p;
-      }
-
-      // 3. Current Price Extraction
-      const candidatePrices = [];
-      const amountEls = element.querySelectorAll(
-        '.andes-money-amount, .a-price .a-offscreen, [class*="price" i]'
-      );
-      for (const el of amountEls) {
-        if (el.closest('.poly-price__old, .ui-search-price__part--original, s, del, ' +
-                       '.ui-search-installments, .poly-price__credit-card, [class*="installment" i], ' +
-                       '.poly-price__discount, .ui-search-price__discount, [class*="discount" i], ' +
-                       '[class*="coupon" i], [class*="cupom" i], [class*="shipping" i], [class*="frete" i]')) continue;
-        const txt = (el.textContent || '').toLowerCase();
-        if (txt.includes('%') || txt.includes('cupom') || txt.includes('frete')) continue;
-        const p = extractAndesPrice(el);
-        if (p > 0 && p !== oldPrice) {
-          candidatePrices.push(p);
-        }
-      }
-
-      if (candidatePrices.length > 0) {
-        pixPrice = Math.min(...candidatePrices);
-      } else {
-        const currentContainer = element.querySelector(
-          '.poly-component__price, .poly-price__current, .ui-search-price__second-line, ' +
-          '.a-price, [class*="price" i]'
+      // 1. Title Extraction Fallback
+      if (!title) {
+        const titleEl = element.querySelector(
+          '.ui-search-item__title, .poly-component__title, [data-sqe="name"], ' +
+          '[data-testid="item-title"], .shopee-search-item-result__name, ' +
+          '#productTitle, #title, h1#title, h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h2, h3'
+        ) || scopeEl.querySelector(
+          '.ui-search-item__title, .poly-component__title, [data-sqe="name"], ' +
+          '[data-testid="item-title"], .shopee-search-item-result__name, ' +
+          '#productTitle, #title, h1#title, h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h2, h3'
         );
-        pixPrice = extractAndesPrice(currentContainer);
+        if (titleEl) {
+          title = titleEl.textContent.trim();
+        } else {
+          // Fallbacks for Shopee and Amazon
+          const imgAlt = scopeEl.querySelector('img')?.alt || scopeEl.querySelector('img')?.title;
+          const linkTitle = scopeEl.querySelector('a[title]')?.getAttribute('title');
+          if (imgAlt && imgAlt.length > 5) title = imgAlt.trim();
+          else if (linkTitle && linkTitle.length > 5) title = linkTitle.trim();
+          else {
+            const firstHead = scopeEl.querySelector('h1, h2, h3, a');
+            if (firstHead) title = firstHead.textContent.replace(/\s+/g, ' ').trim();
+          }
+        }
       }
-
+  
+      // 2. Old Price Extraction Fallback
+      if (!oldPrice) {
+        const oldEls = element.querySelectorAll(
+          '.poly-price__old, .ui-search-price__part--original, s, del, ' +
+          '.a-price.a-text-price .a-offscreen, span.a-text-strike'
+        );
+        for (const el of oldEls) {
+          const p = extractAndesPrice(el);
+          if (p > oldPrice) oldPrice = p;
+        }
+      }
+  
+      // 3. Current Price Extraction Fallback
+      if (!pixPrice) {
+        const candidatePrices = [];
+        const amountEls = element.querySelectorAll(
+          '.andes-money-amount, .a-price .a-offscreen, [class*="price" i]'
+        );
+        for (const el of amountEls) {
+          if (el.closest('.poly-price__old, .ui-search-price__part--original, s, del, ' +
+                         '.ui-search-installments, .poly-price__credit-card, [class*="installment" i], ' +
+                         '.poly-price__discount, .ui-search-price__discount, [class*="discount" i], ' +
+                         '[class*="coupon" i], [class*="cupom" i], [class*="shipping" i], [class*="frete" i]')) continue;
+          const txt = (el.textContent || '').toLowerCase();
+          if (txt.includes('%') || txt.includes('cupom') || txt.includes('frete')) continue;
+          const p = extractAndesPrice(el);
+          if (p > 0 && p !== oldPrice) {
+            candidatePrices.push(p);
+          }
+        }
+  
+        if (candidatePrices.length > 0) {
+          pixPrice = Math.min(...candidatePrices);
+        } else {
+          const currentContainer = element.querySelector(
+            '.poly-component__price, .poly-price__current, .ui-search-price__second-line, ' +
+            '.a-price, [class*="price" i]'
+          );
+          pixPrice = extractAndesPrice(currentContainer);
+        }
+      }
+  
       if (pixPrice > oldPrice && oldPrice > 0) {
         const temp = pixPrice;
         pixPrice = oldPrice;
         oldPrice = temp;
       }
-
+  
       // 4. Discount Extraction
       if (oldPrice > pixPrice && pixPrice > 0) {
         discountPercent = Math.round(((oldPrice - pixPrice) / oldPrice) * 100);
       }
-
+  
       if (discountPercent === 0) {
         const discountEl = element.querySelector(
           '.poly-price__discount, .ui-search-price__discount, .savingsPercentage, [class*="discount" i]'
@@ -1286,40 +1401,44 @@ function extractRealProductData(element) {
           if (dm) discountPercent = parseInt(dm[1], 10);
         }
       }
-
+  
       if (discountPercent > 99 || discountPercent < 0) discountPercent = 0;
-
+  
       if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
         oldPrice = parseFloat((pixPrice / (1 - discountPercent / 100)).toFixed(2));
       }
-
-      // 5. Rating Extraction
-      const ratingSelectors = [
-        '.poly-reviews__rating', '.ui-search-reviews__rating',
-        '.shopee-rating-stars', 'i.a-icon-star-small span', 'i.a-icon-star span'
-      ];
-      for (const sel of ratingSelectors) {
-        if (rating > 0) break;
-        const el = element.querySelector(sel);
-        if (el) {
-          const rm = el.textContent.match(/(\d[\.,]\d)/);
-          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+  
+      // 5. Rating Extraction Fallback
+      if (!rating) {
+        const ratingSelectors = [
+          '.poly-reviews__rating', '.ui-search-reviews__rating',
+          '.shopee-rating-stars', 'i.a-icon-star-small span', 'i.a-icon-star span'
+        ];
+        for (const sel of ratingSelectors) {
+          if (rating > 0) break;
+          const el = element.querySelector(sel);
+          if (el) {
+            const rm = el.textContent.match(/(\d[\.,]\d)/);
+            if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+          }
+        }
+  
+        if (rating === 0) {
+          const rmText = cardText.match(/Classifica[cç][aã]o\s*(\d[\.,]\d)/i)
+                      || cardText.match(/(\d[\.,]\d)\s*de\s*5\s*estrelas/i)
+                      || cardText.match(/(\d[\.,]\d)\s*out of 5 stars/i)
+                      || cardText.match(/(\d[\.,]\d)\s*\|\s*\+?\s*\d/i);
+          if (rmText) {
+            const val = parseFloat(rmText[1].replace(',', '.'));
+            if (val >= 1.0 && val <= 5.0) rating = val;
+          }
         }
       }
-
-      if (rating === 0) {
-        const rmText = cardText.match(/Classifica[cç][aã]o\s*(\d[\.,]\d)/i)
-                    || cardText.match(/(\d[\.,]\d)\s*de\s*5\s*estrelas/i)
-                    || cardText.match(/(\d[\.,]\d)\s*out of 5 stars/i)
-                    || cardText.match(/(\d[\.,]\d)\s*\|\s*\+?\s*\d/i);
-        if (rmText) {
-          const val = parseFloat(rmText[1].replace(',', '.'));
-          if (val >= 1.0 && val <= 5.0) rating = val;
-        }
+  
+      // 6. Sales Extraction Fallback
+      if (!sales) {
+        sales = parseSalesCount(cardText);
       }
-
-      // 6. Sales Extraction
-      sales = parseSalesCount(cardText);
 
       // 7. Shipping & Interest
       if (/frete\s*gr[áa]tis|chegar[áa]\s*gr[áa]tis|envio\s*gr[áa]tis|entrega\s*gr[áa]tis|free\s*shipping/i.test(cardText)) freeShipping = true;
@@ -1338,59 +1457,119 @@ function extractRealProductData(element) {
       category     = extractCategoryText();
     } else {
       // Single PDP Extraction (Product Detail Page)
-      const titleEl = document.querySelector(
-        '.ui-pdp-title, #productTitle, h1.title, .product-title, ' +
-        '[data-pl="product-title"], [data-sqe="name"], h1'
-      );
-      if (titleEl) title = titleEl.textContent.trim();
-
-      const pdpOldContainer = document.querySelector('.ui-pdp-price__part--original, .a-price.a-text-price, s, del');
-      oldPrice = extractAndesPrice(pdpOldContainer);
-
-      const pdpCandidatePrices = [];
-      const pdpAmountEls = document.querySelectorAll(
-        '.ui-pdp-price__part--medium .andes-money-amount, .a-price .a-offscreen, .ui-pdp-price__second-line .andes-money-amount'
-      );
-      for (const el of pdpAmountEls) {
-        if (el.closest('.ui-pdp-price__part--original, s, del, .ui-pdp-price__subtitles, [class*="installments" i]')) continue;
-        if ((el.textContent || '').includes('%')) continue;
-        const p = extractAndesPrice(el);
-        if (p > 0 && p !== oldPrice) pdpCandidatePrices.push(p);
+      const platform = getPlatformKey();
+      
+      if (platform === 'shopee') {
+        const shopeeTitle = document.querySelector('div[class*="product-title" i], .product-briefing h1, div[class*="ProductTitle" i], h1');
+        if (shopeeTitle) title = shopeeTitle.textContent.trim();
+        
+        const shopeePriceEl = document.querySelector('div[class*="price" i], span[class*="price" i], div[class*="ProductPrice" i], .shopee-product-detail .price');
+        if (shopeePriceEl) pixPrice = extractAndesPrice(shopeePriceEl);
+        
+        const shopeeOldPriceEl = document.querySelector('div[class*="price-before-discount" i], del, .shopee-product-detail del');
+        if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
+        
+        const shopeeSalesEl = document.querySelector('div[class*="sold" i], span[class*="sold" i], div[class*="sales" i], .shopee-product-detail .sales-count');
+        if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
+      }
+      else if (platform === 'amazon') {
+        const amzTitle = document.querySelector('span#productTitle, #title');
+        if (amzTitle) title = amzTitle.textContent.trim();
+        
+        const amzPriceEl = document.querySelector('#price_inside_buybox, .a-price .a-offscreen, #corePrice_feature_div .a-offscreen');
+        if (amzPriceEl) pixPrice = extractAndesPrice(amzPriceEl);
+        
+        const amzOldPriceEl = document.querySelector('span.a-text-strike, .a-price.a-text-price .a-offscreen');
+        if (amzOldPriceEl) oldPrice = extractAndesPrice(amzOldPriceEl);
+        
+        const amzSalesEl = document.querySelector('span.social-proofing-faceout-title-text span, #averageCustomerReviews_feature_div');
+        if (amzSalesEl) sales = parseSalesCount(amzSalesEl.textContent);
+      }
+      else if (platform === 'tiktok') {
+        const ttTitle = document.querySelector('h1[class*="ProductTitle" i], h1, div[class*="Title" i], [data-testid*="product-title" i]');
+        if (ttTitle) title = ttTitle.textContent.trim();
+        
+        const ttPriceEl = document.querySelector('div[class*="Price" i], span[class*="price" i], [data-testid*="product-price" i]');
+        if (ttPriceEl) pixPrice = extractAndesPrice(ttPriceEl);
+        
+        const ttOldPriceEl = document.querySelector('span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del');
+        if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
+        
+        const ttSalesEl = document.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
+        if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
       }
 
-      if (pdpCandidatePrices.length > 0) {
-        pixPrice = Math.min(...pdpCandidatePrices);
-      } else {
-        const pdpCurrentContainer = document.querySelector('.ui-pdp-price__part--medium, .a-price, .ui-pdp-price__second-line');
-        pixPrice = extractAndesPrice(pdpCurrentContainer);
+      // 1. PDP Title Fallback
+      if (!title) {
+        const titleEl = document.querySelector(
+          '.ui-pdp-title, #productTitle, h1.title, .product-title, ' +
+          '[data-pl="product-title"], [data-sqe="name"], h1'
+        );
+        if (titleEl) title = titleEl.textContent.trim();
       }
-
+  
+      // 2. PDP Old Price Fallback
+      if (!oldPrice) {
+        const pdpOldContainer = document.querySelector('.ui-pdp-price__part--original, .a-price.a-text-price, s, del');
+        oldPrice = extractAndesPrice(pdpOldContainer);
+      }
+  
+      // 3. PDP Current Price Fallback
+      if (!pixPrice) {
+        const pdpCandidatePrices = [];
+        const pdpAmountEls = document.querySelectorAll(
+          '.ui-pdp-price__part--medium .andes-money-amount, .a-price .a-offscreen, .ui-pdp-price__second-line .andes-money-amount'
+        );
+        for (const el of pdpAmountEls) {
+          if (el.closest('.ui-pdp-price__part--original, s, del, .ui-pdp-price__subtitles, [class*="installments" i]')) continue;
+          if ((el.textContent || '').includes('%')) continue;
+          const p = extractAndesPrice(el);
+          if (p > 0 && p !== oldPrice) pdpCandidatePrices.push(p);
+        }
+  
+        if (pdpCandidatePrices.length > 0) {
+          pixPrice = Math.min(...pdpCandidatePrices);
+        } else {
+          const pdpCurrentContainer = document.querySelector('.ui-pdp-price__part--medium, .a-price, .ui-pdp-price__second-line');
+          pixPrice = extractAndesPrice(pdpCurrentContainer);
+        }
+      }
+  
       if (pixPrice > oldPrice && oldPrice > 0) {
         const temp = pixPrice;
         pixPrice = oldPrice;
         oldPrice = temp;
       }
-
+  
       if (oldPrice > pixPrice && pixPrice > 0) {
         discountPercent = Math.round(((oldPrice - pixPrice) / oldPrice) * 100);
       }
-
-      const ratingEl = document.querySelector('.ui-pdp-review__rating, .ui-pdp-reviews__rating, .shopee-rating-stars, i.a-icon-star span');
-      if (ratingEl) {
-        const rm = ratingEl.textContent.match(/\d+[\.,]?\d*/);
-        if (rm) rating = parseFloat(rm[0].replace(',', '.'));
+  
+      // 4. Rating Fallback
+      if (!rating) {
+        const ratingEl = document.querySelector('.ui-pdp-review__rating, .ui-pdp-reviews__rating, .shopee-rating-stars, i.a-icon-star span');
+        if (ratingEl) {
+          const rm = ratingEl.textContent.match(/\d+[\.,]?\d*/);
+          if (rm) rating = parseFloat(rm[0].replace(',', '.'));
+        }
       }
-
+  
       const bodyText = document.body.textContent;
-      sales = parseSalesCount(bodyText);
-
+      
+      // 5. Sales Fallback
+      if (!sales) {
+        sales = parseSalesCount(bodyText);
+      }
+  
       if (/frete\s*gr[áa]tis|chegar[áa]\s*gr[áa]tis|envio\s*gr[áa]tis|entrega\s*gr[áa]tis|free\s*shipping/i.test(bodyText)) freeShipping = true;
       if (bodyText.toLowerCase().includes('sem juros')) noInterest = true;
-
+  
       // Extract All Main & Gallery Pictures on PDP
       const imgNodes = document.querySelectorAll(
         '.ui-pdp-gallery__figure img, #gallery img, #landingImage, #imgTagWrapperId img, ' +
-        '.product-briefing img, #altImages img, .crop-image-container img, .main-swiper img'
+        '.product-briefing img, #altImages img, .crop-image-container img, .main-swiper img, ' +
+        'div[class*="product-image" i] img, .picture-wrapper img, img[class*="Gallery" i], ' +
+        'div[class*="ImageContainer" i] img, img[src*="tiktokcdn" i], img[src*="shopee.com" i]'
       );
       imgNodes.forEach(n => {
         const src = n.src || n.dataset.src;
@@ -1398,13 +1577,13 @@ function extractRealProductData(element) {
           pictures.push(src);
         }
       });
-
+  
       if (pictures.length > 0) image = pictures[0];
       if (!image) {
         const ogImg = document.querySelector('meta[property="og:image"]');
         if (ogImg) image = ogImg.getAttribute('content') || '';
       }
-
+  
       installments = extractInstallmentsText(bodyText);
       coupon       = extractCouponText(document, bodyText);
       pixExplicit  = extractPixPriceNum(bodyText, 0);
@@ -1480,11 +1659,12 @@ function parseSalesCount(text) {
   const t = String(text).replace(/ /g, ' ').replace(/\n/g, ' ');
 
   const reList = [
-    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold)/i,
-    /(?:vendidos?|comprados?|sold)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
-    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought)/i,
+    /(?:vendidos?|comprados?|sold|bought|compras?)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
+    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought)/i,
     /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+/i,
-    /(\d+)\+?\s*vendido/i
+    /(\d+)\+?\s*(?:vendido|comprado|sold|bought)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(?:mil|k)?\+?\s*(?:vendido|comprado|sold|bought|comprados no último mês|bought in past month)/i
   ];
 
   for (const re of reList) {
@@ -1557,15 +1737,41 @@ function extractPixPriceNum(scopeText, fallback) {
 function extractCategoryText() {
   const crumbSel = [
     '.andes-breadcrumb__item', '.ui-pdp-breadcrumb a', '[typeof="BreadcrumbList"] a',
-    '.a-breadcrumb .a-list-item', 'nav[aria-label*="readcrumb" i] a', '.breadcrumb a'
+    '.a-breadcrumb .a-list-item', '#wayfinding-breadcrumbs_container a', '#nav-subnav a',
+    'nav[aria-label*="readcrumb" i] a', '.breadcrumb a', '.page-product__breadcrumb a',
+    '.shopee-breadcrumb a', 'a.page-product__breadcrumb-item', '._249C03',
+    '.breadcrumb-item', '[data-testid="breadcrumb"] a'
   ];
   const nodes = document.querySelectorAll(crumbSel.join(', '));
   const parts = [];
   nodes.forEach(n => {
     const t = (n.textContent || '').replace(/\s+/g, ' ').trim();
-    if (t && !/^(in[íi]cio|home|voltar)$/i.test(t) && t.length <= 40) parts.push(t);
+    if (t && !/^(in[íi]cio|home|voltar|todas as categorias|p[aá]gina inicial)$/i.test(t) && t.length <= 50) {
+      parts.push(t);
+    }
   });
   if (parts.length) return parts[parts.length - 1].slice(0, 60);
+
+  // Fallback 1: Check page title or URL
+  const metaCategory = document.querySelector('meta[name="keywords"], meta[property="product:category"]');
+  if (metaCategory) {
+    const content = metaCategory.getAttribute('content') || '';
+    if (content) {
+      const kw = content.split(',')[0].trim();
+      if (kw && kw.length <= 50) return kw.slice(0, 60);
+    }
+  }
+
+  // Fallback 2: Check URL path for category hints
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes('moda') || path.includes('roupa') || path.includes('calcado')) return 'Moda & Vestuário';
+  if (path.includes('beleza') || path.includes('maquiagem') || path.includes('cosmetico')) return 'Beleza & Cuidados Pessoais';
+  if (path.includes('casa') || path.includes('decoracao') || path.includes('cozinha')) return 'Casa & Decoração';
+  if (path.includes('eletronico') || path.includes('audio') || path.includes('tv')) return 'Eletrônicos';
+  if (path.includes('celular') || path.includes('smartphone')) return 'Celulares';
+  if (path.includes('esporte') || path.includes('fitness')) return 'Esportes & Lazer';
+  if (path.includes('brinquedo') || path.includes('bebe')) return 'Brinquedos & Bebês';
+
   return null;
 }
 

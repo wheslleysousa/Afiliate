@@ -21,14 +21,17 @@ import {
   Check,
   ShieldCheck,
   Zap,
+  Bot,
+  Radio,
 } from 'lucide-react';
 import { WhatsAppAlert } from './WhatsAppAlert';
 
 interface WhatsAppSessionCardProps {
   uid: string;
+  waGroupsCount?: number;
 }
 
-export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid }) => {
+export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, waGroupsCount = 0 }) => {
   const [sessions, setSessions] = useState<WaSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -238,24 +241,29 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
         />
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1e2636]">
+      {/* Header com Bloco Unificado de Métricas */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1e2636]">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
+          <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-950/40">
             <Smartphone className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Contas do WhatsApp Conectadas ({sessions.length})</h3>
+            <h3 className="text-base font-extrabold text-white">Contas do WhatsApp Conectadas</h3>
+            <p className="text-xs text-stone-400">Gerencie seus números e sessões ativas</p>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center gap-2 shrink-0 self-start sm:self-center"
-        >
-          <Plus className="w-4 h-4" />
-          Cadastrar número do WhatsApp
-        </button>
+        {/* Bloco Unificado: Contas conectadas, ativas, grupos */}
+        <div className="bg-[#151a26] border border-[#1e2636] p-3 rounded-xl text-xs text-stone-300 space-y-1 shrink-0 w-full md:w-auto">
+          <div className="flex items-center gap-2 text-stone-200 font-bold">
+            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
+            Contas conectadas: <span className="text-white font-extrabold">{sessions.length}</span>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-stone-400 pt-1 border-t border-[#1e2636]">
+            <span>Ativas: <strong className="text-emerald-400">{sessions.filter(s => s.status === 'connected').length}</strong></span>
+            <span>Grupos: <strong className="text-blue-400">{waGroupsCount}</strong></span>
+          </div>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -266,7 +274,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
         </div>
       )}
 
-      {/* Clean Onboarding State for First Access */}
+      {/* Quando a pessoa entrar na aba e não tiver nenhum número cadastrado, aparece a opção para conectar */}
       {!loading && sessions.length === 0 && (
         <div className="bg-[#151a26] border border-emerald-500/30 p-8 rounded-2xl text-center space-y-4 shadow-xl relative overflow-hidden animate-fadeIn">
           <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/50">
@@ -275,24 +283,12 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
 
           <div className="space-y-2 max-w-lg mx-auto">
             <span className="text-[10px] uppercase font-extrabold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-              Primeiro Acesso
+              Nenhum número cadastrado
             </span>
-            <h4 className="text-lg font-extrabold text-white">Conecte seu WhatsApp para começar</h4>
+            <h4 className="text-lg font-extrabold text-white">Cadastre seu Número de WhatsApp</h4>
             <p className="text-xs text-stone-300 leading-relaxed">
-              Sua conta está pronta! Para automatizar os disparos de ofertas nos seus grupos, você só precisa cadastrar e escanear o QR Code do seu WhatsApp.
+              Para automatizar o envio de ofertas nos seus grupos, insira seu número de WhatsApp abaixo para gerar o QR Code e conectar.
             </p>
-          </div>
-
-          <div className="bg-[#0e1119]/80 border border-[#1e2636] p-4 rounded-xl max-w-md mx-auto text-left space-y-2 text-xs text-stone-300">
-            <div className="flex items-center gap-2 font-bold text-emerald-400">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              Sua Conta é 100% Privada e Isolada:
-            </div>
-            <ul className="list-disc list-inside space-y-1 text-[11px] text-stone-400">
-              <li>Qualquer pessoa cadastrada no app pode conectar seu próprio número.</li>
-              <li>Você pode conectar quantos WhatsApps quiser sem interferir nos outros usuários.</li>
-              <li>Seus dados de grupos e campanhas são acessados unicamente por você.</li>
-            </ul>
           </div>
 
           <div className="pt-2">
@@ -301,7 +297,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold transition-all shadow-xl shadow-emerald-950/60 inline-flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Cadastrar Meu Número de WhatsApp
+              Cadastrar Número do WhatsApp
             </button>
           </div>
         </div>
@@ -510,6 +506,18 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid })
               </div>
             );
           })}
+
+          {/* Botão para cadastrar novo número localizado logo abaixo das contas ativas */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#1e2636]">
+            <p className="text-xs text-stone-400">Deseja cadastrar e conectar mais um número de WhatsApp?</p>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              Cadastrar Número do WhatsApp
+            </button>
+          </div>
         </div>
       )}
 

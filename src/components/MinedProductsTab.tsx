@@ -40,6 +40,8 @@ interface MinedProductsTabProps {
   onUseProduct?: (product: GlobalProduct) => void;
   onUpdateProductCommission?: (productId: string, ratePct: number | null, amountVal: number | null) => void;
   onAddCustomTemplate?: (template: CopyTemplate) => void;
+  customTemplates?: CopyTemplate[];
+  defaultTemplateId?: string;
 }
 
 interface EnrichedMinedProduct extends MinedProductRef {
@@ -86,6 +88,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   apiKeys,
   commissionRates,
   onAddCustomTemplate,
+  customTemplates = [],
+  defaultTemplateId,
 }) => {
   const [items, setItems] = useState<EnrichedMinedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +138,9 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
     return () => unsubscribe();
   }, [uid]);
 
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<EnrichedMinedProduct | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
   const toggleFavorite = async (productId: string, current: boolean) => {
     try {
       await updateDoc(doc(db, 'users', uid, 'minedProducts', productId), {
@@ -154,12 +161,16 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
     }
   };
 
-  const handleDelete = async (productId: string) => {
-    if (!confirm('Deseja remover este produto da sua lista de produtos?')) return;
+  const confirmDeleteProduct = async () => {
+    if (!deleteConfirmItem) return;
+    setIsDeletingProduct(true);
     try {
-      await deleteDoc(doc(db, 'users', uid, 'minedProducts', productId));
+      await deleteDoc(doc(db, 'users', uid, 'minedProducts', deleteConfirmItem.productId));
+      setDeleteConfirmItem(null);
     } catch (e) {
       console.error('Erro ao excluir produto:', e);
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -334,7 +345,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                         </button>
 
                         <button
-                          onClick={() => handleDelete(item.productId)}
+                          onClick={() => setDeleteConfirmItem(item)}
                           className="p-1 rounded-lg bg-[#151a26] hover:bg-red-500/20 text-stone-400 hover:text-red-400 transition-colors"
                           title="Remover produto"
                         >
@@ -384,6 +395,75 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
         </>
       )}
 
+      {/* Modal de Confirmação de Exclusão */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Excluir Produto</h3>
+                <p className="text-xs text-stone-400">Esta ação removerá o produto da sua lista.</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl flex items-center gap-3">
+              {deleteConfirmItem.productData?.image_url ? (
+                <img
+                  src={deleteConfirmItem.productData.image_url}
+                  alt={deleteConfirmItem.productData.title}
+                  className="w-12 h-12 rounded-lg object-cover border border-[#1e2636] shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 bg-stone-800 rounded-lg flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-6 h-6 text-stone-500" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-white truncate">
+                  {deleteConfirmItem.productData?.title || 'Produto'}
+                </h4>
+                <p className="text-[11px] text-emerald-400 font-extrabold mt-0.5">
+                  {deleteConfirmItem.productData?.price_to
+                    ? (typeof deleteConfirmItem.productData.price_to === 'number'
+                        ? `R$ ${(deleteConfirmItem.productData.price_to as number).toFixed(2).replace('.', ',')}`
+                        : `R$ ${deleteConfirmItem.productData.price_to}`)
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Deseja realmente excluir este produto da sua coleção?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                disabled={isDeletingProduct}
+                onClick={() => setDeleteConfirmItem(null)}
+                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-xl text-xs font-bold border border-[#1e2636] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={isDeletingProduct}
+                onClick={confirmDeleteProduct}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-950/50 flex items-center gap-2"
+              >
+                {isDeletingProduct ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Sim, Excluir Produto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Detalhes do Produto */}
       {selectedProductForModal && (
         <ProductDetailModal
@@ -393,6 +473,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           commissionRates={commissionRates}
           onClose={() => setSelectedProductForModal(null)}
           onAddCustomTemplate={onAddCustomTemplate}
+          customTemplates={customTemplates}
+          defaultTemplateId={defaultTemplateId}
         />
       )}
     </div>

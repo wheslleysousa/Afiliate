@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { WaCampaign, WaGroup, WaSession, CampaignObjective, CampaignPacing } from '../../types';
+import type { WaCampaign, WaGroup, WaSession, CampaignObjective, CampaignPacing, CopyTemplate } from '../../types';
+import { DEFAULT_TEMPLATES } from '../../data/defaultTemplates';
 import {
   calculateCampaignScheduleStatus,
   getUserLocalTimezone,
@@ -34,6 +35,8 @@ interface CampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (campaignData: Partial<WaCampaign>) => Promise<void>;
+  customTemplates?: CopyTemplate[];
+  defaultTemplateId?: string;
 }
 
 const ALL_PLATFORMS = [
@@ -61,12 +64,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  customTemplates = [],
+  defaultTemplateId,
 }) => {
   const [name, setName] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [targetGroupIds, setTargetGroupIds] = useState<string[]>([]);
   const [objective, setObjective] = useState<CampaignObjective>('mais_vendidos');
+  const [templateId, setTemplateId] = useState<string>('');
   
   // Filters
   const [minSales, setMinSales] = useState<number | ''>('');
@@ -106,6 +112,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setEnabled(campaign.enabled ?? true);
       setTargetGroupIds(campaign.targetGroupIds || []);
       setObjective(campaign.objective || 'mais_vendidos');
+      setTemplateId(campaign.templateId || defaultTemplateId || 'whatsapp-urgency');
       
       setMinSales(campaign.filters?.minSales ?? '');
       setMinDiscount(campaign.filters?.minDiscount ?? '');
@@ -130,6 +137,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       const defaultSId = waSessions[0]?.sessionId || waSessions[0]?.id || '';
       setSessionId(defaultSId);
       setEnabled(true);
+      setTemplateId(defaultTemplateId || 'whatsapp-urgency');
       
       const filteredDefaults = waGroups
         .filter((g) => !defaultSId || !g.sessionId || g.sessionId === defaultSId)
@@ -153,7 +161,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTimezone(getUserLocalTimezone());
     }
     setError(null);
-  }, [campaign, waGroups, waSessions, isOpen]);
+  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId]);
 
   if (!isOpen) return null;
 
@@ -219,6 +227,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         enabled,
         targetGroupIds,
         objective,
+        templateId,
         filters: {
           minSales: minSales !== '' && !isNaN(Number(minSales)) ? Number(minSales) : null,
           minDiscount: minDiscount !== '' && !isNaN(Number(minDiscount)) ? Number(minDiscount) : null,
@@ -355,6 +364,46 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 {enabled ? 'Ativa' : 'Pausada'}
               </span>
             </div>
+          </div>
+
+          {/* Template de Mensagem para Disparos */}
+          <div className="space-y-1.5 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-stone-300 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                Template de Copy (Mensagem)
+              </label>
+              {templateId === defaultTemplateId && (
+                <span className="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full font-bold border border-amber-400/20">
+                  ★ Padrão do App Ativo
+                </span>
+              )}
+            </div>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-500"
+            >
+              <optgroup label="Modelos Predefinidos">
+                {DEFAULT_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} (Presets)
+                  </option>
+                ))}
+              </optgroup>
+              {customTemplates.length > 0 && (
+                <optgroup label="Meus Modelos e IA">
+                  {customTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.category === 'ai_generated' ? '🤖' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <p className="text-[10px] text-stone-400">
+              Escolha qual estrutura de mensagem este robô usará ao encontrar produtos em oferta.
+            </p>
           </div>
 
           {/* Grupos-Alvo */}

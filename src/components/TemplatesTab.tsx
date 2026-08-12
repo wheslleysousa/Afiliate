@@ -23,36 +23,55 @@ interface TemplatesTabProps {
   onAddCustomTemplate: (template: CopyTemplate) => void;
   onDeleteCustomTemplate: (id: string) => void;
   apiKeys?: UserApiKeys;
+  defaultTemplateId?: string;
+  onSaveDefaultTemplateId?: (id: string) => void;
 }
 
 const TEMPLATE_VARIABLES = [
-  { tag: '{{produto}}', label: 'Nome do Produto', desc: 'Substituído automaticamente pelo título oficial do item' },
-  { tag: '{{preco}}', label: 'Preço Atual', desc: 'Substituído pelo valor numérico formatado (ex: R$ 99,90)' },
-  { tag: '{{comissao}}', label: 'Comissão Estimada', desc: 'Substituído pelo valor estimado da sua comissão' },
-  { tag: '{{link}}', label: 'Link de Afiliado', desc: 'Substituído pelo seu link rastreado do produto' },
+  { tag: '{{produto}}', label: 'Nome do Produto', desc: 'Substituído pelo título oficial do produto' },
+  { tag: '{{preco}}', label: 'Preço Novo (Atual)', desc: 'Preço promocional formatado (ex: R$ 89,90)' },
+  { tag: '{{preco_antigo}}', label: 'Preço Antigo (Riscado)', desc: 'Preço original de tabela (ex: R$ 150,00)' },
+  { tag: '{{preco_pix}}', label: 'Preço no PIX', desc: 'Valor promocional no PIX' },
+  { tag: '{{desconto}}', label: 'Desconto %', desc: 'Porcentagem calculada (ex: -40% ou 40% OFF)' },
+  { tag: '{{parcelamento}}', label: 'Parcelas (Geral)', desc: 'Ex: "10x de R$ 8,99"' },
+  { tag: '{{parcelas_sem_juros}}', label: 'Parcelas SEM Juros', desc: 'Ex: "10x de R$ 8,99 sem juros"' },
+  { tag: '{{frete}}', label: 'Frete / Frete Grátis', desc: 'Ex: "🚚 Frete GRÁTIS" ou valor do frete' },
+  { tag: '{{cupom}}', label: 'Cupom de Desconto', desc: 'Ex: "🎟️ Cupom: QUERO10"' },
+  { tag: '{{loja}}', label: 'Loja / Marketplace', desc: 'Ex: Mercado Livre, Shopee, Amazon' },
+  { tag: '{{link}}', label: 'Link de Afiliado', desc: 'Seu link oficial e rastreado de compra' },
+  { tag: '{{estrelas}}', label: 'Avaliação ⭐', desc: 'Nota média do produto (ex: ⭐ 4.8)' },
+  { tag: '{{vendas}}', label: 'Vendas 📦', desc: 'Volume de vendas (ex: 📦 1.000+ vendidos)' },
+  { tag: '{{comissao}}', label: 'Comissão R$', desc: 'Sua comissão estimada em R$' },
 ];
 
 const DEFAULT_PRESET_TEMPLATES: CopyTemplate[] = [
   {
     id: 'preset_urgency',
-    name: '🚨 Oferta com Urgência Relâmpago',
+    name: '🚨 Oferta Completa com Urgência & Desconto Riscado',
     category: 'urgency',
-    description: 'Foco em estoque baixo e desconto por tempo limitado',
-    template: `🚨 *OFERTA IMPERDÍVEL!* 🔥\n\n{{produto}}\n\n💰 *Por apenas: {{preco}}!*\n\n👉 *GARANTA O SEU AQUI:* \n{{link}}\n\n⏰ *Aproveite antes que acabe o estoque!*`,
+    description: 'Exibe preço antigo riscado, desconto %, frete, cupom e parcelas sem juros',
+    template: `🚨 *OFERTA IMPERDÍVEL!* 🔥\n\n*{{produto}}*\n\n💰 De ~~{{preco_antigo}}~~ por apenas *{{preco}}* {{desconto}}\n💳 {{parcelas_sem_juros}}\n🎟️ {{cupom}}\n🚚 {{frete}}\n\n👉 *GARANTA O SEU NA {{loja}}:* \n{{link}}\n\n⏰ *Aproveite antes que acabe o estoque!*`,
+  },
+  {
+    id: 'preset_pix',
+    name: '💸 Foco no PIX & Frete Grátis',
+    category: 'urgency',
+    description: 'Destaca preço especial no PIX, parcelas e frete grátis',
+    template: `💸 *PAGANDO NO PIX É AINDA MAIS BARATO!* \n\n*{{produto}}*\n\n⚡ *PIX: {{preco_pix}}* {{desconto}}\n💳 Ou {{parcelamento}}\n🚚 {{frete}}\n🎟️ {{cupom}}\n\n🛒 *Compre com desconto aqui:* \n{{link}}`,
   },
   {
     id: 'preset_direct',
-    name: '⚡️ Direto e Objetivo',
+    name: '⚡️ Direto e Objetivo para Grupos',
     category: 'direct',
-    description: 'Mensagem limpa e sem enrolação para grupos rápidos',
-    template: `🔥 {{produto}}\n\nPor apenas {{preco}}\n\nLink do produto: {{link}}`,
+    description: 'Mensagem limpa e rápida com preço, parcelas, frete e link',
+    template: `🔥 *{{produto}}*\n\n💰 De ~~{{preco_antigo}}~~ por *{{preco}}*\n💳 {{parcelamento}}\n🚚 {{frete}}\n🎟️ {{cupom}}\n\n🔗 Link oficial: {{link}}`,
   },
   {
     id: 'preset_review',
-    name: '⭐️ Recomendação Pessoal / Review',
+    name: '⭐️ Recomendação Pessoal / Review com Estrelas',
     category: 'review',
-    description: 'Linguagem natural de indicação de amigo para amigo',
-    template: `Gente, olhem essa super dica que encontrei! 😍\n\n{{produto}}\n\nEstá saindo por apenas {{preco}}.\n\nConfiram aqui: {{link}}`,
+    description: 'Tom pessoal ressaltando avaliação em estrelas, vendas e loja',
+    template: `Gente, olhem essa super dica que encontrei! 😍\n\n*{{produto}}*\n{{estrelas}} {{vendas}}\n\nEstá saindo por apenas *{{preco}}*! {{desconto}}\n💳 {{parcelas_sem_juros}}\n🚚 {{frete}}\n\nConfiram no site oficial da {{loja}}: {{link}}`,
   },
 ];
 
@@ -61,6 +80,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   onAddCustomTemplate,
   onDeleteCustomTemplate,
   apiKeys,
+  defaultTemplateId,
+  onSaveDefaultTemplateId,
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
@@ -523,17 +544,32 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
                 {/* Botões de Ação */}
                 <div className="flex items-center justify-between pt-2 border-t border-[#1e2636] text-xs">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(tmpl.template);
-                      setCopiedId(tmpl.id);
-                      setTimeout(() => setCopiedId(null), 2000);
-                    }}
-                    className="px-3 py-1.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-lg font-bold flex items-center gap-1.5 transition-all"
-                  >
-                    {copiedId === tmpl.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
-                    {copiedId === tmpl.id ? 'Copiado!' : 'Copiar'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(tmpl.template);
+                        setCopiedId(tmpl.id);
+                        setTimeout(() => setCopiedId(null), 2000);
+                      }}
+                      className="px-3 py-1.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-lg font-bold flex items-center gap-1.5 transition-all"
+                    >
+                      {copiedId === tmpl.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+                      {copiedId === tmpl.id ? 'Copiado!' : 'Copiar'}
+                    </button>
+
+                    {defaultTemplateId === tmpl.id ? (
+                      <span className="text-[10px] font-bold px-2.5 py-1.5 bg-amber-400/10 text-amber-300 border border-amber-400/20 rounded-lg flex items-center gap-1">
+                        ★ Padrão Ativo
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => onSaveDefaultTemplateId?.(tmpl.id)}
+                        className="text-[10px] font-bold px-2.5 py-1.5 bg-[#0e1119] hover:bg-amber-400 hover:text-[#0e1119] text-stone-400 border border-[#1e2636] rounded-lg transition-all flex items-center gap-1"
+                      >
+                        ☆ Usar como Padrão
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-1.5">
                     <button

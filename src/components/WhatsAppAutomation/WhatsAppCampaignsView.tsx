@@ -46,6 +46,8 @@ interface WhatsAppCampaignsViewProps {
   waSessions: WaSession[];
   apiKeys?: ApiKeysConfig;
   preselectedGroupId?: string | null;
+  customTemplates?: any[];
+  defaultTemplateId?: string;
 }
 
 export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
@@ -54,6 +56,8 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   waSessions,
   apiKeys,
   preselectedGroupId,
+  customTemplates = [],
+  defaultTemplateId,
 }) => {
   const [campaigns, setCampaigns] = useState<WaCampaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -403,6 +407,8 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCampaignData}
+        customTemplates={customTemplates}
+        defaultTemplateId={defaultTemplateId}
       />
 
       {/* Modal Prévia Próximos Envios */}

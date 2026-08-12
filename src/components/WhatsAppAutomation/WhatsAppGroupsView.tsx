@@ -48,6 +48,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<WaGroup | null>(null);
 
   // Modals & Alerts
+  const [isSyncingGroups, setIsSyncingGroups] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
@@ -148,6 +149,58 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
+  const handleSyncGroups = async () => {
+    if (!uid) return;
+    setIsSyncingGroups(true);
+    setAlertMessage(null);
+
+    try {
+      if (connectedSessions.length === 0 && waSessions.length === 0) {
+        setAlertMessage({
+          type: 'error',
+          text: 'Nenhuma conta de WhatsApp conectada. Conecte uma conta antes de sincronizar os grupos.',
+        });
+        return;
+      }
+
+      const sessionsToSync = connectedSessions.length > 0 ? connectedSessions : waSessions;
+      const batch = writeBatch(db);
+
+      sessionsToSync.forEach((sess) => {
+        const sId = sess.sessionId || sess.id;
+        if (sId) {
+          const sessRef = doc(db, 'users', uid, 'waSessions', sId);
+          batch.set(
+            sessRef,
+            {
+              requestedSyncGroups: true,
+              requestedGroupSyncAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      });
+
+      await batch.commit();
+
+      setAlertMessage({
+        type: 'success',
+        text: '🔄 Sincronização de grupos solicitada! O robô está atualizando a lista de membros e contatos do WhatsApp.',
+      });
+    } catch (err: any) {
+      console.error('Erro ao solicitar sincronização de grupos:', err);
+      setAlertMessage({
+        type: 'error',
+        text: 'Erro ao solicitar sincronização de grupos. Tente novamente.',
+      });
+    } finally {
+      setTimeout(() => {
+        setIsSyncingGroups(false);
+      }, 2000);
+    }
+  };
+
   const filteredGroups = groups.filter((g) => {
     const matchesSearch =
       (g.name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -193,30 +246,44 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  // Helper to format any phone or clean digits into standard Brazilian (+55 DDD) format
-  const formatPhoneDisplay = (raw?: string): string => {
-    if (!raw) return '';
-    const clean = raw.replace(/@.*$/, '').replace(/\D/g, '');
-    if (!clean) return raw;
+  // Helper to format any phone or clean digits into standard Brazilian (+55 DDD) format or clean LID
+  const formatPhoneDisplay = (raw?: string): { formatted: string; isLid: boolean } => {
+    if (!raw) return { formatted: '', isLid: false };
 
+    const hasLidSuffix = raw.includes('@lid');
+    const clean = raw.replace(/@.*$/, '').replace(/\D/g, '');
+    if (!clean) return { formatted: raw, isLid: false };
+
+    // Check if it's a Brazilian phone number (10, 11, 12, 13 digits starting with 55 or 10/11 digits without 55)
     let withCountry = clean;
-    if (clean.length === 10 || clean.length === 11) {
+    if ((clean.length === 10 || clean.length === 11) && !clean.startsWith('55')) {
       withCountry = '55' + clean;
     }
 
-    if (withCountry.startsWith('55') && (withCountry.length === 12 || withCountry.length === 13)) {
-      const ddd = withCountry.slice(2, 4);
-      const num = withCountry.slice(4);
-      if (num.length === 9) {
-        return `+55 (${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
-      } else if (num.length === 8) {
-        return `+55 (${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+    if (withCountry.startsWith('55') && !hasLidSuffix) {
+      if (withCountry.length === 13) {
+        // Standard +55 (DDD) 9XXXX-XXXX
+        const ddd = withCountry.slice(2, 4);
+        const num = withCountry.slice(4);
+        return { formatted: `+55 (${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`, isLid: false };
+      } else if (withCountry.length === 12) {
+        // Legacy WhatsApp server format missing the 9th digit (e.g. 55 + DDD + 8 digits)
+        const ddd = withCountry.slice(2, 4);
+        const num = withCountry.slice(4);
+        if (['6', '7', '8', '9'].includes(num[0])) {
+          return { formatted: `+55 (${ddd}) 9${num.slice(0, 4)}-${num.slice(4)}`, isLid: false };
+        }
+        return { formatted: `+55 (${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`, isLid: false };
       }
-      return `+55 (${ddd}) ${num}`;
-    } else if (clean.length >= 8) {
-      return `+${clean}`;
     }
-    return raw;
+
+    // International numbers (8 to 13 digits)
+    if (clean.length >= 8 && clean.length <= 13 && !hasLidSuffix) {
+      return { formatted: `+${clean}`, isLid: false };
+    }
+
+    // If it's 14+ digits or has @lid suffix, it is a Meta/WhatsApp Encrypted LID (Linked ID)
+    return { formatted: clean, isLid: true };
   };
 
   // Real participants extractor (returns only real stored/synced contacts)
@@ -233,20 +300,58 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       if (typeof item === 'string') {
         rawStr = item;
       } else if (typeof item === 'object') {
-        rawStr = item.phone || item.phoneNumber || item.number || item.jid || item.id || item.user || '';
         itemName = item.name || item.notify || item.pushName || item.label || '';
         isAdmin = !!(item.isAdmin || item.admin || item.isSuperAdmin);
+
+        // Gather all potential phone / JID candidate properties
+        const candidateProps = [
+          item.phoneNumber,
+          item.pn,
+          item.phone,
+          item.number,
+          item.user,
+          item.wa_id,
+          item.participant,
+          item.jid,
+          item.id,
+        ];
+
+        // 1. Search for a real phone number candidate first (digits length 10 to 13 and not @lid)
+        for (const cand of candidateProps) {
+          if (!cand) continue;
+          const candStr = String(cand);
+          if (candStr.includes('@lid')) continue;
+          const digits = candStr.replace(/@.*$/, '').replace(/\D/g, '');
+          if (digits.length >= 10 && digits.length <= 13) {
+            rawStr = candStr;
+            break;
+          }
+        }
+
+        // 2. If no candidate with 10-13 digits was found, pick the first non-empty property
+        if (!rawStr) {
+          for (const cand of candidateProps) {
+            if (cand) {
+              rawStr = String(cand);
+              break;
+            }
+          }
+        }
       }
 
       const cleanDigits = rawStr.replace(/@.*$/, '').replace(/\D/g, '');
       if (!cleanDigits && !itemName) return null;
 
-      const formatted = cleanDigits ? formatPhoneDisplay(cleanDigits) : '';
+      const { formatted, isLid } = formatPhoneDisplay(rawStr);
 
-      const finalName =
-        itemName && !itemName.startsWith('Membro do Grupo') && !itemName.includes('**')
-          ? itemName
-          : formatted || `Participante ${idx + 1}`;
+      let finalName = '';
+      if (itemName && !itemName.startsWith('Membro do Grupo') && !itemName.includes('**')) {
+        finalName = itemName;
+      } else if (isLid) {
+        finalName = `Membro do Grupo ${idx + 1}`;
+      } else {
+        finalName = formatted || `Participante ${idx + 1}`;
+      }
 
       return {
         id: `part_${idx}_${cleanDigits || Math.random().toString(36).substring(2, 6)}`,
@@ -322,7 +427,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           phoneStr = parts[1].trim();
         }
         const cleanDigits = phoneStr.replace(/\D/g, '');
-        const formatted = formatPhoneDisplay(cleanDigits || phoneStr);
+        const { formatted } = formatPhoneDisplay(cleanDigits || phoneStr);
         return {
           id: `part_${Date.now()}_${idx}_${cleanDigits || idx}`,
           name: pName || formatted || `Participante ${idx + 1}`,
@@ -532,6 +637,17 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
             />
           </div>
+
+          {/* Button: Sync Groups */}
+          <button
+            onClick={handleSyncGroups}
+            disabled={isSyncingGroups}
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+            title="Solicita ao robô do WhatsApp a atualização da lista de grupos e participantes"
+          >
+            <RefreshCw className={`w-4 h-4 text-blue-400 ${isSyncingGroups ? 'animate-spin' : ''}`} />
+            Sincronizar Grupos
+          </button>
 
           {/* Button: Create Group */}
           <button
@@ -840,13 +956,26 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   {/* Tab: Members / Contacts List */}
                   {detailTab === 'members' && (
                     <div className="space-y-3">
+                      {/* Explanatory Banner */}
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-stone-300 flex items-start gap-2.5">
+                        <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-bold text-white">
+                            Entenda os Contatos do Grupo (LIDs x Números Reais)
+                          </p>
+                          <p className="text-[11px] text-stone-300 leading-relaxed">
+                            O WhatsApp oculta os telefones de membros que não estão salvos na sua agenda, fornecendo um <strong>ID de Privacidade (LID)</strong> (ex: <code className="text-blue-300 font-mono bg-blue-950/60 px-1 rounded">1311819075...</code>). As mensagens do disparo automático funcionam normalmente com esses IDs!
+                          </p>
+                        </div>
+                      </div>
+
                       {/* Search member & Export action */}
                       <div className="flex items-center gap-2">
                         <div className="relative flex-1">
                           <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
                           <input
                             type="text"
-                            placeholder="Buscar participante..."
+                            placeholder="Buscar participante ou ID..."
                             value={memberSearch}
                             onChange={(e) => setMemberSearch(e.target.value)}
                             className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
@@ -866,54 +995,83 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                           const filtered = currentParticipants.filter(
                             (p) =>
                               (p.name || '').toLowerCase().includes(memberSearch.toLowerCase()) ||
-                              (p.phone || '').toLowerCase().includes(memberSearch.toLowerCase())
+                              (p.phone || '').toLowerCase().includes(memberSearch.toLowerCase()) ||
+                              (p.id || '').toLowerCase().includes(memberSearch.toLowerCase())
                           );
 
                           if (filtered.length === 0) {
-                      return (
-                        <div className="p-5 text-center text-xs text-stone-400 bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-2">
-                          <p className="font-semibold text-stone-300">
-                            {memberSearch
-                              ? 'Nenhum participante encontrado para a busca.'
-                              : 'Nenhum participante fornecido pela integração WhatsApp ainda.'}
-                          </p>
-                        </div>
-                      );
-                    }
+                            return (
+                              <div className="p-5 text-center text-xs text-stone-400 bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-2">
+                                <p className="font-semibold text-stone-300">
+                                  {memberSearch
+                                    ? 'Nenhum participante encontrado para a busca.'
+                                    : 'Nenhum participante extraído ainda para este grupo.'}
+                                </p>
+                              </div>
+                            );
+                          }
 
-                    return filtered.map((participant, idx) => (
-                      <div
-                        key={participant.id || idx}
-                        className="bg-[#151a26] border border-[#1e2636] p-2.5 rounded-xl flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                            <Phone className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-white flex items-center gap-1.5">
-                              {participant.name || 'Participante'}
-                              {participant.isAdmin && (
-                                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold">
-                                  Admin
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-stone-400 font-mono">
-                              {participant.phone || participant.id}
-                            </div>
-                          </div>
-                        </div>
+                          return filtered.map((participant, idx) => {
+                            const rawNumber = participant.phone || participant.id || '';
+                            const isLidItem = !rawNumber.startsWith('+') || rawNumber.replace(/\D/g, '').length >= 14;
 
-                        <span className="text-[10px] text-emerald-400/80 bg-emerald-500/5 px-2 py-1 rounded-md border border-emerald-500/10">
-                          Membro Ativo
-                        </span>
+                            return (
+                              <div
+                                key={participant.id || idx}
+                                className="bg-[#151a26] border border-[#1e2636] p-2.5 rounded-xl flex items-center justify-between text-xs gap-2"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 ${
+                                    isLidItem
+                                      ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                  }`}>
+                                    {isLidItem ? <Users className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-white flex items-center gap-1.5 truncate">
+                                      {participant.name || (isLidItem ? `Membro do Grupo ${idx + 1}` : 'Contato')}
+                                      {participant.isAdmin && (
+                                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold shrink-0">
+                                          Admin
+                                        </span>
+                                      )}
+                                      {isLidItem && (
+                                        <span className="text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-1.5 py-0.2 rounded font-bold shrink-0">
+                                          LID Privacidade
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className={`text-[11px] font-mono truncate ${
+                                      isLidItem ? 'text-stone-400' : 'text-emerald-400 font-semibold'
+                                    }`}>
+                                      {isLidItem ? `ID WhatsApp: ${rawNumber}` : rawNumber}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => {
+                                    if (rawNumber) {
+                                      navigator.clipboard.writeText(rawNumber);
+                                      setAlertMessage({
+                                        type: 'success',
+                                        text: `Contato/ID ${rawNumber} copiado para a área de transferência!`,
+                                      });
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 bg-[#0e1119] hover:bg-emerald-500/20 text-stone-300 hover:text-emerald-400 border border-[#1e2636] rounded-lg text-[10px] font-bold transition-all shrink-0 flex items-center gap-1"
+                                  title="Copiar contato ou ID"
+                                >
+                                  Copiar
+                                </button>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
-                    ));
-                  })()}
-                </div>
-              </div>
-            )}
+                    </div>
+                  )}
           </>
         );
       })()}

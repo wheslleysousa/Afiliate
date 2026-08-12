@@ -80,6 +80,18 @@ export default function App() {
 
   // Custom Templates State
   const [customTemplates, setCustomTemplates] = useState<CopyTemplate[]>([]);
+  const [defaultTemplateId, setDefaultTemplateId] = useState<string>('whatsapp-urgency');
+
+  const handleSaveDefaultTemplateId = async (id: string) => {
+    setDefaultTemplateId(id);
+    if (currentUser?.id) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id, 'userConfig', 'templatesConfig'), { defaultTemplateId: id }, { merge: true });
+      } catch (e) {
+        console.error('Erro ao salvar template padrão no Firestore:', e);
+      }
+    }
+  };
 
   // CRUD de Templates Personalizados no Firestore
   const handleAddCustomTemplate = async (template: CopyTemplate) => {
@@ -289,6 +301,7 @@ export default function App() {
     let unsubscribeMined: (() => void) | null = null;
     let unsubscribeDailyStats: (() => void) | null = null;
     let unsubscribeTemplates: (() => void) | null = null;
+    let unsubscribeDefaultTemplate: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       // Clean up previous listeners if any
@@ -311,6 +324,10 @@ export default function App() {
       if (unsubscribeTemplates) {
         unsubscribeTemplates();
         unsubscribeTemplates = null;
+      }
+      if (unsubscribeDefaultTemplate) {
+        unsubscribeDefaultTemplate();
+        unsubscribeDefaultTemplate = null;
       }
 
       if (fbUser) {
@@ -455,6 +472,26 @@ export default function App() {
           console.error('Erro ao iniciar listener de templates personalizados:', e);
         }
 
+        // 5.5. Set up real-time listener for defaultTemplateId from Firestore
+        try {
+          unsubscribeDefaultTemplate = onSnapshot(
+            doc(db, 'users', fbUser.uid, 'userConfig', 'templatesConfig'),
+            (snapshot) => {
+              if (snapshot.exists()) {
+                const data = snapshot.data();
+                if (data?.defaultTemplateId) {
+                  setDefaultTemplateId(data.defaultTemplateId);
+                }
+              }
+            },
+            (err) => {
+              console.error('Erro ao escutar template padrão no Firestore:', err);
+            }
+          );
+        } catch (e) {
+          console.error('Erro ao iniciar listener de template padrão:', e);
+        }
+
       } else {
         setCurrentUser(null);
         setSavedItems([]);
@@ -463,6 +500,7 @@ export default function App() {
         setApiKeys({});
         setCommissionRates(DEFAULT_COMMISSION_CONFIG);
         setCustomTemplates([]);
+        setDefaultTemplateId('whatsapp-urgency');
       }
       setAuthLoading(false);
     });
@@ -474,6 +512,7 @@ export default function App() {
       if (unsubscribeMined) unsubscribeMined();
       if (unsubscribeDailyStats) unsubscribeDailyStats();
       if (unsubscribeTemplates) unsubscribeTemplates();
+      if (unsubscribeDefaultTemplate) unsubscribeDefaultTemplate();
     };
   }, []);
 
@@ -765,6 +804,7 @@ export default function App() {
               customTemplates={customTemplates}
               onAddCustomTemplate={handleAddCustomTemplate}
               onDeleteCustomTemplate={handleDeleteCustomTemplate}
+              defaultTemplateId={defaultTemplateId}
             />
           )}
 
@@ -790,6 +830,8 @@ export default function App() {
               onNavigateToMyProducts={() => setActiveTab('my-products')}
               onAddCustomTemplate={handleAddCustomTemplate}
               userMinedIds={new Set(minedItems.map((m) => m.productId))}
+              customTemplates={customTemplates}
+              defaultTemplateId={defaultTemplateId}
             />
           )}
 
@@ -805,6 +847,8 @@ export default function App() {
               onUseProduct={handleUseProduct}
               onUpdateProductCommission={handleUpdateProductCommission}
               onAddCustomTemplate={handleAddCustomTemplate}
+              customTemplates={customTemplates}
+              defaultTemplateId={defaultTemplateId}
             />
           )}
 
@@ -821,6 +865,8 @@ export default function App() {
             <WhatsAppAutomationTab
               uid={currentUser.id}
               apiKeys={apiKeys}
+              customTemplates={customTemplates}
+              defaultTemplateId={defaultTemplateId}
             />
           )}
 
@@ -830,6 +876,8 @@ export default function App() {
               onAddCustomTemplate={handleAddCustomTemplate}
               onDeleteCustomTemplate={handleDeleteCustomTemplate}
               apiKeys={apiKeys}
+              defaultTemplateId={defaultTemplateId}
+              onSaveDefaultTemplateId={handleSaveDefaultTemplateId}
             />
           )}
 
