@@ -258,6 +258,7 @@ export interface WaCampaign {
   maxGapSec: number;
   schedule: CampaignSchedule;
   templateId?: string;
+  customShortSlug?: string;
   lastRunAt?: any;
   createdAt?: any;
 }
