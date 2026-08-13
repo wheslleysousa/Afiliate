@@ -239,15 +239,20 @@ export function buildShareableTrackingLink(
   const cleanIdSlug = slugify(productId);
   const identifier = cleanTitleSlug || cleanIdSlug || 'oferta';
 
-  let basePrefix = '';
+  let domain = '';
   if (apiKeys.customShortDomain) {
-    basePrefix = apiKeys.customShortDomain.replace(/\/+$/, '');
+    domain = apiKeys.customShortDomain.replace(/\/+$/, '');
   } else if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    basePrefix = `${window.location.origin}/r`;
+    domain = window.location.origin;
   }
 
-  if (basePrefix) {
-    return `${basePrefix}/${identifier}`;
+  const prefix = apiKeys.customShortPrefix ? apiKeys.customShortPrefix.trim().replace(/^\/+|\/+$/g, '') : '';
+
+  if (domain) {
+    if (prefix) {
+      return `${domain}/${prefix}/${identifier}`;
+    }
+    return `${domain}/r/${identifier}`;
   }
 
   return directAffiliateUrl;

@@ -10,6 +10,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
 import { TemplatesTab } from './components/TemplatesTab';
 import { ExtensionTab } from './components/ExtensionTab';
+import { UrlShortenerTab } from './components/UrlShortenerTab';
 import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
@@ -63,16 +64,32 @@ export default function App() {
   // Fast Client-Side Redirect for Short Links
   useEffect(() => {
     const path = window.location.pathname;
-    if (path.startsWith('/r/') && !window.location.search.includes('url=')) {
-      const slug = path.split('/r/')[1]?.split('?')[0];
-      if (slug) {
+    if (path !== '/' && path !== '') {
+      const parts = path.replace(/^\//, '').split('?')[0].split('/').filter(Boolean);
+      const validAppTabs = ['new-product', 'saved-products', 'marketplace', 'my-products', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'settings', 'api-docs'];
+      const firstSegment = parts[0];
+
+      if (firstSegment && !validAppTabs.includes(firstSegment)) {
         setRedirectingState({ status: 'redirecting' });
-        getDoc(doc(db, 'shortLinks', slug)).then((docSnap) => {
+        const lookupSlug = parts[parts.length - 1];
+
+        getDoc(doc(db, 'shortLinks', lookupSlug)).then((docSnap) => {
           if (docSnap.exists() && docSnap.data().targetUrl) {
             window.location.href = docSnap.data().targetUrl;
           } else {
-            setRedirectingState({ status: 'error' });
-            setTimeout(() => { window.location.href = '/'; }, 3000);
+            // Also try full path slug lookup
+            const fullSlug = parts.join('-');
+            getDoc(doc(db, 'shortLinks', fullSlug)).then((exactSnap) => {
+              if (exactSnap.exists() && exactSnap.data().targetUrl) {
+                window.location.href = exactSnap.data().targetUrl;
+              } else {
+                setRedirectingState({ status: 'error' });
+                setTimeout(() => { window.location.href = '/'; }, 3000);
+              }
+            }).catch(() => {
+              setRedirectingState({ status: 'error' });
+              setTimeout(() => { window.location.href = '/'; }, 3000);
+            });
           }
         }).catch(() => {
           setRedirectingState({ status: 'error' });
@@ -968,6 +985,8 @@ export default function App() {
                 {activeTab === 'my-products' && 'Meus Produtos'}
                 {activeTab === 'whatsapp-auto' && 'Automação Zap'}
                 {activeTab === 'templates' && 'Templates de Copy'}
+                {activeTab === 'extension' && 'Extensão'}
+                {activeTab === 'url-shortener' && 'Encurtador de Links'}
                 {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
@@ -1108,6 +1127,14 @@ export default function App() {
           )}
 
           {activeTab === 'extension' && <ExtensionTab />}
+
+          {activeTab === 'url-shortener' && (
+            <UrlShortenerTab
+              apiKeys={apiKeys}
+              onSaveApiKeys={handleSaveApiKeys}
+              uid={currentUser?.id}
+            />
+          )}
 
           {activeTab === 'settings' && (
             <SettingsTab

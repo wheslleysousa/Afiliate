@@ -47,7 +47,8 @@ export interface ApiKeysConfig {
   tiktokshopEmail?: string;
 
   // Customização de Link Encurtado
-  customShortDomain?: string; // Ex: meudominio.com ou bit.ly
+  customShortDomain?: string; // Ex: https://lkrm.site
+  customShortPrefix?: string; // Ex: radardeofertas
 }
 
 export type UserApiKeys = ApiKeysConfig;
@@ -323,5 +324,6 @@ export type AppTab =
   | "whatsapp-auto"
   | "templates"
   | "extension"
+  | "url-shortener"
   | "settings"
   | "api-docs";

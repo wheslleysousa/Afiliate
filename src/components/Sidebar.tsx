@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab, UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle } from 'lucide-react';
+import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle, Scissors } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -62,6 +62,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'extension',
       label: 'Extensão',
       icon: <Puzzle className="w-5 h-5 shrink-0 text-purple-400" />,
+    },
+    {
+      id: 'url-shortener',
+      label: 'Encurtador de Links',
+      icon: <Scissors className="w-5 h-5 shrink-0 text-emerald-400" />,
     },
     {
       id: 'settings',
