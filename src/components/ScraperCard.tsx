@@ -55,6 +55,7 @@ export const ScraperCard: React.FC<ScraperCardProps> = ({
     if (u.includes('amazon') || u.includes('amzn.to') || u.includes('amzn.br') || u.includes('a.co')) return 'amazon';
     if (u.includes('aliexpress') || u.includes('ali.ski') || u.includes('s.click.aliexpress') || u.includes('a.aliexpress')) return 'aliexpress';
     if (u.includes('shein') || u.includes('she.in')) return 'shein';
+    if (u.includes('tiktok') || u.includes('vt.tiktok') || u.includes('vm.tiktok')) return 'tiktokshop';
     return null;
   }
 

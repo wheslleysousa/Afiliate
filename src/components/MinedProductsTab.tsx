@@ -57,6 +57,7 @@ const PLATFORMS = [
   { id: 'amazon', label: 'Amazon' },
   { id: 'aliexpress', label: 'AliExpress' },
   { id: 'shein', label: 'Shein' },
+  { id: 'tiktokshop', label: 'TikTok Shop' },
 ];
 
 const STATUS_OPTIONS = [
@@ -73,6 +74,7 @@ const platformLabel: Record<string, string> = {
   amazon: 'Amazon',
   aliexpress: 'AliExpress',
   shein: 'Shein',
+  tiktokshop: 'TikTok Shop',
 };
 
 const platformColor: Record<string, string> = {
@@ -80,7 +82,8 @@ const platformColor: Record<string, string> = {
   shopee:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
-  shein:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  tiktokshop:   'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
 export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
@@ -374,6 +377,22 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                       <h3 className="text-xs font-bold text-white line-clamp-2 leading-snug">
                         {product.title}
                       </h3>
+
+                      {/* Stars & Sales Indicators */}
+                      {(product.stars || product.sales_count) && (
+                        <div className="flex items-center gap-2 text-[10px] text-[#93a0b5]">
+                          {product.stars && (
+                            <div className="flex items-center gap-0.5 text-amber-400">
+                              <Star className="w-3 h-3 fill-amber-400" />
+                              <span className="font-bold">{product.stars}</span>
+                            </div>
+                          )}
+                          {product.stars && product.sales_count && <span className="text-stone-700">•</span>}
+                          {product.sales_count && (
+                            <span className="truncate">{product.sales_count}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2 border-t border-[#1e2636] space-y-1.5">

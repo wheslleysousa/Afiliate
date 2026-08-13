@@ -1,5 +1,5 @@
 import React from 'react';
-import { PackageCheck, Tag, DollarSign, CreditCard, Ticket, Image as ImageIcon, ExternalLink, FileText, Truck, Star, ShoppingBag, CheckCircle2 } from 'lucide-react';
+import { PackageCheck, Tag, DollarSign, CreditCard, Ticket, Image as ImageIcon, ExternalLink, FileText, Truck, Star, ShoppingBag, CheckCircle2, Link2 } from 'lucide-react';
 import { ScrapedProduct } from '../types';
 import { getPlatformInfo, calculateDiscountPercent } from '../utils/copyHelper';
 import { formatPrice } from '../utils/formatPrice';
@@ -8,6 +8,7 @@ interface ProductEditorProps {
   product: ScrapedProduct;
   setProduct: React.Dispatch<React.SetStateAction<ScrapedProduct | null>>;
   onUpdateField?: (field: keyof ScrapedProduct, value: any) => void;
+  rawAffiliateLink?: string;
 }
 
 function getYouTubeEmbedUrl(url?: string | null): string | null {
@@ -17,7 +18,7 @@ function getYouTubeEmbedUrl(url?: string | null): string | null {
   return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : null;
 }
 
-export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduct, onUpdateField }) => {
+export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduct, onUpdateField, rawAffiliateLink }) => {
   const platformInfo = getPlatformInfo(product.platform);
   const discountPercent = calculateDiscountPercent(product.price_from, product.price_to);
 
@@ -379,7 +380,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
             <div className="bg-[#07090f] border border-[#1e2636] rounded-xl p-3 shadow-sm flex items-center justify-between">
               <span className="text-xs text-[#93a0b5] font-medium flex items-center gap-2">
                 <ExternalLink className="w-4 h-4 text-emerald-400" />
-                Link do Produto
+                Link Original
               </span>
               <a
                 href={product.original_link}
@@ -390,6 +391,30 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, setProduc
                 Testar Link ↗
               </a>
             </div>
+
+            {rawAffiliateLink && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 shadow-sm">
+                <span className="text-xs text-blue-400 font-bold flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4" />
+                  Seu Link de Afiliado Oficial (Bruto)
+                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-[10px] text-blue-200/80 font-mono truncate" title={rawAffiliateLink}>
+                      {rawAffiliateLink}
+                    </p>
+                  </div>
+                  <a
+                    href={rawAffiliateLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold whitespace-nowrap transition-colors"
+                  >
+                    Testar ↗
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

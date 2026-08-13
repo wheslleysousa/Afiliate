@@ -52,6 +52,13 @@ export function getPlatformInfo(platformStr: string) {
       colorHex: '#000000',
       logoText: 'Shein'
     };
+  } else if (p.includes('tiktok') || p.includes('tiktokshop')) {
+    return {
+      name: 'TikTok Shop',
+      badgeClass: 'bg-stone-950 text-white border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.3)]',
+      colorHex: '#000000',
+      logoText: 'TikTok'
+    };
   }
   return {
     name: platformStr || 'Afiliados',

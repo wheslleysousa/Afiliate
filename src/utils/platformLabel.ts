@@ -4,6 +4,7 @@ const PLATFORM_LABELS: Record<string, { label: string; emoji: string }> = {
   amazon:       { label: "Amazon", emoji: "📦" },
   aliexpress:   { label: "AliExpress", emoji: "🌐" },
   shein:        { label: "Shein", emoji: "👗" },
+  tiktokshop:   { label: "TikTok Shop", emoji: "🎵" },
 };
 
 export function getPlatformLabel(platform: string): string {

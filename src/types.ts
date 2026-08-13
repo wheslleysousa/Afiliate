@@ -29,6 +29,25 @@ export interface ApiKeysConfig {
   shopeeSecret?: string;              // Shopee API Senha/Secret
   aliexpressAffiliateId?: string;     // AliExpress: ?aff_id=XXX
   sheinAffiliateToken?: string;       // Shein: ?url_from=XXX
+  tiktokshopTrackingId?: string;      // TikTok Shop: ?affiliate_id=XXX ou link de afiliado
+  tiktokshopAppKey?: string;          // TikTok Shop App Key (opcional)
+  tiktokshopSecret?: string;          // TikTok Shop App Secret (opcional)
+
+  // Dados da conta oficial conectada do Mercado Livre:
+  mercadoLivreUserId?: string | number;
+  mercadoLivreNickname?: string;
+  mercadoLivreEmail?: string;
+
+  // Dados da conta oficial conectada do TikTok Shop:
+  tiktokshopKey?: string;
+  tiktokshopRefreshToken?: string;
+  tiktokshopExpiresAt?: number;
+  tiktokshopUserId?: string | number;
+  tiktokshopNickname?: string;
+  tiktokshopEmail?: string;
+
+  // Customização de Link Encurtado
+  customShortDomain?: string; // Ex: meudominio.com ou bit.ly
 }
 
 export type UserApiKeys = ApiKeysConfig;
@@ -147,6 +166,7 @@ export interface GlobalProduct {
   commission_rate?: number | null;
   commission_amount?: number | null;
   sales_trend_pct?: number | null;
+  affiliate_link?: string | null;
 }
 
 /** Entrada no histórico de preço de um produto do marketplace */
@@ -300,7 +320,6 @@ export type AppTab =
   | "saved-products"
   | "marketplace"
   | "my-products"
-  | "analytics"
   | "whatsapp-auto"
   | "templates"
   | "extension"

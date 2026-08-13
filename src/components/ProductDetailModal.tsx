@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate, ProductData } from '../types';
-import { buildAffiliateLink } from '../utils/affiliateLink';
+import { buildAffiliateLink, buildShareableTrackingLink, slugify } from '../utils/affiliateLink';
 import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
 import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
+import { db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import {
   X,
   Share2,
@@ -32,6 +34,7 @@ interface ProductDetailModalProps {
   onAddCustomTemplate?: (template: CopyTemplate) => void;
   customTemplates?: CopyTemplate[];
   defaultTemplateId?: string;
+  onProductEnriched?: (enriched: GlobalProduct) => void;
 }
 
 const platformLabel: Record<string, string> = {
@@ -40,6 +43,7 @@ const platformLabel: Record<string, string> = {
   amazon: 'Amazon',
   aliexpress: 'AliExpress',
   shein: 'Shein',
+  tiktokshop: 'TikTok Shop',
 };
 
 const platformColor: Record<string, string> = {
@@ -47,18 +51,23 @@ const platformColor: Record<string, string> = {
   shopee: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress: 'bg-red-500/20 text-red-300 border-red-500/30',
-  shein: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  shein: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  tiktokshop: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
+  currentUserId,
   apiKeys,
   commissionRates,
   onClose,
   customTemplates = [],
   defaultTemplateId,
+  onProductEnriched,
 }) => {
   const keys: ApiKeysConfig = apiKeys || {};
+  const [currentProduct, setCurrentProduct] = useState<GlobalProduct>(product);
+  const [enriching, setEnriching] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [activeTemplateId, setActiveTemplateId] = useState<string>(
     defaultTemplateId || 'whatsapp-urgency'
@@ -66,21 +75,102 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [customMessage, setCustomMessage] = useState<string>('');
   const [generatingAiCopy, setGeneratingAiCopy] = useState(false);
 
-  // Link de Afiliado
-  const affiliateLink = buildAffiliateLink(product.original_link, product.platform, keys);
+  // Auto-enrich when the modal is opened
+  useEffect(() => {
+    const enrichData = async () => {
+      // Run enrichment if any crucial field is missing or to guarantee complete data
+      const isMissingDetails =
+        !product.description ||
+        !product.image_url ||
+        product.stars === undefined ||
+        product.stars === null ||
+        product.sales_count === undefined ||
+        product.sales_count === null;
+
+      if (!isMissingDetails && product.description !== 'Aguardando sincronização de detalhes...') return;
+
+      setEnriching(true);
+      try {
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: product.original_link, apiKeys: keys }),
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success && resData.data) {
+            const scraped = resData.data;
+            const updated: GlobalProduct = {
+              ...product,
+              title: scraped.title || product.title,
+              description: scraped.description || product.description || 'Nenhuma descrição fornecida.',
+              image_url: scraped.image_url || product.image_url,
+              price_to: scraped.price_to || product.price_to,
+              price_from: scraped.price_from || product.price_from,
+              stars: scraped.stars !== undefined ? scraped.stars : product.stars,
+              sales_count: scraped.sales_count !== undefined ? scraped.sales_count : product.sales_count,
+              category: scraped.category || product.category,
+              lastUpdatedAt: new Date().toLocaleDateString('pt-BR'),
+            };
+
+            setCurrentProduct(updated);
+
+            // Persist the enriched data to the global products collection
+            try {
+              await setDoc(doc(db, 'products', product.id), updated, { merge: true });
+            } catch (e) {
+              console.error('[ProductDetailModal] Error writing enriched product to DB:', e);
+            }
+
+            // Propagate enrichment back to parent components
+            if (onProductEnriched) {
+              onProductEnriched(updated);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[ProductDetailModal] Error enriching product:', err);
+      } finally {
+        setEnriching(false);
+      }
+    };
+
+    enrichData();
+  }, [product.id, product.original_link]);
+
+  // Sync Short Link to DB whenever title or URL changes
+  useEffect(() => {
+    if (currentProduct && currentUserId) {
+      const targetUrl = buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys || {});
+      const slug = slugify(currentProduct.title) || slugify(currentProduct.id) || 'oferta';
+      if (targetUrl) {
+        setDoc(doc(db, 'shortLinks', slug), {
+          targetUrl,
+          userId: currentUserId,
+          productId: currentProduct.id || null,
+          title: currentProduct.title || null,
+          createdAt: new Date().toISOString()
+        }, { merge: true }).catch(console.error);
+      }
+    }
+  }, [currentProduct.title, currentProduct.original_link, currentUserId, keys]);
+
+  // Link de Afiliado com Rastreamento de Cliques em Tempo Real para WhatsApp
+  const affiliateLink = buildShareableTrackingLink(currentProduct.id, currentProduct.original_link, currentProduct.platform, keys, currentProduct.title);
 
   // Comissão Estimada com base na tabela interna
   const commission = calculateCommission(
-    product.price_to,
-    product.platform,
-    product,
+    currentProduct.price_to,
+    currentProduct.platform,
+    currentProduct,
     null,
     null,
     commissionRates
   );
 
-  const trend = calculateSalesTrend(product);
-  const hasFrom = product.price_from && product.price_from !== product.price_to;
+  const trend = calculateSalesTrend(currentProduct);
+  const hasFrom = currentProduct.price_from && currentProduct.price_from !== currentProduct.price_to;
 
   const allAvailableTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
   const activeTemplate = allAvailableTemplates.find((t) => t.id === activeTemplateId) || DEFAULT_TEMPLATES[0];
@@ -88,20 +178,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   useEffect(() => {
     // Converter GlobalProduct para ProductData
     const prodData: ProductData = {
-      title: product.title,
-      description: product.description || '',
-      price_to: product.price_to,
-      price_from: product.price_from || null,
-      installments: product.installments || null,
-      coupon: product.coupon || null,
-      shipping: product.shipping || null,
-      platform: product.platform,
-      original_link: product.original_link,
-      image_url: product.image_url || '',
+      title: currentProduct.title,
+      description: currentProduct.description || '',
+      price_to: currentProduct.price_to,
+      price_from: currentProduct.price_from || null,
+      installments: currentProduct.installments || null,
+      coupon: currentProduct.coupon || null,
+      shipping: currentProduct.shipping || null,
+      platform: currentProduct.platform,
+      original_link: currentProduct.original_link,
+      image_url: currentProduct.image_url || '',
     };
     const formatted = applyTemplate(activeTemplate.template, prodData, affiliateLink, commissionRates);
     setCustomMessage(formatted);
-  }, [activeTemplateId, product, affiliateLink, customTemplates, commissionRates]);
+  }, [activeTemplateId, currentProduct, affiliateLink, customTemplates, commissionRates]);
 
   const currentMessage = customMessage;
 
@@ -120,7 +210,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product,
+          product: currentProduct,
           geminiApiKey: keys.geminiApiKey,
           geminiApiKeys: keys.geminiApiKeys,
         }),
@@ -155,14 +245,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           <div className="flex items-center gap-3">
             <span
               className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                platformColor[product.platform] ?? 'bg-stone-800 text-stone-300'
+                platformColor[currentProduct.platform] ?? 'bg-stone-800 text-stone-300'
               }`}
             >
-              {platformLabel[product.platform] ?? product.platform}
+              {platformLabel[currentProduct.platform] ?? currentProduct.platform}
             </span>
             <span className="text-xs font-semibold text-[#93a0b5] truncate max-w-xs sm:max-w-md">
-              {product.category || 'Geral'}
+              {currentProduct.category || 'Geral'}
             </span>
+            {enriching && (
+              <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Atualizando dados...
+              </span>
+            )}
           </div>
 
           <button
@@ -183,10 +279,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {/* Left Col: Photo */}
             <div className="md:col-span-5 flex flex-col items-center">
               <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-2xl p-4 flex items-center justify-center overflow-hidden group">
-                {!imgError && product.image_url ? (
+                {!imgError && currentProduct.image_url ? (
                   <img
-                    src={product.image_url}
-                    alt={product.title}
+                    src={currentProduct.image_url}
+                    alt={currentProduct.title}
                     onError={() => setImgError(true)}
                     className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
@@ -199,7 +295,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {/* Right Col: Details */}
             <div className="md:col-span-7 space-y-4">
               <h2 className="text-base sm:text-lg font-extrabold text-white leading-snug">
-                {product.title}
+                {currentProduct.title}
               </h2>
 
               {/* Price Block */}
@@ -208,7 +304,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   Preço do Produto
                 </span>
                 <PriceBlock
-                  product={product}
+                  product={currentProduct}
                   size="lg"
                 />
               </div>
@@ -228,19 +324,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </p>
               </div>
 
-              {/* Sales in Last 7 Days & Trend */}
+              {/* Sales in Last 7 Days & Trend & Rating */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Vendas nos últimos 7 dias</span>
+                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Volume de Vendas</span>
                   <span className="text-sm font-extrabold text-white">
-                    {product.sales_7d ? `${product.sales_7d} unidades` : 'Alta demanda'}
+                    {currentProduct.sales_count ? currentProduct.sales_count : (currentProduct.sales_7d ? `${currentProduct.sales_7d} unid.` : 'Alta demanda')}
                   </span>
                 </div>
 
                 <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Tendência de Mercado</span>
-                  <span className="text-sm font-extrabold text-emerald-400 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" /> +{trend.pct}% em alta
+                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Avaliação / Nota</span>
+                  <span className="text-sm font-extrabold text-yellow-400 flex items-center gap-1">
+                    ⭐ {currentProduct.stars ? `${currentProduct.stars} / 5.0` : 'Excelente'}
                   </span>
                 </div>
               </div>
@@ -249,11 +345,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
 
           {/* Product Description */}
-          {product.description && (
+          {currentProduct.description && (
             <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
               <span className="text-xs font-extrabold text-white block">Descrição do Produto</span>
               <p className="text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line max-h-36 overflow-y-auto">
-                {product.description}
+                {currentProduct.description}
               </p>
             </div>
           )}
@@ -345,9 +441,30 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 className="w-full sm:w-auto px-4 py-3.5 rounded-xl bg-[#0e1119] hover:bg-stone-800 text-stone-300 border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-2 shrink-0 transition-all"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>Abrir Link Oficial</span>
+                <span>Abrir Encurtado</span>
               </a>
             </div>
+
+            {keys && (
+              <div className="mt-4 pt-4 border-t border-[#1e2636]">
+                <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mb-1">
+                  Seu Link de Afiliado Oficial (Bruto)
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#0e1119] border border-blue-500/20 rounded p-2 overflow-hidden text-[10px] text-blue-200/80 font-mono truncate">
+                    {buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys)}
+                  </div>
+                  <a
+                    href={buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1.5 rounded font-bold whitespace-nowrap transition-colors"
+                  >
+                    Testar
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

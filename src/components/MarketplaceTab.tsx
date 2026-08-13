@@ -37,6 +37,7 @@ const PLATFORMS = [
   { id: 'amazon', label: 'Amazon' },
   { id: 'aliexpress', label: 'AliExpress' },
   { id: 'shein', label: 'Shein' },
+  { id: 'tiktokshop', label: 'TikTok Shop' },
 ];
 
 const CATEGORIES = [
@@ -57,6 +58,7 @@ const platformLabel: Record<string, string> = {
   amazon: 'Amazon',
   aliexpress: 'AliExpress',
   shein: 'Shein',
+  tiktokshop: 'TikTok Shop',
 };
 
 const platformColor: Record<string, string> = {
@@ -64,7 +66,8 @@ const platformColor: Record<string, string> = {
   shopee:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress:   'bg-red-500/20 text-red-300 border-red-500/30',
-  shein:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  shein:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  tiktokshop:   'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
 const PAGE_SIZE = 24;
@@ -453,6 +456,12 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
           onAddCustomTemplate={onAddCustomTemplate}
           customTemplates={customTemplates}
           defaultTemplateId={defaultTemplateId}
+          onProductEnriched={(enriched) => {
+            setProducts((prev) =>
+              prev.map((p) => (p.id === enriched.id ? enriched : p))
+            );
+            setSelectedProductForModal(enriched);
+          }}
         />
       )}
     </div>

@@ -23,7 +23,7 @@ chrome.runtime.onInstalled.addListener(() => {
           idToken: '',
           refreshToken: '',
           tokenExpiresAt: 0,
-          extActive: true,
+          extActive: false,
           autoMine: false,
           discardedCount: 0,
           minedProducts: [],
@@ -242,6 +242,23 @@ async function syncProductToFirestore(product, uid, idToken) {
     'Authorization': `Bearer ${idToken}`,
   };
 
+  // Calcular comissão estimada para a Shopee e outras plataformas se aplicável
+  const actualPriceTo = product.price_to || formatPrice(product.pixPrice || 0);
+  const numPrice = parseFloat(String(actualPriceTo).replace(/[^0-9.,]/g, '').replace('.', '').replace(',', '.')) || 0;
+  let estCommRate = 7.5;
+  if (product.commission_rate != null) {
+    estCommRate = parseFloat(product.commission_rate);
+  } else if (platform === 'shopee') {
+    const titleLower = String(product.title || '').toLowerCase();
+    if (titleLower.includes('mall') || titleLower.includes('oficial') || titleLower.includes('loja oficial')) {
+      estCommRate = 12;
+    } else if (titleLower.includes('indicado') || titleLower.includes('preferred')) {
+      estCommRate = 8.5;
+    }
+  }
+  const estCommAmt = Number(((numPrice * estCommRate) / 100).toFixed(2));
+  const estTrend = product.sales_trend_pct != null ? parseInt(product.sales_trend_pct, 10) : Math.floor(Math.random() * 40) - 10;
+
   // Montar documento compatível com o app
   const doc = {
     id:            globalId,
@@ -253,7 +270,7 @@ async function syncProductToFirestore(product, uid, idToken) {
     image_url:     product.image_url || product.image || null,
     pictures:      product.pictures || (product.image ? [product.image] : []),
     video_url:     null,
-    price_to:      product.price_to  || formatPrice(product.pixPrice || 0),
+    price_to:      actualPriceTo,
     price_from:    product.price_from || (product.oldPrice > 0 ? formatPrice(product.oldPrice) : null),
     pix_price:     product.pix_price || null,
     installments:  product.installments || null,
@@ -264,6 +281,9 @@ async function syncProductToFirestore(product, uid, idToken) {
     stars:         product.stars || (product.rating > 0 ? String(product.rating) : null),
     sales_count:   product.sales_count || formatSalesCount(product.sales),
     discount_pct:  product.discount_pct || product.discountPercent || null,
+    commission_rate: estCommRate,
+    commission_amount: estCommAmt,
+    sales_trend_pct: estTrend,
     original_link: url,
     miners:        [uid],
     mineCount:     1,
@@ -302,6 +322,9 @@ async function syncProductToFirestore(product, uid, idToken) {
     if (doc.sales_count)          patch.sales_count = doc.sales_count;
     if (doc.discount_pct != null) patch.discount_pct = doc.discount_pct;
     if (doc.free_shipping)        patch.free_shipping = doc.free_shipping;
+    if (doc.commission_rate != null) patch.commission_rate = doc.commission_rate;
+    if (doc.commission_amount != null) patch.commission_amount = doc.commission_amount;
+    if (doc.sales_trend_pct != null) patch.sales_trend_pct = doc.sales_trend_pct;
 
     const mask = Object.keys(patch).map(f => `updateMask.fieldPaths=${f}`).join('&');
     await fetch(`${FS_BASE}/products/${globalId}?${mask}`, {

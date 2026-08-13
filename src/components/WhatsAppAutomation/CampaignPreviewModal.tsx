@@ -3,7 +3,7 @@ import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/fires
 import { db } from '../../lib/firebase';
 import type { WaCampaign, WaGroup, GlobalProduct, MinedProductRef, ApiKeysConfig } from '../../types';
 import { formatCopy } from '../../utils/formatCopy';
-import { buildAffiliateLink } from '../../utils/affiliateLink';
+import { buildAffiliateLink, buildShareableTrackingLink } from '../../utils/affiliateLink';
 import { isProductSharedRecently } from '../../utils/sharingLogUtils';
 import {
   X,
@@ -205,7 +205,7 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
           currentEst = new Date(currentEst.getTime() + gapMs);
         }
 
-        const affLink = buildAffiliateLink(product.original_link || '', product.platform || '', apiKeys || {});
+        const affLink = buildShareableTrackingLink(product.id, product.original_link || '', product.platform || '', apiKeys || {}, product.title);
         const copyText = formatCopy({
           ...product,
           original_link: affLink,

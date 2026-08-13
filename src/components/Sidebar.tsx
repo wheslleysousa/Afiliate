@@ -49,11 +49,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: minedCount,
     },
     {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: <BarChart2 className="w-5 h-5 shrink-0 text-blue-400" />,
-    },
-    {
       id: 'whatsapp-auto',
       label: 'Automação Zap',
       icon: <Bot className="w-5 h-5 shrink-0 text-emerald-400" />,

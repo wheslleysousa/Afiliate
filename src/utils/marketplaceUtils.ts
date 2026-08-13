@@ -134,6 +134,10 @@ export async function upsertToMarketplace(
       stars: product.stars ?? null,
       sales_count: product.sales_count ?? null,
       discount_pct: product.discount_pct ?? null,
+      category: product.category ?? null,
+      commission_rate: product.commission_rate ?? null,
+      commission_amount: product.commission_amount ?? null,
+      sales_trend_pct: product.sales_trend_pct ?? null,
     };
 
     await setDoc(productRef, newGlobalProduct);
@@ -174,6 +178,10 @@ export async function upsertToMarketplace(
     if (product.stars != null) updates.stars = product.stars;
     if (product.sales_count != null) updates.sales_count = product.sales_count;
     if (product.discount_pct != null) updates.discount_pct = product.discount_pct;
+    if (product.category != null) updates.category = product.category;
+    if (product.commission_rate != null) updates.commission_rate = product.commission_rate;
+    if (product.commission_amount != null) updates.commission_amount = product.commission_amount;
+    if (product.sales_trend_pct != null) updates.sales_trend_pct = product.sales_trend_pct;
 
     await updateDoc(productRef, updates);
 
@@ -362,6 +370,17 @@ export const DEFAULT_COMMISSION_CONFIG: CommissionRatesConfig = {
       beleza: 14,
       casa: 10
     }
+  },
+  tiktokshop: {
+    default: 12,
+    categories: {
+      moda: 18,
+      beleza: 16,
+      casa: 12,
+      eletronicos: 10,
+      esportes: 12,
+      brinquedos: 12
+    }
   }
 };
 
@@ -372,6 +391,7 @@ export const DEFAULT_COMMISSION_RATES: Record<string, number> = {
   amazon: 4,
   aliexpress: 5,
   shein: 10,
+  tiktokshop: 12,
 };
 
 export function normalizeCategoryText(text: string): string {

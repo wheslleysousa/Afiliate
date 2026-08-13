@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
+import { extractCleanTrackingId } from '../utils/affiliateLink';
 import { 
   AlarmSettings, 
   getAlarmSettings, 
@@ -36,7 +37,11 @@ import {
   Layers,
   CheckSquare,
   HelpCircle,
-  Globe
+  Globe,
+  Info,
+  Pencil,
+  Unlink,
+  LogOut
 } from 'lucide-react';
 
 interface SettingsTabProps {
@@ -91,12 +96,103 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   // --- 3. Afiliados & Conexões ---
   const [keys, setKeys] = useState<ApiKeysConfig>(initialApiKeys);
+
+  useEffect(() => {
+    setKeys(initialApiKeys);
+    setShopeeEditId(initialApiKeys.shopeeAppId || '');
+    setShopeeEditSecret(initialApiKeys.shopeeSecret || '');
+    setIsEditingShopeeApi(!initialApiKeys.shopeeAppId);
+  }, [initialApiKeys]);
+
+  const [shopeeEditId, setShopeeEditId] = useState(initialApiKeys.shopeeAppId || '');
+  const [shopeeEditSecret, setShopeeEditSecret] = useState(initialApiKeys.shopeeSecret || '');
+  const [isEditingShopeeApi, setIsEditingShopeeApi] = useState(!initialApiKeys.shopeeAppId);
+  const [shopeeFeedback, setShopeeFeedback] = useState(false);
   const [affiliatesSavedFeedback, setAffiliatesSavedFeedback] = useState(false);
+  const [editingPlatforms, setEditingPlatforms] = useState<Record<string, boolean>>({});
+  const [revealedPlatforms, setRevealedPlatforms] = useState<Record<string, boolean>>({});
+  const [savedPlatformNotice, setSavedPlatformNotice] = useState<string | null>(null);
+
+  const toggleEditPlatform = (platformId: string) => {
+    setEditingPlatforms((prev) => ({ ...prev, [platformId]: !prev[platformId] }));
+  };
+
+  const toggleRevealPlatform = (platformId: string) => {
+    setRevealedPlatforms((prev) => ({ ...prev, [platformId]: !prev[platformId] }));
+  };
 
   const handleSaveAffiliateKeys = () => {
     onSaveApiKeys(keys);
     setAffiliatesSavedFeedback(true);
     setTimeout(() => setAffiliatesSavedFeedback(false), 3000);
+  };
+
+  const handleDisconnectOfficialAccount = (platformId: string) => {
+    let newKeys = { ...keys };
+    if (platformId === 'mercadolivre') {
+      newKeys = {
+        ...newKeys,
+        mercadoLivreKey: '',
+        mercadoLivreRefreshToken: '',
+        mercadoLivreExpiresAt: 0,
+        mercadoLivreUserId: '',
+        mercadoLivreNickname: '',
+        mercadoLivreEmail: '',
+      };
+    } else if (platformId === 'shopee') {
+      newKeys = {
+        ...newKeys,
+        shopeeKey: '',
+        shopeeAppId: '',
+        shopeeSecret: '',
+      };
+    } else if (platformId === 'amazon') {
+      newKeys = {
+        ...newKeys,
+        amazonKey: '',
+      };
+    } else if (platformId === 'aliexpress') {
+      newKeys = {
+        ...newKeys,
+        aliExpressKey: '',
+      };
+    } else if (platformId === 'shein') {
+      newKeys = {
+        ...newKeys,
+        sheinKey: '',
+      };
+    } else if (platformId === 'tiktokshop') {
+      newKeys = {
+        ...newKeys,
+        tiktokshopKey: '',
+        tiktokshopRefreshToken: '',
+        tiktokshopExpiresAt: 0,
+        tiktokshopUserId: '',
+        tiktokshopNickname: '',
+        tiktokshopEmail: '',
+        tiktokshopAppKey: '',
+        tiktokshopSecret: '',
+      };
+    }
+    setKeys(newKeys);
+    onSaveApiKeys(newKeys);
+  };
+
+  const handleClearAffiliateId = (fieldKey: keyof ApiKeysConfig) => {
+    const newKeys = { ...keys, [fieldKey]: '' };
+    setKeys(newKeys);
+    onSaveApiKeys(newKeys);
+  };
+
+  const handleDisconnectPlatform = (platformId: string) => {
+    handleDisconnectOfficialAccount(platformId);
+    if (platformId === 'mercadolivre') handleClearAffiliateId('mercadolivreTrackingId');
+    else if (platformId === 'shopee') handleClearAffiliateId('shopeeTrackingId');
+    else if (platformId === 'amazon') handleClearAffiliateId('amazonAssociatesTag');
+    else if (platformId === 'aliexpress') handleClearAffiliateId('aliexpressAffiliateId');
+    else if (platformId === 'shein') handleClearAffiliateId('sheinAffiliateToken');
+    else if (platformId === 'tiktokshop') handleClearAffiliateId('tiktokshopTrackingId');
+    setEditingPlatforms((prev) => ({ ...prev, [platformId]: false }));
   };
 
   // --- 4. Alarmes & Configurações Modal ---
@@ -377,118 +473,524 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <div>
               <h2 className="text-base font-extrabold text-white">Conexão com Plataformas de Afiliados</h2>
               <p className="text-xs text-[#93a0b5]">
-                Insira seus IDs e Tokens oficiais para rastreio automático de comissões
+                Configure seu link de afiliado ou ID para rastreamento automático de vendas e comissões.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Mercado Livre */}
-            <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-yellow-400 block">Mercado Livre Oficial & Afiliados</span>
-                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-yellow-400/10 text-yellow-300 border border-yellow-400/20">
-                  OAuth 2.0
-                </span>
-              </div>
-              
-              <div>
-                <label className="text-[11px] font-semibold text-stone-300 block mb-1">
-                  Tracking ID / Link de Afiliado
-                </label>
+          <div className="p-4 bg-[#151a26] border border-blue-500/30 rounded-xl space-y-3 mb-6">
+            <div>
+              <h3 className="text-sm font-extrabold text-white">Domínio de Rastreamento (Link Encurtado)</h3>
+              <p className="text-xs text-blue-300/80 mt-1">
+                Por padrão, o app gera links encurtados com o domínio atual. Você pode definir um domínio personalizado ou base de encurtador. (Deixe em branco para usar o padrão).
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-stone-400 block mb-1">Prefixo do Link Encurtado</label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Cole seu Tracking ID (ex: sowh5608494) ou link de afiliado"
-                  value={keys.mercadolivreTrackingId || ''}
-                  onChange={(e) => {
-                    let val = e.target.value.trim();
-                    if (val.includes('tracking_id=')) {
-                      try {
-                        const match = val.match(/[?&]tracking_id=([^&]+)/);
-                        if (match && match[1]) {
-                          val = match[1];
-                        }
-                      } catch (err) {}
-                    }
-                    setKeys({ ...keys, mercadolivreTrackingId: val });
-                  }}
-                  className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-yellow-500"
+                  placeholder="Ex: https://meudominio.com/r/"
+                  value={keys.customShortDomain || ''}
+                  onChange={(e) => setKeys({ ...keys, customShortDomain: e.target.value })}
+                  className="flex-1 px-3.5 py-2.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-blue-500"
                 />
-                <p className="text-[9px] text-[#93a0b5] mt-1">
-                  Se você colar um link de afiliado do Mercado Livre, nós extrairemos seu Tracking ID automaticamente.
-                </p>
-              </div>
-
-              <div className="pt-2 border-t border-[#1e2636]">
-                <a
-                  href="/api/auth/mercadolivre/connect"
-                  className="w-full py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-[#0e1119] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-yellow-500/10"
+                <button
+                  type="button"
+                  onClick={() => onSaveApiKeys(keys)}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-500/20 whitespace-nowrap"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Conectar Conta Oficial Mercado Livre</span>
-                </a>
+                  Salvar
+                </button>
               </div>
             </div>
+          </div>
 
-            {/* Shopee */}
-            <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
-              <span className="text-xs font-bold text-orange-400 block">Shopee Afiliados</span>
-              <div>
-                <label className="text-[11px] font-semibold text-stone-300 block mb-1">
-                  Shopee ID de Afiliado / Tracking
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: 12345678"
-                  value={keys.shopeeTrackingId || ''}
-                  onChange={(e) => setKeys({ ...keys, shopeeTrackingId: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-orange-500"
-                />
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              {
+                id: 'mercadolivre',
+                title: 'Mercado Livre',
+                emoji: '🛒',
+                badge: 'OAuth 2.0 / Afiliados',
+                fieldKey: 'mercadolivreTrackingId' as keyof ApiKeysConfig,
+                apiKeyField: 'mercadoLivreKey' as keyof ApiKeysConfig,
+                placeholder: 'Cole seu link de afiliado ou Tracking ID (ex: sowh5608494)',
+                colorBorder: 'border-yellow-500/30 focus:border-yellow-500',
+                colorBadge: 'bg-yellow-400/10 text-yellow-300 border-yellow-400/20',
+                colorTitle: 'text-yellow-400',
+                oauthUrl: '/api/auth/mercadolivre/connect',
+                connectButtonText: 'Conectar Conta Oficial Mercado Livre'
+              },
+              {
+                id: 'shopee',
+                title: 'Shopee Afiliados',
+                emoji: '🧡',
+                badge: 'API Open Platform',
+                fieldKey: 'shopeeTrackingId' as keyof ApiKeysConfig,
+                apiKeyField: 'shopeeAppId' as keyof ApiKeysConfig,
+                placeholder: 'Ex: meu_subid_ou_link (opcional se configurou AppID abaixo)',
+                colorBorder: 'border-orange-500/30 focus:border-orange-500',
+                colorBadge: 'bg-orange-400/10 text-orange-300 border-orange-400/20',
+                colorTitle: 'text-orange-400',
+              },
+              {
+                id: 'amazon',
+                title: 'Amazon Associados',
+                emoji: '📦',
+                badge: 'Tag de Associado',
+                fieldKey: 'amazonAssociatesTag' as keyof ApiKeysConfig,
+                apiKeyField: 'amazonKey' as keyof ApiKeysConfig,
+                placeholder: 'Cole sua Tag da Amazon (ex: suatag-20 ou link de associado)',
+                colorBorder: 'border-blue-500/30 focus:border-blue-500',
+                colorBadge: 'bg-blue-400/10 text-blue-300 border-blue-400/20',
+                colorTitle: 'text-blue-400',
+              },
+              {
+                id: 'aliexpress',
+                title: 'AliExpress Afiliados',
+                emoji: '🌐',
+                badge: 'Affiliate ID',
+                fieldKey: 'aliexpressAffiliateId' as keyof ApiKeysConfig,
+                apiKeyField: 'aliExpressKey' as keyof ApiKeysConfig,
+                placeholder: 'Cole seu ID de Afiliado AliExpress (ex: aff_12345 ou link)',
+                colorBorder: 'border-red-500/30 focus:border-red-500',
+                colorBadge: 'bg-red-400/10 text-red-300 border-red-400/20',
+                colorTitle: 'text-red-400',
+              },
+              {
+                id: 'shein',
+                title: 'Shein Afiliados',
+                emoji: '👗',
+                badge: 'Token / Link',
+                fieldKey: 'sheinAffiliateToken' as keyof ApiKeysConfig,
+                apiKeyField: 'sheinKey' as keyof ApiKeysConfig,
+                placeholder: 'Cole seu Token Shein ou link de indicação',
+                colorBorder: 'border-pink-500/30 focus:border-pink-500',
+                colorBadge: 'bg-pink-400/10 text-pink-300 border-pink-400/20',
+                colorTitle: 'text-pink-400',
+              },
+              {
+                id: 'tiktokshop',
+                title: 'TikTok Shop Afiliados',
+                emoji: '🎵',
+                badge: 'ID de Criador / Afiliado',
+                fieldKey: 'tiktokshopTrackingId' as keyof ApiKeysConfig,
+                apiKeyField: 'tiktokshopKey' as keyof ApiKeysConfig,
+                placeholder: 'Cole seu ID TikTok Shop, @usuario ou link de criador (ex: https://vt.tiktok.com/...)',
+                colorBorder: 'border-cyan-500/30 focus:border-cyan-500',
+                colorBadge: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/20',
+                colorTitle: 'text-cyan-400',
+              },
+            ].map((plat) => {
+              const isOfficialConnected = Boolean(plat.apiKeyField && (keys[plat.apiKeyField] as string)?.trim());
+              const trackingIdVal = (keys[plat.fieldKey] as string) || '';
+              const isIdConfigured = Boolean(trackingIdVal.trim());
 
-            {/* Amazon */}
-            <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
-              <span className="text-xs font-bold text-blue-400 block">Amazon Associados</span>
-              <div>
-                <label className="text-[11px] font-semibold text-stone-300 block mb-1">
-                  Tag de Associado Amazon
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: suatag-20"
-                  value={keys.amazonAssociatesTag || ''}
-                  onChange={(e) => setKeys({ ...keys, amazonAssociatesTag: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
+              const isEditing = Boolean(editingPlatforms[plat.id]);
+              const isRevealed = Boolean(revealedPlatforms[plat.id]);
 
-            {/* AliExpress / Trakkin ID */}
-            <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
-              <span className="text-xs font-bold text-red-400 block">AliExpress / Trakkin ID</span>
-              <div>
-                <label className="text-[11px] font-semibold text-stone-300 block mb-1">
-                  AliExpress Affiliate / Trakkin ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: aff_12345"
-                  value={keys.aliexpressAffiliateId || ''}
-                  onChange={(e) => setKeys({ ...keys, aliexpressAffiliateId: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs font-mono text-white focus:outline-none focus:border-red-500"
-                />
-              </div>
-            </div>
+              return (
+                <div key={plat.id} className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-4 relative">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-[#1e2636] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{plat.emoji}</span>
+                      <span className={`text-xs font-bold ${plat.colorTitle}`}>{plat.title}</span>
+                    </div>
+                    {plat.badge && (
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${plat.colorBadge}`}>
+                        {plat.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* SEÇÃO 1: ID DE AFILIADO / TRACKING ID (OUTRAS PLATAFORMAS) */}
+                  {plat.id !== 'mercadolivre' && plat.id !== 'shopee' && (
+                    <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                          <Tag className="w-3.5 h-3.5" /> 1. ID de Afiliado (Rastreamento)
+                        </span>
+                        {isIdConfigured ? (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            ID Configurado
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-stone-400 bg-stone-800/80 px-2 py-0.5 rounded">
+                            Não Inserido
+                          </span>
+                        )}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="space-y-2 pt-1 animate-fadeIn">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder={plat.placeholder}
+                            value={trackingIdVal}
+                            onChange={(e) => {
+                              const clean = extractCleanTrackingId(e.target.value, plat.id);
+                              setKeys({ ...keys, [plat.fieldKey]: clean });
+                            }}
+                            className={`w-full px-3 py-2 bg-[#151a26] border rounded-xl text-xs font-mono text-white focus:outline-none ${plat.colorBorder}`}
+                          />
+                          <p className="text-[9px] text-[#93a0b5] leading-normal">
+                            💡 Cole seu ID ou link de afiliado completo (extraímos o ID automaticamente).
+                          </p>
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSaveAffiliateKeys();
+                                toggleEditPlatform(plat.id);
+                                setSavedPlatformNotice(plat.id);
+                                setTimeout(() => setSavedPlatformNotice(null), 2500);
+                              }}
+                              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs flex items-center gap-1 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Salvar ID</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleEditPlatform(plat.id)}
+                              className="px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-300 border border-[#1e2636] text-xs font-medium transition-all cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-mono font-bold text-white tracking-wide truncate block">
+                              {isIdConfigured ? (
+                                isRevealed ? trackingIdVal : '••••••••••••••••'
+                              ) : (
+                                <span className="text-stone-500 italic font-sans text-xs">Nenhum ID inserido</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isIdConfigured && (
+                              <button
+                                type="button"
+                                onClick={() => toggleRevealPlatform(plat.id)}
+                                className="p-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-300 border border-[#1e2636] transition-all cursor-pointer"
+                                title={isRevealed ? "Esconder ID" : "Mostrar ID"}
+                              >
+                                {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => toggleEditPlatform(plat.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>{isIdConfigured ? 'Editar ID' : 'Inserir ID'}</span>
+                            </button>
+
+                            {isIdConfigured && (
+                              <button
+                                type="button"
+                                onClick={() => handleClearAffiliateId(plat.fieldKey)}
+                                className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all cursor-pointer"
+                                title="Limpar ID"
+                              >
+                                <Unlink className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SEÇÃO CONTA OFICIAL / API */}
+                  <div className={`p-3 rounded-xl border space-y-2 transition-all ${
+                    plat.id === 'shopee'
+                      ? (!isEditingShopeeApi ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#0e1119] border-[#1e2636]')
+                      : (isOfficialConnected ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#0e1119] border-[#1e2636]')
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-300 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> {plat.id === 'shopee' ? 'Configuração da API Shopee' : 'Autenticação Oficial (Login / API)'}
+                      </span>
+                      {plat.id === 'shopee' ? (
+                        !isEditingShopeeApi ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> API Configurada
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-stone-800 text-stone-400 border border-stone-700">
+                            Pendente de Configuração
+                          </span>
+                        )
+                      ) : isOfficialConnected ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Conta Oficial Conectada
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-stone-800 text-stone-400 border border-stone-700">
+                          Conta Oficial Não Conectada
+                        </span>
+                      )}
+                    </div>
+
+                    {plat.id === 'shopee' ? (
+                      <div className="space-y-3 pt-1 animate-fadeIn">
+                        {!isEditingShopeeApi ? (
+                          <div className="space-y-2.5">
+                            <p className="text-[10px] text-emerald-300/80 leading-relaxed">
+                              Sua API Oficial de Afiliados Shopee está ativa e configurada no aplicativo.
+                            </p>
+
+                            <div className="p-2.5 bg-[#0e1119] border border-orange-500/30 rounded-xl space-y-1.5">
+                              <div className="text-[11px] font-bold text-orange-300 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Key className="w-3.5 h-3.5 text-orange-400" />
+                                  <span>App ID:</span>
+                                </span>
+                                <strong className="text-white font-mono">{keys.shopeeAppId}</strong>
+                              </div>
+                              <div className="text-[11px] font-bold text-orange-300 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
+                                  <span>App Secret:</span>
+                                </span>
+                                <span className="text-stone-300 font-mono">
+                                  {isRevealed ? keys.shopeeSecret : '••••••••••••••••'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-500/20">
+                              <button
+                                type="button"
+                                onClick={() => toggleRevealPlatform('shopee')}
+                                className="text-[10px] text-stone-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                {isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                <span>{isRevealed ? "Esconder Secret" : "Mostrar Secret"}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingShopeeApi(true)}
+                                className="px-2.5 py-1 rounded-lg bg-[#151a26] hover:bg-stone-800 text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                              >
+                                <Pencil className="w-3 h-3" />
+                                <span>Editar</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-[10px] text-stone-300 leading-relaxed">
+                              Informe seu <strong>App ID</strong> e <strong>Senha (App Secret)</strong> gerados na sua conta de afiliado da Shopee.
+                            </p>
+
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">
+                                  App ID (Shopee Open API)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="Ex: 18361171011"
+                                  value={shopeeEditId}
+                                  onChange={(e) => setShopeeEditId(e.target.value.trim())}
+                                  className="w-full px-3 py-2 bg-[#151a26] border border-orange-500/30 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-orange-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">
+                                  App Secret / Senha (Shopee Open API)
+                                </label>
+                                <input
+                                  type={isRevealed ? "text" : "password"}
+                                  placeholder="Ex: PQ2FO5P35ONWVQS2L5YEYWGLPKJFEHDS"
+                                  value={shopeeEditSecret}
+                                  onChange={(e) => setShopeeEditSecret(e.target.value.trim())}
+                                  className="w-full px-3 py-2 bg-[#151a26] border border-orange-500/30 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-orange-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = { ...keys, shopeeAppId: shopeeEditId, shopeeSecret: shopeeEditSecret };
+                                  setKeys(updated);
+                                  onSaveApiKeys(updated);
+                                  setIsEditingShopeeApi(false);
+                                  setShopeeFeedback(true);
+                                  setTimeout(() => setShopeeFeedback(false), 3000);
+                                }}
+                                className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                <span>Salvar API Shopee</span>
+                              </button>
+                              {keys.shopeeAppId && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShopeeEditId(keys.shopeeAppId || '');
+                                    setShopeeEditSecret(keys.shopeeSecret || '');
+                                    setIsEditingShopeeApi(false);
+                                  }}
+                                  className="py-1.5 px-3 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs transition-all cursor-pointer"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
+
+                            {shopeeFeedback && (
+                              <p className="text-[10px] text-emerald-400 font-bold animate-fadeIn">
+                                ✓ API Shopee configurada e salva com sucesso!
+                              </p>
+                            )}
+
+                            <a
+                              href="https://affiliate.shopee.com.br/open_api"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-1.5 px-3 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            >
+                              <ExternalLink className="w-3 h-3 text-orange-400" />
+                              <span>Abrir Painel Shopee Open API</span>
+                            </a>
+
+                            <div className="p-2 bg-[#0e1119] border border-orange-500/10 rounded-xl space-y-0.5 text-[9px] text-stone-300">
+                              <span className="font-bold text-orange-400 flex items-center gap-1">
+                                <HelpCircle className="w-3 h-3" /> Onde encontrar na Shopee:
+                              </span>
+                              <ol className="list-decimal list-inside space-y-0.5 text-stone-400 pt-0.5">
+                                <li>Clique no link acima para abrir o painel de afiliados.</li>
+                                <li>Copie o seu <strong>AppID</strong> e cole no campo acima.</li>
+                                <li>Copie o seu <strong>App Secret (Senha)</strong> e cole no campo acima.</li>
+                                <li>Clique no botão <strong>Salvar API Shopee</strong>.</li>
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : isOfficialConnected ? (
+                      <div className="space-y-2 pt-1 animate-fadeIn">
+                        <p className="text-[10px] text-emerald-300/80 leading-relaxed">
+                          Sua conta oficial no {plat.title} está autenticada e autorizada no aplicativo.
+                        </p>
+
+                        {plat.id === 'mercadolivre' && (keys.mercadoLivreNickname || keys.mercadoLivreUserId) && (
+                          <div className="p-2.5 bg-[#0e1119] border border-emerald-500/30 rounded-xl space-y-1 my-1.5">
+                            <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Conta Mercado Livre: <strong className="text-white">@{keys.mercadoLivreNickname || 'Autenticado'}</strong></span>
+                            </div>
+                            {keys.mercadoLivreUserId && (
+                              <div className="text-[10px] text-stone-300 font-mono pl-5">
+                                ID do Usuário: {keys.mercadoLivreUserId}
+                              </div>
+                            )}
+                            {keys.mercadoLivreEmail && (
+                              <div className="text-[10px] text-stone-300 pl-5">
+                                Email: {keys.mercadoLivreEmail}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-emerald-500/20">
+                          <span className="text-[10px] text-stone-400 font-mono truncate">
+                            {isRevealed
+                              ? ((keys[plat.apiKeyField!] as string) || 'Token de Acesso Ativo')
+                              : '•••••••••••••••• (Autenticado)'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnectOfficialAccount(plat.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold flex items-center gap-1 transition-all shrink-0 cursor-pointer"
+                          >
+                            <Unlink className="w-3 h-3" />
+                            <span>Desconectar Conta Oficial</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : plat.id === 'tiktokshop' ? (
+                      <div className="p-2.5 bg-[#07090f] border border-cyan-500/20 rounded-xl space-y-2">
+                        <div className="flex items-center gap-1.5 text-cyan-400 font-bold text-[11px]">
+                          <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          <span>Integração Simplificada de Criadores</span>
+                        </div>
+                        <p className="text-[10px] text-stone-300 leading-relaxed">
+                          Como Criador/Afiliado do TikTok Shop, você não precisa de CNPJ corporativo nem de API de vendedor.
+                        </p>
+                        <div className="p-2 bg-[#151a26] border border-[#1e2636] rounded-lg text-[9px] text-stone-300 space-y-1">
+                          <p className="text-emerald-400 font-bold">✓ Como Funciona:</p>
+                          <p>1. Pegue seu ID/Usuário ou link de vitrine no app do TikTok (Central do Criador).</p>
+                          <p>2. Insira no campo acima (Seção 1) e clique em <strong>Salvar ID</strong>.</p>
+                          <p>3. Pronto! O app adicionará automaticamente seu código de afiliado em todos os produtos gerados.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        {plat.oauthUrl ? (
+                          <a
+                            href={plat.oauthUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              if (window.self !== window.top) {
+                                e.preventDefault();
+                                try {
+                                  const popup = window.open(plat.oauthUrl!, '_blank');
+                                  if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                                    window.top ? (window.top.location.href = plat.oauthUrl!) : (window.location.href = plat.oauthUrl!);
+                                  }
+                                } catch {
+                                  if (window.top) {
+                                    window.top.location.href = plat.oauthUrl!;
+                                  } else {
+                                    window.location.href = plat.oauthUrl!;
+                                  }
+                                }
+                              }
+                            }}
+                            className="w-full py-2 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-[#0e1119] font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-yellow-500/10 cursor-pointer"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>{plat.connectButtonText || `Conectar Conta Oficial ${plat.title}`}</span>
+                          </a>
+                        ) : (
+                          <p className="text-[10px] text-stone-400 italic">
+                            Conexão de conta oficial indisponível para esta plataforma.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-[#1e2636]">
             {affiliatesSavedFeedback ? (
               <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> IDs de afiliados salvos com sucesso!
+                <CheckCircle2 className="w-4 h-4" /> Configurações de afiliados salvas com sucesso!
               </span>
             ) : (
-              <span />
+              <span className="text-[11px] text-[#93a0b5]">
+                Suas comissões serão atreladas automaticamente aos links gerados na plataforma.
+              </span>
             )}
 
             <button
@@ -496,7 +998,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
             >
               <Save className="w-4 h-4" />
-              <span>Salvar Configurações</span>
+              <span>Salvar Todas</span>
             </button>
           </div>
         </div>

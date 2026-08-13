@@ -29,5 +29,10 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+    match /shortLinks/{slug} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
   }
 }

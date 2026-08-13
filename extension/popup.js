@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     idToken:         '',
     refreshToken:    '',
     tokenExpiresAt:  0,
-    extActive:       true,
+    extActive:       false,
     autoMine:        false,
     discardedCount:  0,
     minedProducts:   [],
@@ -153,6 +153,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateUI() {
     if (screenLoading) screenLoading.classList.remove('active');
+
+    // Notify the active tab of current login & activation status
+    notifyActiveTab('UPDATE_LOGIN_STATUS', { isLoggedIn: !!state.isLoggedIn, extActive: !!state.extActive });
 
     if (!state.isLoggedIn) {
       if (screenLogin) screenLogin.classList.add('active');

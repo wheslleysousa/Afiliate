@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
@@ -6,7 +6,6 @@ import { NewProductTab } from './components/NewProductTab';
 import { SavedProductsTab } from './components/SavedProductsTab';
 import { MarketplaceTab } from './components/MarketplaceTab';
 import { MinedProductsTab } from './components/MinedProductsTab';
-import { AnalyticsTab } from './components/AnalyticsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
 import { TemplatesTab } from './components/TemplatesTab';
@@ -15,7 +14,7 @@ import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
 import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct, CommissionRatesConfig, CopyTemplate } from './types';
-import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck, Globe, Clock } from 'lucide-react';
+import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck, Globe, Clock, AlertCircle } from 'lucide-react';
 import {
   getSavedTimezone,
   saveTimezoneToStorage,
@@ -25,7 +24,8 @@ import {
 import firebaseConfigJson from '../firebase-applet-config.json';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy, deleteField } from 'firebase/firestore';
+import { buildAffiliateLink } from './utils/affiliateLink';
 import {
   upsertToMarketplace,
   incrementDailyMineCount,
@@ -58,6 +58,30 @@ export const getMlRedirectUri = () => {
 };
 
 export default function App() {
+  const [redirectingState, setRedirectingState] = useState<{ status: 'idle' | 'redirecting' | 'error', url?: string }>({ status: 'idle' });
+
+  // Fast Client-Side Redirect for Short Links
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/r/') && !window.location.search.includes('url=')) {
+      const slug = path.split('/r/')[1]?.split('?')[0];
+      if (slug) {
+        setRedirectingState({ status: 'redirecting' });
+        getDoc(doc(db, 'shortLinks', slug)).then((docSnap) => {
+          if (docSnap.exists() && docSnap.data().targetUrl) {
+            window.location.href = docSnap.data().targetUrl;
+          } else {
+            setRedirectingState({ status: 'error' });
+            setTimeout(() => { window.location.href = '/'; }, 3000);
+          }
+        }).catch(() => {
+          setRedirectingState({ status: 'error' });
+          setTimeout(() => { window.location.href = '/'; }, 3000);
+        });
+      }
+    }
+  }, []);
+
   // User Authentication State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -238,44 +262,85 @@ export default function App() {
         setOauthExchanging(true);
         setOauthError(null);
         try {
-          // Grab current keys or default values
-          const appId = apiKeys.mercadoLivreAppId || '1096973158666349';
-          const clientSecret = apiKeys.mercadoLivreClientSecret || '5YoWCSRNr90KiVumj0tf35NGkpOAbops';
-          const redirectUri = getMlRedirectUri();
+          if (params.has('state') && params.get('state')?.startsWith('tiktok_auth_')) {
+            // TikTok Shop Exchange
+            const appKey = apiKeys.tiktokshopAppKey || '6kumo29osatlb';
+            const appSecret = apiKeys.tiktokshopSecret || '50743aed3fdcba8bbb80cf13b6975f34ceca155d';
+            const redirectUri = getMlRedirectUri();
 
-          const res = await fetch('/api/ml-exchange-code', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code,
-              redirectUri,
-              appId,
-              clientSecret
-            })
-          });
+            const res = await fetch('/api/tiktok-exchange-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code,
+                redirectUri,
+                appKey,
+                appSecret
+              })
+            });
 
-          let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
-          if (res.ok && data.success) {
-            const updatedKeys: ApiKeysConfig = {
-              ...apiKeys,
-              mercadoLivreKey: data.mercadoLivreKey,
-              mercadoLivreRefreshToken: data.mercadoLivreRefreshToken,
-              mercadoLivreExpiresAt: data.mercadoLivreExpiresAt
-            };
-            await handleSaveApiKeys(updatedKeys);
-            setOauthSuccess(true);
-            
-            // Clean up the URL query params without reloading
-            const cleanUrl = window.location.origin + window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
-            
-            // Redirect to settings to show active state
-            setActiveTab('settings');
+            let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
+            if (res.ok && data.success) {
+              const updatedKeys: ApiKeysConfig = {
+                ...apiKeys,
+                tiktokshopKey: data.tiktokshopKey,
+                tiktokshopRefreshToken: data.tiktokshopRefreshToken,
+                tiktokshopExpiresAt: data.tiktokshopExpiresAt,
+                tiktokshopUserId: data.tiktokshopUserId || apiKeys.tiktokshopUserId,
+                tiktokshopNickname: data.tiktokshopNickname || apiKeys.tiktokshopNickname,
+                tiktokshopEmail: data.tiktokshopEmail || apiKeys.tiktokshopEmail,
+              };
+              await handleSaveApiKeys(updatedKeys);
+              setOauthSuccess(true);
+              
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+              setActiveTab('settings');
+            } else {
+              setOauthError(data.error || 'Falha ao vincular com o TikTok Shop.');
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+            }
           } else {
-            setOauthError(data.error || 'Falha ao vincular com o Mercado Livre.');
-            // Clean up the URL query params even on error
-            const cleanUrl = window.location.origin + window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
+            // Mercado Livre Exchange
+            const appId = apiKeys.mercadoLivreAppId || '1096973158666349';
+            const clientSecret = apiKeys.mercadoLivreClientSecret || '5YoWCSRNr90KiVumj0tf35NGkpOAbops';
+            const redirectUri = getMlRedirectUri();
+
+            const res = await fetch('/api/ml-exchange-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code,
+                redirectUri,
+                appId,
+                clientSecret
+              })
+            });
+
+            let data: any; const contentType = res.headers.get("content-type"); if (contentType && contentType.includes("application/json")) { data = await res.json(); } else { throw new Error("Resposta inválida (não-JSON) do servidor."); }
+            if (res.ok && data.success) {
+              const updatedKeys: ApiKeysConfig = {
+                ...apiKeys,
+                mercadoLivreKey: data.mercadoLivreKey,
+                mercadoLivreRefreshToken: data.mercadoLivreRefreshToken,
+                mercadoLivreExpiresAt: data.mercadoLivreExpiresAt,
+                mercadoLivreUserId: data.mercadoLivreUserId || apiKeys.mercadoLivreUserId,
+                mercadoLivreNickname: data.mercadoLivreNickname || apiKeys.mercadoLivreNickname,
+                mercadoLivreEmail: data.mercadoLivreEmail || apiKeys.mercadoLivreEmail,
+                mercadolivreTrackingId: apiKeys.mercadolivreTrackingId || data.mercadoLivreNickname || '',
+              };
+              await handleSaveApiKeys(updatedKeys);
+              setOauthSuccess(true);
+              
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+              setActiveTab('settings');
+            } else {
+              setOauthError(data.error || 'Falha ao vincular com o Mercado Livre.');
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState({}, document.title, cleanUrl);
+            }
           }
         } catch (err: any) {
           console.error('[ML OAuth Error]', err);
@@ -412,6 +477,8 @@ export default function App() {
         const defaultKeys = {
           mercadoLivreAppId: '1096973158666349',
           mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
+          tiktokshopAppKey: '6kumo29osatlb',
+          tiktokshopSecret: '50743aed3fdcba8bbb80cf13b6975f34ceca155d',
         };
 
         unsubscribeKeys = onSnapshot(
@@ -515,6 +582,134 @@ export default function App() {
       if (unsubscribeDefaultTemplate) unsubscribeDefaultTemplate();
     };
   }, []);
+
+  // Auto-fetch Mercado Livre user profile if connected but nickname is missing
+  useEffect(() => {
+    if (apiKeys?.mercadoLivreKey && !apiKeys?.mercadoLivreNickname && currentUser?.id) {
+      fetch('/api/auth/mercadolivre/user-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: apiKeys.mercadoLivreKey })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.mercadoLivreNickname) {
+            handleSaveApiKeys({
+              ...apiKeys,
+              mercadoLivreUserId: data.mercadoLivreUserId,
+              mercadoLivreNickname: data.mercadoLivreNickname,
+              mercadoLivreEmail: data.mercadoLivreEmail,
+              mercadolivreTrackingId: apiKeys.mercadolivreTrackingId || data.mercadoLivreNickname,
+            });
+          }
+        })
+        .catch(err => console.error('[ML Auto-Fetch Profile Error]', err));
+    }
+  }, [apiKeys?.mercadoLivreKey, apiKeys?.mercadoLivreNickname, currentUser?.id]);
+
+  // Auto-aligner & Auto-updater: Whenever keys, minedItems or savedItems change, ensure links are perfectly aligned and up to date!
+  useEffect(() => {
+    if (!currentUser?.id || !apiKeys) return;
+    
+    const alignMinedItems = async () => {
+      let updatedCount = 0;
+      for (const item of minedItems) {
+        if (!item.productData) continue;
+        const correctLink = buildAffiliateLink(item.productData.original_link, item.productData.platform, apiKeys);
+        
+        // If affiliate_link is incorrect or missing, update it dynamically in Firestore
+        if (item.productData.affiliate_link !== correctLink) {
+          updatedCount++;
+          const updatedProductData = {
+            ...item.productData,
+            affiliate_link: correctLink
+          };
+          
+          try {
+            await setDoc(doc(db, 'users', currentUser.id, 'minedProducts', item.productId), {
+              ...item,
+              productData: updatedProductData
+            }, { merge: true });
+          } catch (e) {
+            console.error('[Auto-Aligner] Erro ao alinhar item minerado:', item.productId, e);
+          }
+        }
+      }
+      if (updatedCount > 0) {
+        console.log(`[Auto-Aligner] Alinhados ${updatedCount} links de produtos minerados.`);
+      }
+    };
+
+    const alignSavedItems = async () => {
+      let updatedCount = 0;
+      for (const item of savedItems) {
+        if (!item.product) continue;
+        const correctLink = buildAffiliateLink(item.product.original_link, item.product.platform, apiKeys);
+        
+        if (item.product.affiliate_link !== correctLink) {
+          updatedCount++;
+          const updatedProduct = {
+            ...item.product,
+            affiliate_link: correctLink
+          };
+          
+          try {
+            await setDoc(doc(db, 'users', currentUser.id, 'savedProducts', item.id), {
+              ...item,
+              product: updatedProduct
+            }, { merge: true });
+          } catch (e) {
+            console.error('[Auto-Aligner] Erro ao alinhar item salvo:', item.id, e);
+          }
+        }
+      }
+      if (updatedCount > 0) {
+        console.log(`[Auto-Aligner] Alinhados ${updatedCount} links de produtos salvos.`);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      alignMinedItems();
+      alignSavedItems();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [currentUser?.id, apiKeys, minedItems.length, savedItems.length]);
+
+  // Combina produtos minerados e salvos para relatórios no Analytics
+  const allAnalyticsProducts = useMemo<GlobalProduct[]>(() => {
+    const minedList = minedItems.map((m) => m.productData).filter(Boolean) as GlobalProduct[];
+    const minedIds = new Set(minedList.map((p) => p.id));
+
+    const savedAsGlobal: GlobalProduct[] = savedItems
+      .filter((s) => s.product)
+      .map((s) => {
+        const p = s.product;
+        const pid = p.id || `saved_${s.id}`;
+        return {
+          id: pid,
+          platform: p.platform || 'mercadolivre',
+          platformId: p.id || s.id,
+          title: p.title,
+          description: p.description || null,
+          image_url: p.image_url || null,
+          price_to: p.price_to,
+          price_from: p.price_from || null,
+          original_link: p.original_link,
+          miners: [currentUser?.id || ''],
+          mineCount: 1,
+          firstMinedAt: s.createdAt,
+          lastMinedAt: s.createdAt,
+          lastUpdatedAt: s.createdAt,
+          category: p.category || null,
+          commission_rate: p.commission_rate || null,
+          commission_amount: p.commission_amount || null,
+        };
+      })
+      .filter((p) => !minedIds.has(p.id));
+
+    return [...minedList, ...savedAsGlobal];
+  }, [minedItems, savedItems, currentUser?.id]);
 
   // Handle Login & Registration Success
   const handleLoginSuccess = (user: UserProfile) => {
@@ -625,7 +820,15 @@ export default function App() {
     setApiKeys(newKeys);
     if (currentUser?.id) {
       try {
-        await setDoc(doc(db, 'users', currentUser.id, 'userConfig', 'apiKeys'), newKeys, { merge: true });
+        const cleanedKeys: Record<string, any> = {};
+        Object.entries(newKeys).forEach(([key, val]) => {
+          if (val === undefined) {
+            cleanedKeys[key] = deleteField();
+          } else {
+            cleanedKeys[key] = val;
+          }
+        });
+        await setDoc(doc(db, 'users', currentUser.id, 'userConfig', 'apiKeys'), cleanedKeys, { merge: true });
       } catch (e) {
         console.error('Erro ao salvar chaves de API no Firestore:', e);
       }
@@ -642,6 +845,39 @@ export default function App() {
       }
     }
   };
+
+  // Redirecting Screen for Short Links
+  if (redirectingState.status === 'redirecting') {
+    return (
+      <ThemeProvider>
+        <div className="min-h-screen bg-[#0e1119] flex flex-col items-center justify-center p-4">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6">
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Carregando Oferta...</h2>
+          <p className="text-sm text-stone-400 text-center max-w-sm">
+            Você está sendo redirecionado para a página oficial do produto.
+          </p>
+        </div>
+      </ThemeProvider>
+    );
+  }
+
+  if (redirectingState.status === 'error') {
+    return (
+      <ThemeProvider>
+        <div className="min-h-screen bg-[#0e1119] flex flex-col items-center justify-center p-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Oferta não encontrada</h2>
+          <p className="text-sm text-stone-400 text-center max-w-sm">
+            Este link não existe mais ou expirou. Você será redirecionado para a página inicial.
+          </p>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   // Loading indicator for Mercado Livre OAuth exchange
   if (oauthExchanging) {
@@ -730,7 +966,6 @@ export default function App() {
                 {activeTab === 'new-product' && 'Novo Produto'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
                 {activeTab === 'my-products' && 'Meus Produtos'}
-                {activeTab === 'analytics' && 'Analytics de Afiliado'}
                 {activeTab === 'whatsapp-auto' && 'Automação Zap'}
                 {activeTab === 'templates' && 'Templates de Copy'}
                 {activeTab === 'settings' && 'Configurações'}
@@ -849,15 +1084,6 @@ export default function App() {
               onAddCustomTemplate={handleAddCustomTemplate}
               customTemplates={customTemplates}
               defaultTemplateId={defaultTemplateId}
-            />
-          )}
-
-          {activeTab === 'analytics' && (
-            <AnalyticsTab
-              currentUserId={currentUser?.id}
-              minedProducts={minedItems.map((m) => m.productData).filter(Boolean) as GlobalProduct[]}
-              apiKeys={apiKeys}
-              commissionRates={commissionRates}
             />
           )}
 

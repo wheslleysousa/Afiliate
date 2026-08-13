@@ -8,7 +8,9 @@ import { ProductEditor } from './ProductEditor';
 import { GeminiAiPanel } from './GeminiAiPanel';
 import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
 import { TemplateSelector } from './TemplateSelector';
-import { buildAffiliateLink } from '../utils/affiliateLink';
+import { buildAffiliateLink, buildShareableTrackingLink, slugify } from '../utils/affiliateLink';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 import { getDailyMineCount, PLAN_LIMITS } from '../utils/marketplaceUtils';
 
@@ -52,11 +54,12 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     getDailyMineCount(uid).then(setDailyCount).catch(() => {});
   }, [uid]);
 
-  // Load selected product from Mined or Marketplace
+  // Load selected product from Mined or Marketplace and auto-enrich from API
   useEffect(() => {
     if (!selectedProductForCopy) return;
 
-    const prod: ProductData = {
+    // 1. Set immediately from existing product details to ensure fast UI response
+    const initialProd: ProductData = {
       id: selectedProductForCopy.id,
       platform: selectedProductForCopy.platform,
       title: selectedProductForCopy.title,
@@ -76,27 +79,105 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       coupon_text: selectedProductForCopy.coupon_text || null,
       stars: selectedProductForCopy.stars || null,
       sales_count: selectedProductForCopy.sales_count || null,
-      affiliate_link: selectedProductForCopy.original_link,
+      affiliate_link: buildShareableTrackingLink(selectedProductForCopy.id, selectedProductForCopy.original_link, selectedProductForCopy.platform, apiKeys || {}, selectedProductForCopy.title),
     };
 
-    setExtractedProduct(prod);
+    setExtractedProduct(initialProd);
     setUrlInput(selectedProductForCopy.original_link);
     
-    const link = buildAffiliateLink(prod.original_link, prod.platform, apiKeys || {});
+    const initialLink = buildShareableTrackingLink(initialProd.id || "new", initialProd.original_link, initialProd.platform, apiKeys || {}, initialProd.title);
     const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
-    const found = allT.find(t => t.id === 'whatsapp-urgency') || DEFAULT_TEMPLATES[0];
-    const formatted = applyTemplate(found.template, prod, link, commissionRates);
+    const foundTemplate = allT.find(t => t.id === 'whatsapp-urgency') || DEFAULT_TEMPLATES[0];
+    const initialFormatted = applyTemplate(foundTemplate.template, initialProd, initialLink, commissionRates);
 
-    const localVars = generateVariationsForProduct(prod);
-    setVariations(localVars);
+    const initialVars = generateVariationsForProduct(initialProd);
+    setVariations(initialVars);
     setSelectedVariationIndex(-1); // default to template copy
-    setSelectedTemplateId(found.id);
-    setEditedCopyText(formatted);
+    setSelectedTemplateId(foundTemplate.id);
+    setEditedCopyText(initialFormatted);
     setIsSaved(false);
-  }, [selectedProductForCopy]);
+
+    // 2. Trigger automatic background re-extraction / scraper update to fetch fresh details
+    const runBackgroundEnrichment = async () => {
+      setIsLoading(true);
+      setErrorMsg(null);
+      try {
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: selectedProductForCopy.original_link, apiKeys }),
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success && resData.data) {
+            const fresh = resData.data;
+            const enrichedProd: ProductData = {
+              id: selectedProductForCopy.id,
+              platform: fresh.platform || selectedProductForCopy.platform,
+              title: fresh.title || selectedProductForCopy.title,
+              description: fresh.description || selectedProductForCopy.description || '',
+              image_url: fresh.image_url || selectedProductForCopy.image_url,
+              pictures: Array.isArray(fresh.pictures) && fresh.pictures.length > 0 ? fresh.pictures : (fresh.image_url ? [fresh.image_url] : (selectedProductForCopy.image_url ? [selectedProductForCopy.image_url] : [])),
+              video_url: fresh.video_url || selectedProductForCopy.video_url,
+              videos: Array.isArray(fresh.videos) && fresh.videos.length > 0 ? fresh.videos : (fresh.video_url ? [fresh.video_url] : []),
+              original_link: fresh.original_link || selectedProductForCopy.original_link,
+              price_from: fresh.price_from ? String(fresh.price_from).trim() : (selectedProductForCopy.price_from || null),
+              price_to: fresh.price_to || selectedProductForCopy.price_to || 'Consulte no link',
+              card_price: fresh.card_price ? String(fresh.card_price).trim() : null,
+              installments: fresh.installments ? String(fresh.installments).trim() : (selectedProductForCopy.installments || null),
+              max_installments_interest_free: fresh.max_installments_interest_free ? String(fresh.max_installments_interest_free).trim() : null,
+              coupon: fresh.coupon ? String(fresh.coupon).trim() : null,
+              coupon_text: fresh.coupon ? String(fresh.coupon).trim() : null,
+              stars: fresh.stars !== undefined ? fresh.stars : selectedProductForCopy.stars,
+              sales_count: fresh.sales_count !== undefined ? fresh.sales_count : selectedProductForCopy.sales_count,
+              category: fresh.category || selectedProductForCopy.category,
+              free_shipping: fresh.free_shipping !== undefined ? fresh.free_shipping : (selectedProductForCopy.free_shipping || false),
+              affiliate_link: buildShareableTrackingLink(selectedProductForCopy.id, selectedProductForCopy.original_link, selectedProductForCopy.platform, apiKeys || {}, selectedProductForCopy.title),
+              extractedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              priceUncertain: !!fresh.price_uncertain,
+              shipping: fresh.shipping || null,
+            };
+
+            setExtractedProduct(enrichedProd);
+
+            const updatedLink = buildShareableTrackingLink(selectedProductForCopy.id, selectedProductForCopy.original_link, selectedProductForCopy.platform, apiKeys || {}, selectedProductForCopy.title);
+            const updatedFormatted = applyTemplate(foundTemplate.template, enrichedProd, updatedLink, commissionRates);
+
+            const enrichedVars = generateVariationsForProduct(enrichedProd);
+            setVariations(enrichedVars);
+            setEditedCopyText(updatedFormatted);
+          }
+        }
+      } catch (err) {
+        console.error('[NewProductTab] Automatic background enrichment failed:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    runBackgroundEnrichment();
+  }, [selectedProductForCopy, apiKeys]);
 
   // Extracted product state
   const [extractedProduct, setExtractedProduct] = useState<ProductData | null>(null);
+
+  // Sync Short Link to DB whenever title or URL changes
+  useEffect(() => {
+    if (extractedProduct && uid) {
+      const targetUrl = buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {});
+      const slug = slugify(extractedProduct.title) || slugify(extractedProduct.id) || 'oferta';
+      if (targetUrl) {
+        setDoc(doc(db, 'shortLinks', slug), {
+          targetUrl,
+          userId: uid,
+          productId: extractedProduct.id || null,
+          title: extractedProduct.title || null,
+          createdAt: new Date().toISOString()
+        }, { merge: true }).catch(console.error);
+      }
+    }
+  }, [extractedProduct?.title, extractedProduct?.original_link, uid, apiKeys]);
 
   // Copy Template State
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('whatsapp-urgency');
@@ -125,7 +206,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
       const found = allT.find(t => t.id === selectedTemplateId);
       if (found) {
-        const link = buildAffiliateLink(updatedProduct.original_link, updatedProduct.platform, apiKeys || {});
+        const link = buildShareableTrackingLink(updatedProduct.id || "prod", updatedProduct.original_link, updatedProduct.platform, apiKeys || {}, updatedProduct.title);
         const formatted = applyTemplate(found.template, updatedProduct, link, commissionRates);
         setEditedCopyText(formatted);
       }
@@ -203,7 +284,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
       const found = allT.find(t => t.id === selectedTemplateId);
       if (found) {
-        const link = buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {});
+        const link = buildShareableTrackingLink(extractedProduct.id || "prod", extractedProduct.original_link, extractedProduct.platform, apiKeys || {}, extractedProduct.title);
         const formatted = applyTemplate(found.template, extractedProduct, link, commissionRates);
         setEditedCopyText(formatted);
       }
@@ -283,6 +364,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
         max_installments_interest_free: data.max_installments_interest_free ? String(data.max_installments_interest_free).trim() : null,
         coupon: data.coupon ? String(data.coupon).trim() : null,
         original_link: data.original_link || urlInput.trim(),
+        affiliate_link: buildShareableTrackingLink("prod_" + Date.now(), data.original_link || urlInput.trim(), data.platform || "mercadolivre", apiKeys || {}, data.title),
         extractedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         priceUncertain: !!data.price_uncertain,
         shipping: data.shipping || null,
@@ -301,7 +383,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       const defaultVars = generateVariationsForProduct(prod);
       setVariations(defaultVars);
       
-      const link = buildAffiliateLink(prod.original_link, prod.platform, apiKeys || {});
+      const link = buildShareableTrackingLink(prod.id || "prod", prod.original_link || "", prod.platform || "mercadolivre", apiKeys || {}, prod.title);
       const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
       const found = allT.find(t => t.id === selectedTemplateId) || DEFAULT_TEMPLATES[0];
       const formatted = applyTemplate(found.template, prod, link, commissionRates);
@@ -365,7 +447,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     const allT = [...DEFAULT_TEMPLATES, ...customTemplates];
     const found = allT.find(t => t.id === id);
     if (found) {
-      const link = buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {});
+      const link = buildShareableTrackingLink(extractedProduct.id || "prod", extractedProduct.original_link, extractedProduct.platform, apiKeys || {}, extractedProduct.title);
       const formatted = applyTemplate(found.template, extractedProduct, link, commissionRates);
       setEditedCopyText(formatted);
     }
@@ -395,7 +477,12 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
 
   const handleSaveToDashboard = () => {
     if (!extractedProduct) return;
-    onSaveProduct(extractedProduct, variations, selectedVariationIndex);
+    const resolvedLink = buildShareableTrackingLink(extractedProduct.id || "prod", extractedProduct.original_link, extractedProduct.platform, apiKeys || {}, extractedProduct.title);
+    const productToSave = {
+      ...extractedProduct,
+      affiliate_link: resolvedLink
+    };
+    onSaveProduct(productToSave, variations, selectedVariationIndex);
     setIsSaved(true);
     setDailyCount((prev) => (prev !== null ? prev + 1 : 1));
   };
@@ -504,6 +591,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
                 product={extractedProduct}
                 setProduct={setExtractedProduct}
                 onUpdateField={handleUpdateProductField}
+                rawAffiliateLink={buildAffiliateLink(extractedProduct.original_link, extractedProduct.platform, apiKeys || {})}
               />
 
               {/* Save to Dashboard Button */}

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export const ExtensionTab: React.FC = () => {
-  const [activeShowcase, setActiveShowcase] = useState<'amazon' | 'filters' | 'toasts'>('amazon');
+  const [activeShowcase, setActiveShowcase] = useState<'amazon' | 'shopee' | 'filters' | 'toasts'>('amazon');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const handleDownload = () => {
@@ -38,7 +38,7 @@ export const ExtensionTab: React.FC = () => {
     <div className="space-y-12 max-w-5xl mx-auto animate-fadeIn pb-20 text-slate-200 font-sans">
 
       {/* ───────────────────────────────────────────────────────────────────────
-          1. ATENÇÃO (ATTENTION) - HERO SECTION v2.6.5
+          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.0.0
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#111625] via-[#0b0f19] to-[#0b0f19] border border-[#1e2638] p-8 sm:p-12 shadow-2xl">
         {/* Subtle Background Glow Accent */}
@@ -50,7 +50,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>AFFILIATE MINER v2.6.5 • EXTENSÃO OFICIAL</span>
+              <span>AFFILIATE MINER v1.0.0 • EXTENSÃO OFICIAL</span>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -68,7 +68,7 @@ export const ExtensionTab: React.FC = () => {
 
           {/* Direct Sales Copy Subheadline */}
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v2.6.5</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, AliExpress e Shein.
+            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.0.0</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, AliExpress e Shein.
           </p>
 
           {/* Primary & Secondary Call to Action */}
@@ -78,7 +78,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30 hover:scale-[1.01] active:scale-[0.99] transition-all group cursor-pointer"
             >
               <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-              <span>Baixar Extensão Grátis (.zip) — v2.6.5</span>
+              <span>Baixar Extensão Grátis (.zip) — v1.0.0</span>
             </button>
 
             <a
@@ -110,7 +110,7 @@ export const ExtensionTab: React.FC = () => {
 
 
       {/* ───────────────────────────────────────────────────────────────────────
-          2. INTERESSE (INTEREST) - NOVIDADES DA VERSÃO v2.6.5 & RECURSOS CHAVE
+          2. INTERESSE (INTEREST) - NOVIDADES DA VERSÃO v1.0.0 & RECURSOS CHAVE
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="space-y-8">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
@@ -118,7 +118,7 @@ export const ExtensionTab: React.FC = () => {
             Tecnologia de Alta Performance
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            O que torna o Affiliate Miner v2.6.5 imbatível?
+            O que torna o Affiliate Miner v1.0.0 imbatível?
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
             Projetado para eliminar gargalos operacionais e maximizar a taxa de conversão dos seus links.
@@ -167,36 +167,46 @@ export const ExtensionTab: React.FC = () => {
             </div>
 
             {/* Showcase Tabs */}
-            <div className="flex bg-[#151a26] p-1 rounded-xl border border-[#1e2638] gap-1">
+            <div className="flex flex-wrap bg-[#151a26] p-1 rounded-xl border border-[#1e2638] gap-1">
               <button
                 onClick={() => setActiveShowcase('amazon')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeShowcase === 'amazon'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                1. Botão na Amazon & ML
+                1. Amazon & Mercado Livre
+              </button>
+              <button
+                onClick={() => setActiveShowcase('shopee')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeShowcase === 'shopee'
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                2. Shopee Open API 🧡
               </button>
               <button
                 onClick={() => setActiveShowcase('toasts')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeShowcase === 'toasts'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                2. Alertas Flutuantes
+                3. Alertas Flutuantes
               </button>
               <button
                 onClick={() => setActiveShowcase('filters')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeShowcase === 'filters'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                3. Modal de Filtros
+                4. Modal de Filtros
               </button>
             </div>
           </div>
@@ -248,8 +258,58 @@ export const ExtensionTab: React.FC = () => {
                     {/* Injected Button Highlight */}
                     <div className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-black text-xs rounded-lg text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-400">
                       <Zap className="w-4 h-4 fill-current text-amber-300" />
-                      <span>⚡ Minerar Este Produto (v2.6.5)</span>
+                      <span>⚡ Minerar Este Produto (v1.0.0)</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeShowcase === 'shopee' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                <div className="space-y-4">
+                  <span className="px-2.5 py-1 bg-orange-500/20 text-orange-300 rounded-md text-[11px] font-bold border border-orange-500/30">
+                    INTEGRAÇÃO SHOPEE OPEN API (GRAPHQL)
+                  </span>
+                  <h4 className="text-xl font-bold text-white">Conversão Oficial de Links de Afiliado Shopee</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    A extensão sincroniza com suas chaves oficiais da <strong>Shopee Open API (App ID + App Secret)</strong> para converter links comuns ou encurtados em links <code className="text-orange-400 font-mono">s.shopee.com.br</code> com seu <strong>SubID / ID de Rastreamento</strong>.
+                  </p>
+                  <ul className="space-y-2 text-xs text-slate-300">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span><strong>Link Curto Oficial:</strong> Gera links no domínio <code className="text-orange-300">s.shopee.com.br</code></span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span><strong>Rastreamento de Comissão:</strong> Anexa seu SubID para garantir 100% dos ganhos</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span><strong>Dados da Loja em Tempo Real:</strong> Título, imagens HD, preço e % de comissão</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Simulated Shopee UI */}
+                <div className="bg-[#0b0f19] p-5 rounded-xl border border-orange-500/30 space-y-3 font-sans">
+                  <div className="text-[11px] text-orange-400 uppercase tracking-wider font-semibold flex items-center justify-between">
+                    <span>Shopee Brasil • Produto Oficial</span>
+                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-300 rounded text-[10px]">API Conectada</span>
+                  </div>
+                  <div className="text-sm font-bold text-white">Fone de Ouvido Bluetooth Sem Fio TWS P9 Pro Max</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-black text-orange-400">R$ 49,90</span>
+                    <span className="text-xs text-slate-500 line-through">R$ 120,00</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded font-bold">-58%</span>
+                  </div>
+                  <div className="p-2.5 bg-[#151a26] border border-orange-500/20 rounded-lg space-y-1 text-[11px]">
+                    <div className="text-slate-400">Link de Afiliado Convertido:</div>
+                    <div className="text-emerald-400 font-mono font-bold truncate">https://s.shopee.com.br/7fZ9xK2mP?smtt=seu_subid</div>
+                  </div>
+                  <div className="w-full py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white font-black text-xs rounded-lg text-center flex items-center justify-center gap-2 shadow-lg shadow-orange-600/30 ring-2 ring-orange-400">
+                    <Zap className="w-4 h-4 fill-current text-white" />
+                    <span>⚡ Minerar Produto Shopee (Comissão Garantida)</span>
                   </div>
                 </div>
               </div>
@@ -366,7 +426,7 @@ export const ExtensionTab: React.FC = () => {
             A Escolha Estratégica dos Afiliados de Elite
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            Trabalhar Manualmente x Usar o Affiliate Miner v2.6.5
+            Trabalhar Manualmente x Usar o Affiliate Miner v1.0.0
           </h2>
         </div>
 
@@ -402,7 +462,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm uppercase">
               <CheckCircle2 className="w-5 h-5" />
-              <span>Com o Affiliate Miner v2.6.5</span>
+              <span>Com o Affiliate Miner v1.0.0</span>
             </div>
 
             <ul className="space-y-3 text-xs text-slate-200 font-medium">
@@ -441,7 +501,7 @@ export const ExtensionTab: React.FC = () => {
             <div className="text-[11px] text-slate-400 mt-1 font-medium">Amazon, ML, Shopee, Ali, Shein</div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-400">v2.6.5</div>
+            <div className="text-2xl sm:text-3xl font-black text-amber-400">v1.0.0</div>
             <div className="text-[11px] text-slate-400 mt-1 font-medium">Versão Mais Recente e Estável</div>
           </div>
         </div>
@@ -462,7 +522,7 @@ export const ExtensionTab: React.FC = () => {
               Pronto para Começar a Minerar?
             </h2>
             <p className="text-xs sm:text-sm text-slate-300">
-              Faça o download do pacote descompactado da extensão <strong>v2.6.5</strong> e instale em menos de 1 minuto no seu navegador.
+              Faça o download do pacote descompactado da extensão <strong>v1.0.0</strong> e instale em menos de 1 minuto no seu navegador.
             </p>
           </div>
 
@@ -472,7 +532,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-10 py-5 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-500 hover:to-green-500 text-white font-black text-base flex items-center justify-center gap-3 shadow-2xl shadow-emerald-600/35 hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               <Download className="w-6 h-6" />
-              <span>Baixar Extensão (.zip) — v2.6.5</span>
+              <span>Baixar Extensão (.zip) — v1.0.0</span>
             </button>
           </div>
         </div>
@@ -496,7 +556,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Faça o Download do .ZIP:</span>
               </div>
               <p className="text-slate-400 pl-8">
-                Clique no botão verde <strong className="text-emerald-300">"Baixar Extensão (.zip)"</strong> para salvar o pacote v2.6.5 no seu computador.
+                Clique no botão verde <strong className="text-emerald-300">"Baixar Extensão (.zip)"</strong> para salvar o pacote v1.0.0 no seu computador.
               </p>
             </li>
 
@@ -536,7 +596,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Carregue sem Compactar:</span>
               </div>
               <p className="text-slate-400 pl-8">
-                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v2.6.5 estará ativo.
+                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v1.0.0 estará ativo.
               </p>
             </li>
           </ol>
@@ -557,7 +617,7 @@ export const ExtensionTab: React.FC = () => {
               },
               {
                 q: "Como garanto que minhas comissões vão para o meu ID?",
-                a: "Na aba Configurações do seu painel Afiliate, cadastre suas tags/IDs de afiliado (Mercado Livre, Shopee, Amazon, etc). A extensão sincroniza automaticamente e injeta sua tag em todos os links capturados."
+                a: "Na aba Configurações do seu painel Afiliate, cadastre suas tags/IDs ou AppID + Senha da Shopee Open API. A extensão sincroniza automaticamente com o servidor e gera todos os links curtos oficiais (ex: s.shopee.com.br) com a sua tag de comissão acoplada."
               },
               {
                 q: "Os produtos minerados aparecem automaticamente no meu painel?",
@@ -565,7 +625,7 @@ export const ExtensionTab: React.FC = () => {
               },
               {
                 q: "Preciso pagar algo para usar a extensão?",
-                a: "Não. A extensão Affiliate Miner v2.6.5 é 100% gratuita para todos os usuários da plataforma."
+                a: "Não. A extensão Affiliate Miner v1.0.0 é 100% gratuita para todos os usuários da plataforma."
               }
             ].map((item, idx) => (
               <div key={idx} className="bg-[#151a26] border border-[#1e2638] rounded-xl overflow-hidden">

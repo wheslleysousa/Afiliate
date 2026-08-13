@@ -1,6 +1,7 @@
-/* Affiliate Miner Content Script v2.6.5 — Enhanced Extraction & Filter Modal */
+/* Affiliate Miner Content Script v1.0.0 — Enhanced Extraction & Filter Modal */
 
-let extActive = true;
+let extActive = false;
+let isLoggedIn = false;
 let autoMine = false;
 let autoMineInterval = null;
 let pdpCheckInterval = null;
@@ -8,6 +9,27 @@ let isOverlayExpanded = true;
 let isOverlayHidden = false;
 let isFilterAccordionOpen = false;
 let currentPageNum = 1;
+
+function isExtensionEnabled() {
+  return isLoggedIn && extActive;
+}
+
+function hideAllOverlays() {
+  stopAutoMining();
+  const overlay = document.getElementById('am-overlay');
+  if (overlay) overlay.style.setProperty('display', 'none', 'important');
+  const trigger = document.getElementById('am-floating-trigger');
+  if (trigger) trigger.style.setProperty('display', 'none', 'important');
+  const pdpBtn = document.getElementById('btn-injected-mine-pdp');
+  if (pdpBtn) pdpBtn.remove();
+  
+  // Remove highlighted borders and injected mine buttons from product cards
+  document.querySelectorAll('.am-highlight-border').forEach(el => {
+    el.classList.remove('am-highlight-border');
+    const b = el.querySelector('.am-card-mine-btn');
+    if (b) b.remove();
+  });
+}
 
 let qualityFilters = {
   category: '',
@@ -70,7 +92,8 @@ function initContentScript() {
     chrome.storage.local.get(['affiliateMinerState'], (res) => {
       if (res.affiliateMinerState) {
         const s = res.affiliateMinerState;
-        extActive = s.extActive ?? true;
+        isLoggedIn = s.isLoggedIn ?? false;
+        extActive = s.extActive ?? false; // Defaults to false on first access
         autoMine = s.autoMine ?? false;
         minedProducts = s.minedProducts || [];
         discardedCount = s.discardedCount || 0;
@@ -78,19 +101,19 @@ function initContentScript() {
           qualityFilters = { ...qualityFilters, ...s.qualityFilters };
         }
       }
-      injectOverlayCSS();
-      renderDraggableOverlay();
-      renderFloatingTrigger();
-      updatePageHighlighting();
-      startPdpButtonWatcher();
-      if (autoMine && extActive) startAutoMining();
+      if (isExtensionEnabled()) {
+        injectOverlayCSS();
+        renderDraggableOverlay();
+        renderFloatingTrigger();
+        updatePageHighlighting();
+        startPdpButtonWatcher();
+        if (autoMine) startAutoMining();
+      } else {
+        hideAllOverlays();
+      }
     });
   } else {
-    injectOverlayCSS();
-    renderDraggableOverlay();
-    renderFloatingTrigger();
-    updatePageHighlighting();
-    startPdpButtonWatcher();
+    hideAllOverlays();
   }
 }
 
@@ -590,7 +613,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v2.6.5</div>
+            <div class="am-header-ver">v1.0.0</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -2115,22 +2138,52 @@ function showDiagnosticErrorModal(errLog) {
    ═══════════════════════════════════════ */
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.action === 'SET_EXT_ACTIVE') {
+    if (msg.action === 'UPDATE_LOGIN_STATUS') {
+      isLoggedIn = msg.isLoggedIn;
+      extActive = msg.extActive;
+      if (isExtensionEnabled()) {
+        injectOverlayCSS();
+        renderDraggableOverlay();
+        renderFloatingTrigger();
+        updatePageHighlighting();
+        startPdpButtonWatcher();
+      } else {
+        hideAllOverlays();
+      }
+    } else if (msg.action === 'SET_EXT_ACTIVE') {
       extActive = msg.active;
-      renderDraggableOverlay();
-      renderFloatingTrigger();
-      updatePageHighlighting();
-      if (!extActive) stopAutoMining();
+      chrome.storage.local.get(['affiliateMinerState'], (res) => {
+        if (res.affiliateMinerState) {
+          isLoggedIn = res.affiliateMinerState.isLoggedIn ?? false;
+        }
+        if (isExtensionEnabled()) {
+          injectOverlayCSS();
+          renderDraggableOverlay();
+          renderFloatingTrigger();
+          updatePageHighlighting();
+          startPdpButtonWatcher();
+        } else {
+          hideAllOverlays();
+        }
+      });
     } else if (msg.action === 'SET_AUTO_MINE') {
       autoMine = msg.autoMine;
-      renderDraggableOverlay();
-      if (autoMine && extActive) startAutoMining(); else stopAutoMining();
+      if (isExtensionEnabled()) {
+        renderDraggableOverlay();
+        if (autoMine) startAutoMining(); else stopAutoMining();
+      } else {
+        hideAllOverlays();
+      }
     } else if (msg.action === 'SET_FILTERS') {
       qualityFilters = msg.filters;
-      renderDraggableOverlay();
+      if (isExtensionEnabled()) {
+        renderDraggableOverlay();
+      }
     } else if (msg.action === 'UPDATE_MINED_LIST') {
       minedProducts = msg.minedProducts;
-      renderDraggableOverlay();
+      if (isExtensionEnabled()) {
+        renderDraggableOverlay();
+      }
     }
   });
 }

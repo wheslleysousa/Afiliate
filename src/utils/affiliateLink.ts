@@ -50,6 +50,11 @@ export function extractCleanTrackingId(rawInput: string | undefined | null, plat
         const paramUrlFrom = url.searchParams.get('url_from');
         if (paramUrlFrom) return paramUrlFrom.trim();
       }
+
+      if (plat === 'tiktokshop' || plat === 'tiktok') {
+        const paramTt = url.searchParams.get('affiliate_id') || url.searchParams.get('link_id') || url.searchParams.get('tt_creator');
+        if (paramTt) return paramTt.trim();
+      }
     }
   } catch {
     // ignorar falha ao analisar URL e seguir para regex de limpeza
@@ -138,7 +143,14 @@ export function buildAffiliateLink(
 
     switch (plat) {
       case 'mercadolivre': {
-        const mlTrackingId = extractCleanTrackingId(apiKeys.mercadolivreTrackingId, 'mercadolivre');
+        if (originalLink.includes('meli.la') || originalLink.includes('mercadolivre.com/sec/')) {
+          const mlTrackingId = extractCleanTrackingId(apiKeys.mercadolivreTrackingId || apiKeys.mercadoLivreNickname, 'mercadolivre');
+          if (mlTrackingId && !url.searchParams.has('tracking_id')) {
+            url.searchParams.set('tracking_id', mlTrackingId);
+          }
+          return url.toString();
+        }
+        const mlTrackingId = extractCleanTrackingId(apiKeys.mercadolivreTrackingId || apiKeys.mercadoLivreNickname, 'mercadolivre');
         if (mlTrackingId) {
           url.searchParams.set('tracking_id', mlTrackingId);
         }
@@ -175,6 +187,14 @@ export function buildAffiliateLink(
         }
         break;
       }
+      case 'tiktokshop':
+      case 'tiktok': {
+        const ttId = extractCleanTrackingId(apiKeys.tiktokshopTrackingId, 'tiktokshop');
+        if (ttId) {
+          url.searchParams.set('affiliate_id', ttId);
+        }
+        break;
+      }
     }
 
     return url.toString();
@@ -182,4 +202,74 @@ export function buildAffiliateLink(
     return originalLink;
   }
 }
+
+/**
+ * Converte um título em um slug limpo e amigável para URLs encurtadas.
+ * Exemplo: "Fone de Ouvido Bluetooth Redmi" -> "fone-de-ouvido-bluetooth-redmi"
+ */
+export function slugify(text: string | undefined | null): string {
+  if (!text) return '';
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 35)
+    .replace(/-+$/, '');
+}
+
+/**
+ * Constrói o link de rastreamento encurtado e amigável com o nome do produto para compartilhamento.
+ * Exemplo: https://radardeofertas.app/r/fone-bluetooth-redmi?url=...
+ */
+export function buildShareableTrackingLink(
+  productId: string,
+  originalLink: string,
+  platform: string,
+  apiKeys: ApiKeysConfig,
+  productTitle?: string
+): string {
+  const directAffiliateUrl = buildAffiliateLink(originalLink, platform, apiKeys);
+  if (!directAffiliateUrl) return '';
+
+  const cleanTitleSlug = slugify(productTitle);
+  const cleanIdSlug = slugify(productId);
+  const identifier = cleanTitleSlug || cleanIdSlug || 'oferta';
+
+  let basePrefix = '';
+  if (apiKeys.customShortDomain) {
+    basePrefix = apiKeys.customShortDomain.replace(/\/+$/, '');
+  } else if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    basePrefix = `${window.location.origin}/r`;
+  }
+
+  if (basePrefix) {
+    return `${basePrefix}/${identifier}`;
+  }
+
+  return directAffiliateUrl;
+}
+
+/**
+ * Encurta qualquer link longo usando a API pública gratuita do TinyURL / Is.gd
+ */
+export async function shortenLinkWithTinyUrl(longUrl: string): Promise<string> {
+  if (!longUrl) return '';
+  try {
+    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    if (res.ok) {
+      const shortUrl = await res.text();
+      if (shortUrl && shortUrl.startsWith('http')) {
+        return shortUrl.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao encurtar com TinyURL:', err);
+  }
+  return longUrl;
+}
+
 
