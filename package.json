@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.17",
+  "version": "0.0.22",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -12,7 +12,8 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "postinstall": "npx playwright install chromium || true"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

@@ -1,21 +1,26 @@
-/* Affiliate Miner Content Script v1.0.0 — Enhanced Extraction & Filter Modal */
+/* Affiliate Miner Content Script v1.0.6 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
 let autoMine = false;
 let autoMineInterval = null;
 let pdpCheckInterval = null;
+let domObserver = null;
 let isOverlayExpanded = true;
 let isOverlayHidden = false;
 let isFilterAccordionOpen = false;
 let currentPageNum = 1;
 
 function isExtensionEnabled() {
-  return isLoggedIn && extActive;
+  return !!extActive;
 }
 
 function hideAllOverlays() {
   stopAutoMining();
+  if (domObserver) {
+    domObserver.disconnect();
+    domObserver = null;
+  }
   const overlay = document.getElementById('am-overlay');
   if (overlay) overlay.style.setProperty('display', 'none', 'important');
   const trigger = document.getElementById('am-floating-trigger');
@@ -356,35 +361,39 @@ function injectOverlayCSS() {
       position: relative !important;
       outline: 2px solid #2563eb !important;
       outline-offset: -2px !important;
-      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.15) !important;
-      border-radius: 8px !important;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.25) !important;
+      border-radius: 12px !important;
       transition: all 0.25s ease-in-out !important;
+      box-sizing: border-box !important;
     }
     .am-highlight-border:hover {
       outline: 3px solid #3b82f6 !important;
       outline-offset: -2px !important;
-      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35) !important;
+      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45) !important;
     }
 
     .am-card-mine-btn {
       width: calc(100% - 12px) !important;
-      margin: 6px auto !important;
+      margin: 8px auto !important;
       padding: 8px 12px !important;
       background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
       color: #ffffff !important;
       border: none !important;
       border-radius: 8px !important;
-      font-size: 11px !important;
+      font-size: 12px !important;
       font-weight: 800 !important;
       cursor: pointer !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      gap: 5px !important;
-      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35) !important;
+      gap: 6px !important;
+      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.4) !important;
       position: relative !important;
-      z-index: 99 !important;
+      z-index: 9999 !important;
       transition: all 0.2s ease !important;
+      flex-shrink: 0 !important;
+      min-height: 34px !important;
+      clear: both !important;
     }
     .am-card-mine-btn:hover {
       transform: translateY(-1px) !important;
@@ -396,17 +405,21 @@ function injectOverlayCSS() {
     }
 
     #btn-injected-mine-pdp {
+      display: flex !important;
       width: 100% !important;
-      margin: 10px 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      margin: 14px 0 !important;
+      clear: both !important;
+      position: relative !important;
       padding: 13px 20px !important;
       background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
       color: #ffffff !important;
-      border: none !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
       border-radius: 12px !important;
       font-size: 14px !important;
       font-weight: 800 !important;
       cursor: pointer !important;
-      display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       gap: 8px !important;
@@ -613,7 +626,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v1.0.0</div>
+            <div class="am-header-ver">v1.0.4</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -1045,40 +1058,174 @@ function makeElementDraggable(elmnt) {
 
 function getProductCardSelectors() {
   return [
+    // Shopee (Search, Recommendations, Daily Discover, Shop Pages, Flash Sale, Mobile Grid)
+    'li.shopee-search-item-result__item',
+    'div[data-sqe="item"]',
+    'div.shopee-search-item-result__item',
+    'div.col-xs-2-4',
+    'a[data-sqe="link"]',
+    'a[href*="-i."]',
+    'a[href*="/product/"]',
+    'div[class*="item-card" i]',
+    'div[class*="ItemCard" i]',
+    'div[class*="shopee-search-item" i]',
+    'div[class*="product-card" i]',
+    'div[class*="ProductCard" i]',
+    'div[class*="item-card__wrap" i]',
+    'div[class*="recommend" i] a',
+    'div[class*="recommendation-item" i]',
+    'div[class*="st-product-card" i]',
+    'div[class*="goods-item" i]',
+    'div[class*="section-recommend-products" i] a',
+
+    // TikTok Shop (Search, Feed, Store Showcase, Tabs, Recommendations, Mobile View)
+    'div[data-e2e="product-card"]',
+    'div[data-e2e="search-product-item"]',
+    'div[data-e2e*="product" i]',
+    'div[data-e2e*="goods" i]',
+    'div[data-e2e*="shop-item" i]',
+    'div[data-testid*="product" i]',
+    'div[data-p-id="product_card"]',
+    'div[class*="GoodsCard" i]',
+    'div[class*="GoodsItem" i]',
+    'div[class*="ProductCard" i]',
+    'div[class*="product-card" i]',
+    'div[class*="product_card" i]',
+    'div[class*="product-item" i]',
+    'div[class*="ProductItem" i]',
+    'div[class*="showcase-item" i]',
+    'div[class*="ItemCard" i]',
+    'div[class*="item-card" i]',
+    'div[class*="ShopCard" i]',
+    'div[class*="FeedItem" i]',
+    'div[class*="goods-item" i]',
+    'div[class*="goods-card" i]',
+    'div[class*="shop-item" i]',
+    'div[class*="CardContainer" i]',
+    'div[class*="ItemContainer" i]',
+    'a[href*="/view/product/"]',
+    'a[href*="tiktok.com/view/product"]',
+    'a[href*="shop.tiktok.com"]',
+    'a[href*="/product/"]',
+
     // Mercado Livre
     '.ui-search-result__wrapper',
     'li.ui-search-layout__item',
     '.poly-card',
     '.ui-search-result',
-    // Shopee
-    '.shopee-search-item-result__item',
-    'ul.shopee-search-item-result__items > li',
-    'div[data-sqe="item"]',
-    'div.col-sp-2-4',
-    '.shopee-item-card',
-    'div[class*="shopee-item-card"]',
+    'div[class*="ui-search-item" i]',
+
     // Amazon
     'div[data-component-type="s-search-result"]',
     'div[data-asin]:not([data-asin=""])',
-    '.s-result-item',
-    'div[class*="s-result-item"]',
-    // TikTok Shop
-    'div[class*="ProductCard"]',
-    'div[class*="product-card"]',
-    'div[class*="ProductItem"]',
-    'div[class*="product-item"]',
-    'div[class*="RecommendItem"]',
-    'div[class*="CardContainer"]',
-    'div[class*="CardWrap"]',
-    'div[class*="product_card"]',
-    'div[class*="product-list-item"]',
-    'div[class*="DivCard"]',
-    '[data-testid*="product"]',
+
     // Shein & AliExpress & Others
-    'div[class*="search-result-item"]',
     '.goods-item',
-    '.product-item'
+    '.product-list-v2__item',
+    'div[class*="search-result-item" i]'
   ];
+}
+
+function getProductCardContainer(el) {
+  if (!el || el.nodeType !== 1) return null;
+
+  const tag = el.tagName;
+  if (tag === 'BODY' || tag === 'HTML' || tag === 'MAIN' || tag === 'SECTION' || tag === 'NAV' || tag === 'FOOTER' || tag === 'HEADER') {
+    return null;
+  }
+
+  // Reject entire list/grid wrappers containing many products
+  const isEntireListWrapper = (node) => {
+    if (!node || !node.className || typeof node.className !== 'string') return false;
+    const c = node.className.toLowerCase();
+    return c.includes('shopee-search-item-result__items') || 
+           c.includes('ui-search-results') || 
+           c.includes('s-main-slot') ||
+           c.includes('goods-list') ||
+           c.includes('products-grid') ||
+           c.includes('search-layout__items') ||
+           c.includes('infinite-scroll');
+  };
+
+  if (isEntireListWrapper(el)) return null;
+
+  let card = null;
+
+  // 1. Walk up to find known dedicated product card classes
+  const parentCard = el.closest(
+    'li.shopee-search-item-result__item, div[data-sqe="item"], ' +
+    '.ui-search-result__wrapper, li.ui-search-layout__item, .poly-card, .ui-search-result, ' +
+    'div[data-component-type="s-search-result"], div[data-asin]:not([data-asin=""]), ' +
+    'div[data-e2e="product-card"], div[data-e2e="search-product-item"], ' +
+    'div[data-p-id="product_card"], div[class*="GoodsCard" i], div[class*="GoodsItem" i], ' +
+    'div[class*="ProductCard" i], div[class*="product-card" i], div[class*="product-item" i], ' +
+    'div[class*="ItemCard" i], div[class*="item-card" i], div[class*="ShopCard" i], ' +
+    '.goods-item, .product-list-v2__item, article'
+  );
+
+  if (parentCard && !isEntireListWrapper(parentCard)) {
+    const anchors = parentCard.querySelectorAll('a[href*="-i."], a[href*="/product/"], a[href*="/view/product/"], a[href*="/p/"], a[href*="/dp/"]');
+    const uHrefs = new Set();
+    anchors.forEach(a => {
+      const h = a.getAttribute('href');
+      if (h) {
+        const b = h.split('?')[0].split('#')[0];
+        if (b.length > 5) uHrefs.add(b);
+      }
+    });
+    if (uHrefs.size <= 1) {
+      card = parentCard;
+    }
+  }
+
+  // 2. If no parent card was found and el is an <a> or wrapper:
+  if (!card) {
+    if (tag === 'A') {
+      const href = el.getAttribute('href') || '';
+      const isProductLink = href.includes('-i.') || href.includes('/product/') || href.includes('/view/product/') || href.includes('/p/') || href.includes('/dp/') || href.includes('/item/');
+      const hasContent = el.querySelector('img, [class*="price" i], [class*="title" i], span, p') || (el.textContent && /R\$/i.test(el.textContent));
+      
+      if (isProductLink || hasContent) {
+        if (el.parentElement && el.parentElement.tagName !== 'BODY' && el.parentElement.tagName !== 'MAIN' && el.parentElement.tagName !== 'SECTION' && !isEntireListWrapper(el.parentElement)) {
+          const siblingLinks = el.parentElement.querySelectorAll('a[href*="-i."], a[href*="/product/"], a[href*="/view/product/"], a[href*="/p/"]');
+          if (siblingLinks.length <= 1) {
+            card = el.parentElement;
+          } else {
+            card = el;
+          }
+        } else {
+          card = el;
+        }
+      }
+    } else if (el.parentElement && (el.parentElement.tagName === 'A' || el.parentElement.querySelector('a[href]'))) {
+      const anchor = el.parentElement.tagName === 'A' ? el.parentElement : el.parentElement.querySelector('a[href]');
+      if (anchor) {
+        card = getProductCardContainer(anchor);
+      }
+    }
+  }
+
+  if (!card || isEntireListWrapper(card)) return null;
+
+  // Final check: Filter out large wrapper containers holding MULTIPLE different products
+  const productAnchors = card.querySelectorAll(
+    'a[data-sqe="link"], a[href*="-i."], a[href*="/product/"], a[href*="/p/"], a[href*="/item/"], a[href*="tiktok.com/view/product"], a[href*="/dp/"]'
+  );
+
+  const uniqueHrefs = new Set();
+  productAnchors.forEach(a => {
+    const h = a.getAttribute('href');
+    if (h) {
+      const base = h.split('?')[0].split('#')[0];
+      if (base.length > 5) uniqueHrefs.add(base);
+    }
+  });
+
+  if (uniqueHrefs.size > 1) {
+    return null;
+  }
+
+  return card;
 }
 
 /* ═══════════════════════════════════════
@@ -1094,18 +1241,32 @@ function updatePageHighlighting() {
     return;
   }
 
-  const rawCards = document.querySelectorAll(getProductCardSelectors().join(', '));
-  rawCards.forEach((card) => {
+  const rawElements = document.querySelectorAll(getProductCardSelectors().join(', '));
+  const cardSet = new Set();
+
+  rawElements.forEach((rawEl) => {
+    const card = getProductCardContainer(rawEl);
+    if (card) {
+      cardSet.add(card);
+    }
+  });
+
+  cardSet.forEach((card) => {
     // Evitar destacar containers internos se um pai já estiver destacado
-    if (card.closest('.am-highlight-border') && !card.classList.contains('am-highlight-border')) {
+    if (card.parentElement && card.parentElement.closest('.am-highlight-border')) {
       return;
     }
 
     card.classList.add('am-highlight-border');
 
     if (!card.querySelector('.am-card-mine-btn')) {
+      if (getComputedStyle(card).position === 'static') {
+        card.style.position = 'relative';
+      }
+
       const btn = document.createElement('button');
       btn.className = 'am-card-mine-btn';
+      btn.setAttribute('type', 'button');
       btn.innerHTML = `⚡ Minerar`;
       btn.onclick = (e) => {
         e.preventDefault();
@@ -1128,31 +1289,62 @@ function updatePageHighlighting() {
 /* ═══════════════════════════════════════
    6. PDP BUTTON WATCHER
    ═══════════════════════════════════════ */
+function isProductPage() {
+  const url = window.location.href.toLowerCase();
+  
+  // TikTok Shop Product Detail Page URLs
+  if (url.includes('tiktok.com/view/product') || url.includes('/view/product/') || 
+      (url.includes('tiktok') && url.includes('/product/')) || (url.includes('shop.tiktok.com') && (url.includes('/p/') || url.includes('/product/') || url.includes('/view/')))) {
+    return true;
+  }
+
+  // Shopee, Mercado Livre, Amazon, AliExpress, Shein PDP URLs
+  if (url.includes('/product/') || url.includes('-i.') || url.includes('/p/') || url.includes('/dp/') || 
+      url.includes('item.htm') || url.includes('/goods/') || url.includes('/detail/') || url.includes('/universal-link/')) {
+    return true;
+  }
+
+  // DOM Checks for Product Detail Pages
+  if (document.querySelector('h1#productTitle, #productTitle, .ui-pdp-title, [data-testid*="product-title" i], div[class*="ProductTitle" i], div[data-e2e="pdp-title"], .product-briefing, .ui-pdp-container, div[class*="goods-detail" i], div[class*="PdpContainer" i], div[class*="product-detail" i], div[data-e2e="pdp-buy-button"]')) {
+    return true;
+  }
+
+  return false;
+}
+
 function startPdpButtonWatcher() {
   if (pdpCheckInterval) clearInterval(pdpCheckInterval);
   pdpCheckInterval = setInterval(() => {
     if (!extActive) return;
-    const buyContainer = document.querySelector(
-      '#buyNow_feature_div, #buy-now-button, #submit.buy-now, input[name="submit.buy-now"], ' +
-      '#buyNow, [data-action="buy-now"], ' +
-      '.ui-pdp-actions, .buy-box, .shopee-buy-button-box, #buyBox, ' +
-      '#rightCol, #centerCol, .ui-pdp-container__row--right, .ui-pdp-actions__container, ' +
-      '[data-testid="buy-box"], form.ui-pdp-actions, .ui-pdp-price__buy, ' +
-      'div[class*="page-product"], div[class*="product-briefing"], div[class*="purchase-box"], ' +
-      '#add-to-cart-button, #corePrice_feature_div, ' +
-      'div[class*="buy-bar"], div[class*="action-bar"], button[class*="buy"]'
-    );
-    if (buyContainer && !document.getElementById('btn-injected-mine-pdp')) {
-      injectPdpButton(buyContainer);
+    if (isProductPage() && !document.getElementById('btn-injected-mine-pdp')) {
+      injectPdpButton();
     }
     updatePageHighlighting();
   }, 1000);
+
+  // Real-time MutationObserver for SPAs (Shopee, TikTok Shop, etc.)
+  if (!domObserver && typeof MutationObserver !== 'undefined') {
+    let updateTimeout = null;
+    domObserver = new MutationObserver(() => {
+      if (!extActive) return;
+      if (updateTimeout) clearTimeout(updateTimeout);
+      updateTimeout = setTimeout(() => {
+        if (isProductPage() && !document.getElementById('btn-injected-mine-pdp')) {
+          injectPdpButton();
+        }
+        updatePageHighlighting();
+      }, 300);
+    });
+    domObserver.observe(document.body, { childList: true, subtree: true });
+  }
 }
 
-function injectPdpButton(buyContainer) {
+function injectPdpButton() {
   if (!extActive || document.getElementById('btn-injected-mine-pdp')) return;
+
   const btn = document.createElement('button');
   btn.id = 'btn-injected-mine-pdp';
+  btn.setAttribute('type', 'button');
   btn.innerHTML = `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
     <span>⛏ Minerar Este Produto</span>
@@ -1163,20 +1355,71 @@ function injectPdpButton(buyContainer) {
     mineCurrentPageProduct(true);
   };
 
-  // Specific Amazon / Buy Now placement logic:
-  const buyNowTarget = document.querySelector(
-    '#buy-now-button, #buyNow_feature_div, #buyNow, input[name="submit.buy-now"], ' +
-    '#submit.buy-now, [data-action="buy-now"], .shopee-buy-button-box, .ui-pdp-actions__button--buy'
+  const platform = getPlatformKey();
+
+  // Platform specific clean injection inside the document flow (avoids overlapping native bottom bar)
+  if (platform === 'shopee') {
+    const shopeeBriefing = document.querySelector('.product-briefing, div[class*="product-briefing" i], div[class*="page-product__detail" i]');
+    if (shopeeBriefing) {
+      shopeeBriefing.appendChild(btn);
+      return;
+    }
+    const shopeePriceArea = document.querySelector('div[class*="ProductPrice" i], div.product-price, div[class*="price-box" i]');
+    if (shopeePriceArea && shopeePriceArea.parentNode) {
+      shopeePriceArea.parentNode.insertBefore(btn, shopeePriceArea.nextSibling);
+      return;
+    }
+  }
+
+  if (platform === 'tiktok' || platform === 'tiktokshop') {
+    const ttProductInfo = document.querySelector('div[class*="ProductInfo" i], div[class*="goods-info" i], div[class*="goods-detail" i], div[class*="pdp-container" i]');
+    if (ttProductInfo) {
+      ttProductInfo.appendChild(btn);
+      return;
+    }
+    const ttPriceArea = document.querySelector('div[class*="Price" i], div[data-e2e="pdp-price"], div[class*="sku-container" i]');
+    if (ttPriceArea && ttPriceArea.parentNode) {
+      ttPriceArea.parentNode.insertBefore(btn, ttPriceArea.nextSibling);
+      return;
+    }
+  }
+
+  // General marketplace targets
+  const optionBoxTarget = document.querySelector(
+    'div[class*="Option" i], div[class*="Select" i], div[class*="Sku" i], ' +
+    'div[class*="variant" i], div[class*="variation" i], .shopee-selector, ' +
+    'div[class*="pdp-option" i], [data-testid*="sku-select" i]'
   );
 
-  if (buyNowTarget && buyNowTarget.parentNode) {
-    if (buyNowTarget.nextSibling) {
-      buyNowTarget.parentNode.insertBefore(btn, buyNowTarget.nextSibling);
-    } else {
-      buyNowTarget.parentNode.appendChild(btn);
+  const buyNowTarget = document.querySelector(
+    '#buy-now-button, #buyNow_feature_div, #buyNow, input[name="submit.buy-now"], ' +
+    '#submit.buy-now, [data-action="buy-now"], .ui-pdp-actions__button--buy, ' +
+    'div[class*="BuyBox" i], div[class*="buy-box" i], .ui-pdp-actions'
+  );
+
+  if (optionBoxTarget && optionBoxTarget.parentNode) {
+    optionBoxTarget.parentNode.insertBefore(btn, optionBoxTarget.nextSibling);
+  } else if (buyNowTarget && buyNowTarget.parentNode) {
+    buyNowTarget.parentNode.insertBefore(btn, buyNowTarget);
+  } else {
+    // Fixed floating fallback container for PDP positioned SAFELY ABOVE bottom bars
+    let floatBar = document.getElementById('am-pdp-float-bar');
+    if (!floatBar) {
+      floatBar = document.createElement('div');
+      floatBar.id = 'am-pdp-float-bar';
+      floatBar.style.cssText = `
+        position: fixed !important;
+        bottom: 80px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: calc(100% - 32px) !important;
+        max-width: 480px !important;
+        z-index: 2147483645 !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
+      `;
+      document.body.appendChild(floatBar);
     }
-  } else if (buyContainer) {
-    buyContainer.appendChild(btn);
+    floatBar.appendChild(btn);
   }
 }
 
@@ -1201,8 +1444,78 @@ function showToast(message, isError = false) {
   toast._timer = setTimeout(() => toast.classList.remove('visible'), 3200);
 }
 
+function isInstallmentOrBadgeElement(el) {
+  if (!el) return false;
+  const closestBad = el.closest(
+    '[class*="installment" i], [class*="parcela" i], [class*="badge" i], ' +
+    '[class*="coupon" i], [class*="cupom" i], [class*="shipping" i], [class*="frete" i], ' +
+    '[class*="discount" i], [class*="off" i], del, s, .poly-price__old'
+  );
+  if (closestBad) return true;
+  const txt = (el.textContent || '').toLowerCase();
+  if (/em\s*at[ée]\s*\d+x|\d+x\s*de\s*r\$|sem\s*juros|com\s*cupom|frete\s*gr[áa]tis/i.test(txt)) return true;
+  return false;
+}
+
+function parseRawPriceString(str) {
+  if (!str) return 0;
+
+  // Clean out installment patterns (e.g. "Em até 5x R$5,97", "5x R$ 5,97", "10x de R$12,90", "ou 12x R$10")
+  let text = String(str)
+    .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]{1,12},\d{2}/gi, '')
+    .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]+/gi, '')
+    .replace(/-\s*\d+\s*%/g, '')
+    .replace(/\d+\s*%\s*OFF/gi, '')
+    .replace(/cupom[^\n,.]*/gi, '')
+    .replace(/frete[^\n,.]*/gi, '')
+    .trim();
+
+  // Match BRL format with R$ explicitly: "R$ 189,94", "R$189,94", "R$ 26,90", "R$ 2.659,91"
+  const brlMatches = [...text.matchAll(/R\$\s*([\d.]{1,12},\d{2})/gi)];
+  if (brlMatches.length > 0) {
+    const prices = brlMatches.map(m => {
+      const numStr = m[1].replace(/\./g, '').replace(',', '.');
+      return parseFloat(numStr) || 0;
+    }).filter(p => p > 0);
+    if (prices.length > 0) return Math.min(...prices);
+  }
+
+  // Match comma decimal format: "189,94", "26,90", "7.050,00"
+  const commaMatches = [...text.matchAll(/(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/g)];
+  if (commaMatches.length > 0) {
+    const prices = commaMatches.map(m => {
+      const numStr = m[1].replace(/\./g, '').replace(',', '.');
+      return parseFloat(numStr) || 0;
+    }).filter(p => p > 0);
+    if (prices.length > 0) return Math.min(...prices);
+  }
+
+  // Match dot decimal format
+  const dotMatches = [...text.matchAll(/(\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})/g)];
+  if (dotMatches.length > 0) {
+    const prices = dotMatches.map(m => {
+      const numStr = m[1].replace(/,/g, '');
+      return parseFloat(numStr) || 0;
+    }).filter(p => p > 0);
+    if (prices.length > 0) return Math.min(...prices);
+  }
+
+  // Simple number match
+  const simpleMatch = text.match(/R\$\s*(\d+)/i) || text.match(/(\d+)/);
+  if (simpleMatch) {
+    const val = parseFloat(simpleMatch[1]);
+    if (!isNaN(val) && val > 0) return val;
+  }
+
+  return 0;
+}
+
 function extractAndesPrice(container) {
   if (!container) return 0;
+
+  if (typeof container === 'string') {
+    return parseRawPriceString(container);
+  }
 
   const fractionEl = container.querySelector('.andes-money-amount__fraction, .a-price-whole');
   if (fractionEl) {
@@ -1216,56 +1529,7 @@ function extractAndesPrice(container) {
     return intPart;
   }
 
-  const raw = (container.textContent || '').trim();
-  if (/%/.test(raw)) return 0;
-
-  // Clean currency symbols and spaces
-  let cleaned = raw.replace(/[R$\s]+/g, '').replace(/\u00A0/g, '').trim();
-
-  // Match comma as decimal (BRL format: 1.234,56 or 234,56)
-  const mBrl = cleaned.match(/(\d[\d.]*),(\d{2})/);
-  if (mBrl) return parseFloat(mBrl[1].replace(/\./g, '') + '.' + mBrl[2]);
-
-  // Match dot as decimal (USD format: 1,234.56 or 234.56)
-  const mUsd = cleaned.match(/(\d[\d,]*)\.(\d{2})/);
-  if (mUsd) return parseFloat(mUsd[1].replace(/,/g, '') + '.' + mUsd[2]);
-
-  // Match simple numbers with no decimals
-  const mSimple = cleaned.match(/^(\d[\d.]*)$/);
-  if (mSimple) return parseFloat(mSimple[1].replace(/\./g, ''));
-
-  const mSimpleComma = cleaned.match(/^(\d[\d,]*)$/);
-  if (mSimpleComma) return parseFloat(mSimpleComma[1].replace(/,/g, ''));
-
-  // General regex search for price-like structures
-  const mGeneral = cleaned.match(/(\d+[\d.,]*)/);
-  if (mGeneral) {
-    let priceStr = mGeneral[1];
-    if (priceStr.includes(',') && priceStr.includes('.')) {
-      if (priceStr.indexOf('.') < priceStr.indexOf(',')) {
-        return parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
-      } else {
-        return parseFloat(priceStr.replace(/,/g, ''));
-      }
-    } else if (priceStr.includes(',')) {
-      const parts = priceStr.split(',');
-      if (parts[parts.length - 1].length === 2) {
-        return parseFloat(priceStr.replace(',', '.'));
-      } else {
-        return parseFloat(priceStr.replace(/,/g, ''));
-      }
-    } else if (priceStr.includes('.')) {
-      const parts = priceStr.split('.');
-      if (parts[parts.length - 1].length === 2) {
-        return parseFloat(priceStr);
-      } else {
-        return parseFloat(priceStr.replace(/\./g, ''));
-      }
-    }
-    return parseFloat(priceStr) || 0;
-  }
-
-  return 0;
+  return parseRawPriceString(container.textContent || '');
 }
 
 function extractRealProductData(element) {
@@ -1288,20 +1552,56 @@ function extractRealProductData(element) {
 
       // Platform-specific listing card pre-parsing
       if (platform === 'shopee') {
-        const shopeeTitle = element.querySelector('.shopee-search-item-result__name, div[data-sqe="name"], div[class*="product-name"], div[class*="name" i], .shopee-item-card__name');
+        const shopeeTitle = element.querySelector('.shopee-search-item-result__name, div[data-sqe="name"], div[class*="product-name"], div[class*="name" i], [class*="title" i], span[class*="name" i]');
         if (shopeeTitle) title = shopeeTitle.textContent.trim();
         
-        const shopeePriceEl = element.querySelector('div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], [class*="price" i] span, [class*="price" i]');
-        if (shopeePriceEl) pixPrice = extractAndesPrice(shopeePriceEl);
-        
-        const shopeeOldPriceEl = element.querySelector('div[class*="price-before-discount" i], .shopee-item-card__original-price, del');
+        // Shopee Old Price / Original Strikethrough Price
+        const shopeeOldPriceEl = element.querySelector(
+          'div[class*="price-before-discount" i], .shopee-item-card__original-price, del, s, ' +
+          '[class*="original-price" i], [class*="before-discount" i], [class*="old-price" i], ' +
+          'div[class*="line-through" i], span[class*="line-through" i], div[class*="strike" i], ' +
+          'div._0Zddfv, div._21p0yE, div._2v0Hgx, span[class*="original" i], [class*="strikethrough" i]'
+        );
         if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
-        
+
+        // Shopee Current Sale Price
+        const shopeePriceEls = element.querySelectorAll(
+          'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], ' +
+          'div[class*="ProductPrice" i], [class*="price" i] span, [class*="price" i], [data-sqe="price"]'
+        );
+        for (const el of shopeePriceEls) {
+          if (isInstallmentOrBadgeElement(el)) continue;
+          if (el.closest('del, s, [class*="before-discount" i], [class*="original-price" i], [class*="line-through" i]')) continue;
+          const p = extractAndesPrice(el);
+          if (p > 0) { pixPrice = p; break; }
+        }
+
+        // Shopee discount badge check
+        const shopeeDiscountEl = element.querySelector('div[class*="discount" i], span[class*="percent" i], div[class*="badge" i], [class*="pct" i]');
+        if (shopeeDiscountEl) {
+          const dm = shopeeDiscountEl.textContent.match(/(\d{1,2})%/);
+          if (dm) discountPercent = parseInt(dm[1], 10);
+        }
+
+        // If discount badge exists but old price wasn't caught, compute original price
+        if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
+          oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
+        }
+
         const shopeeSalesEl = element.querySelector('div[class*="sold" i], div[class*="vendas" i], div[class*="sold-count" i], [class*="sold" i]');
         if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
-        
-        const shopeeImg = element.querySelector('img');
-        if (shopeeImg) image = shopeeImg.src || shopeeImg.dataset.src || '';
+
+        const shopeeRatingEl = element.querySelector('.shopee-rating-stars, [class*="rating" i], [class*="star" i]');
+        if (shopeeRatingEl) {
+          const rm = shopeeRatingEl.textContent.match(/(\d[\.,]\d)/);
+          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+        }
+
+        const shopeeImg = element.querySelector('img[src*="shopee"], img[src*="susercontent"], img');
+        if (shopeeImg) image = shopeeImg.src || shopeeImg.dataset.src || shopeeImg.getAttribute('srcset')?.split(' ')[0] || '';
+
+        const shopeeLink = element.tagName === 'A' ? element : element.querySelector('a[href]');
+        if (shopeeLink) link = shopeeLink.href;
       } 
       else if (platform === 'amazon') {
         const amzTitle = element.querySelector('h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h3 span');
@@ -1319,15 +1619,34 @@ function extractRealProductData(element) {
         const amzImg = element.querySelector('img.s-image, img');
         if (amzImg) image = amzImg.src || amzImg.dataset.src || '';
       }
-      else if (platform === 'tiktok') {
-        const ttTitle = element.querySelector('div[class*="ProductTitle" i], p[class*="title" i], div[class*="product-title" i], [class*="title" i]');
+      else if (platform === 'tiktok' || platform === 'tiktokshop') {
+        const ttTitle = element.querySelector('div[class*="ProductTitle" i], p[class*="title" i], div[class*="product-title" i], [class*="title" i], span[class*="title" i]');
         if (ttTitle) title = ttTitle.textContent.trim();
         
-        const ttPriceEl = element.querySelector('div[class*="Price" i], span[class*="price" i], [class*="price" i]');
-        if (ttPriceEl) pixPrice = extractAndesPrice(ttPriceEl);
-        
-        const ttOldPriceEl = element.querySelector('span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del');
+        const ttOldPriceEl = element.querySelector(
+          'span[class*="PriceBefore" i], span[class*="OriginalPrice" i], span[class*="origin-price" i], ' +
+          'span[class*="originPrice" i], span[class*="cross-out" i], span[class*="strikethrough" i], ' +
+          'span[class*="line-through" i], [data-testid*="original-price" i], div[class*="OriginalPrice" i], del, s'
+        );
         if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
+
+        const ttPriceEls = element.querySelectorAll('div[class*="Price" i], span[class*="price" i], [class*="price" i], span[class*="sale-price" i]');
+        for (const el of ttPriceEls) {
+          if (isInstallmentOrBadgeElement(el)) continue;
+          if (el.closest('del, s, [class*="PriceBefore" i], [class*="OriginalPrice" i], [class*="line-through" i]')) continue;
+          const p = extractAndesPrice(el);
+          if (p > 0) { pixPrice = p; break; }
+        }
+
+        const ttDiscountEl = element.querySelector('span[class*="discount" i], div[class*="discount" i], span[class*="percent" i], [class*="badge" i]');
+        if (ttDiscountEl) {
+          const dm = ttDiscountEl.textContent.match(/(\d{1,2})%/);
+          if (dm) discountPercent = parseInt(dm[1], 10);
+        }
+
+        if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
+          oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
+        }
         
         const ttSalesEl = element.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
         if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
@@ -1366,7 +1685,7 @@ function extractRealProductData(element) {
       if (!oldPrice) {
         const oldEls = element.querySelectorAll(
           '.poly-price__old, .ui-search-price__part--original, s, del, ' +
-          '.a-price.a-text-price .a-offscreen, span.a-text-strike'
+          '.a-price.a-text-price .a-offscreen, span.a-text-strike, [class*="line-through" i]'
         );
         for (const el of oldEls) {
           const p = extractAndesPrice(el);
@@ -1481,16 +1800,66 @@ function extractRealProductData(element) {
     } else {
       // Single PDP Extraction (Product Detail Page)
       const platform = getPlatformKey();
+
+      // Check meta tags and JSON-LD first for robust PDP extraction
+      let metaPrice = 0;
+      const metaPriceEl = document.querySelector('meta[property="product:price:amount"], meta[property="og:price:amount"]');
+      if (metaPriceEl) {
+        metaPrice = parseFloat(metaPriceEl.getAttribute('content') || '0') || 0;
+      }
+      if (!metaPrice) {
+        document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+          if (metaPrice > 0) return;
+          try {
+            const json = JSON.parse(s.textContent || '{}');
+            const p = json.offers?.price || json.offers?.lowPrice || json.price || json.lowPrice || (Array.isArray(json.offers) ? json.offers[0]?.price : 0);
+            if (p) metaPrice = parseFloat(p) || 0;
+          } catch (_) {}
+        });
+      }
       
       if (platform === 'shopee') {
-        const shopeeTitle = document.querySelector('div[class*="product-title" i], .product-briefing h1, div[class*="ProductTitle" i], h1');
-        if (shopeeTitle) title = shopeeTitle.textContent.trim();
+        const shopeeTitle = document.querySelector('div[class*="product-title" i], .product-briefing h1, div[class*="ProductTitle" i], h1, div.shopee-product-title, ._4458f2, title');
+        if (shopeeTitle) title = shopeeTitle.textContent.replace(/\s*\|\s*Shopee.*$/i, '').trim();
         
-        const shopeePriceEl = document.querySelector('div[class*="price" i], span[class*="price" i], div[class*="ProductPrice" i], .shopee-product-detail .price');
-        if (shopeePriceEl) pixPrice = extractAndesPrice(shopeePriceEl);
-        
-        const shopeeOldPriceEl = document.querySelector('div[class*="price-before-discount" i], del, .shopee-product-detail del');
+        // Shopee PDP Old Price (Original strikethrough price)
+        const shopeeOldPriceEl = document.querySelector(
+          'div[class*="price-before-discount" i], del, s, ' +
+          'div[class*="original-price" i], div[class*="before-discount" i], div[class*="old-price" i], ' +
+          'span[class*="original" i], div[class*="line-through" i], span[class*="line-through" i], div[class*="strike" i], ' +
+          'div._2v0Hgx del, div.product-price del, .shopee-product-detail del, ' +
+          '.shopee-product-detail [class*="original" i], div[class*="ProductPrice" i] [class*="original" i], ' +
+          'div[class*="ProductPrice" i] del, div[class*="ProductPrice" i] s, div.flex.items-center del, div.flex.items-center s, ' +
+          'div[class*="flex" i] del, div[class*="flex" i] s, div[class*="flex" i] [class*="line-through" i]'
+        );
         if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
+
+        // Shopee PDP Sale / Current Price
+        const shopeePriceEls = document.querySelectorAll(
+          'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="ProductPrice" i], ' +
+          '.shopee-product-detail .price, [data-sqe="price"], div[class*="price" i], span[class*="price" i]'
+        );
+        for (const el of shopeePriceEls) {
+          if (el.closest('del, s, [class*="before-discount" i], [class*="original" i], [class*="old-price" i], [class*="line-through" i]')) continue;
+          const p = extractAndesPrice(el);
+          if (p > 0) { pixPrice = p; break; }
+        }
+        if (!pixPrice && metaPrice > 0) pixPrice = metaPrice;
+
+        // Shopee PDP Discount percentage badge
+        const shopeeDiscBadge = document.querySelector(
+          'div[class*="discount" i], span[class*="discount" i], span[class*="percent" i], ' +
+          'div[class*="badge" i], div._236e7Y, [class*="pct" i]'
+        );
+        if (shopeeDiscBadge) {
+          const dm = shopeeDiscBadge.textContent.match(/(\d{1,2})%/);
+          if (dm) discountPercent = parseInt(dm[1], 10);
+        }
+
+        // If discount badge exists but old price wasn't caught, compute original price
+        if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
+          oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
+        }
         
         const shopeeSalesEl = document.querySelector('div[class*="sold" i], span[class*="sold" i], div[class*="sales" i], .shopee-product-detail .sales-count');
         if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
@@ -1501,6 +1870,7 @@ function extractRealProductData(element) {
         
         const amzPriceEl = document.querySelector('#price_inside_buybox, .a-price .a-offscreen, #corePrice_feature_div .a-offscreen');
         if (amzPriceEl) pixPrice = extractAndesPrice(amzPriceEl);
+        if (!pixPrice && metaPrice > 0) pixPrice = metaPrice;
         
         const amzOldPriceEl = document.querySelector('span.a-text-strike, .a-price.a-text-price .a-offscreen');
         if (amzOldPriceEl) oldPrice = extractAndesPrice(amzOldPriceEl);
@@ -1508,15 +1878,29 @@ function extractRealProductData(element) {
         const amzSalesEl = document.querySelector('span.social-proofing-faceout-title-text span, #averageCustomerReviews_feature_div');
         if (amzSalesEl) sales = parseSalesCount(amzSalesEl.textContent);
       }
-      else if (platform === 'tiktok') {
-        const ttTitle = document.querySelector('h1[class*="ProductTitle" i], h1, div[class*="Title" i], [data-testid*="product-title" i]');
+      else if (platform === 'tiktok' || platform === 'tiktokshop') {
+        const ttTitle = document.querySelector('h1[class*="ProductTitle" i], h1, div[class*="Title" i], [data-testid*="product-title" i], div[data-e2e="pdp-title"]');
         if (ttTitle) title = ttTitle.textContent.trim();
         
+        const ttOldPriceEl = document.querySelector(
+          'span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del, s, ' +
+          'span[class*="line-through" i], [data-testid*="original-price" i], div[class*="OriginalPrice" i]'
+        );
+        if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
+
         const ttPriceEl = document.querySelector('div[class*="Price" i], span[class*="price" i], [data-testid*="product-price" i]');
         if (ttPriceEl) pixPrice = extractAndesPrice(ttPriceEl);
-        
-        const ttOldPriceEl = document.querySelector('span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del');
-        if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
+        if (!pixPrice && metaPrice > 0) pixPrice = metaPrice;
+
+        const ttDiscBadge = document.querySelector('span[class*="discount" i], div[class*="discount" i], span[class*="percent" i], [class*="badge" i]');
+        if (ttDiscBadge) {
+          const dm = ttDiscBadge.textContent.match(/(\d{1,2})%/);
+          if (dm) discountPercent = parseInt(dm[1], 10);
+        }
+
+        if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
+          oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
+        }
         
         const ttSalesEl = document.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
         if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
@@ -1589,15 +1973,22 @@ function extractRealProductData(element) {
   
       // Extract All Main & Gallery Pictures on PDP
       const imgNodes = document.querySelectorAll(
-        '.ui-pdp-gallery__figure img, #gallery img, #landingImage, #imgTagWrapperId img, ' +
+        '.ui-pdp-gallery__figure img, .ui-pdp-gallery__thumbnail img, img.ui-pdp-image, span.ui-pdp-gallery__item img, ' +
+        '#gallery img, #landingImage, #imgTagWrapperId img, .a-dynamic-image, ' +
         '.product-briefing img, #altImages img, .crop-image-container img, .main-swiper img, ' +
         'div[class*="product-image" i] img, .picture-wrapper img, img[class*="Gallery" i], ' +
-        'div[class*="ImageContainer" i] img, img[src*="tiktokcdn" i], img[src*="shopee.com" i]'
+        'div[class*="ImageContainer" i] img, img[src*="tiktokcdn" i], img[src*="shopee.com" i], ' +
+        'img[src*="susercontent" i], img[src*="shopeesz" i], div[class*="carousel" i] img, ' +
+        'div[class*="slider" i] img, div[class*="gallery" i] img, div[class*="media" i] img, ' +
+        'img[src*="alicdn" i], img[src*="shein.com" i]'
       );
       imgNodes.forEach(n => {
-        const src = n.src || n.dataset.src;
-        if (src && !src.includes('data:image') && !pictures.includes(src)) {
-          pictures.push(src);
+        const src = n.src || n.dataset.src || n.getAttribute('srcset')?.split(' ')[0];
+        if (src && !src.includes('data:image') && !src.includes('1x1') && !src.includes('pixel') && !src.includes('logo') && !src.includes('avatar') && !pictures.includes(src)) {
+          const cleanSrc = src.replace(/_100x100\./g, '.').replace(/_80x80\./g, '.').replace(/_tn\./g, '.');
+          if (!pictures.includes(cleanSrc)) {
+            pictures.push(cleanSrc);
+          }
         }
       });
   
@@ -1616,14 +2007,17 @@ function extractRealProductData(element) {
 
     if (image && !pictures.includes(image)) pictures.unshift(image);
 
+    const resolvedPlatform = getPlatformKey(link || window.location.href);
+    const resolvedMarketplace = getMarketplaceName(resolvedPlatform);
+
     return {
       id, title, pixPrice, oldPrice, discountPercent,
       rating, sales, freeShipping, noInterest,
       image, link,
-      marketplace: getMarketplaceName(),
-      timestamp: Date.now(),
+      marketplace:  resolvedMarketplace,
+      timestamp:    Date.now(),
 
-      platform:     getPlatformKey(),
+      platform:     resolvedPlatform,
       original_link:cleanLinkUrl(link),
       image_url:    image || null,
       pictures:     pictures.length ? pictures : (image ? [image] : []),
@@ -1651,14 +2045,14 @@ function extractRealProductData(element) {
 
 /* ── Helpers de Formatação e Leitura ── */
 
-function getPlatformKey() {
-  const host = window.location.hostname;
-  if (host.includes('mercadolivre') || host.includes('mercadolibre')) return 'mercadolivre';
-  if (host.includes('shopee'))    return 'shopee';
-  if (host.includes('amazon'))    return 'amazon';
-  if (host.includes('aliexpress'))return 'aliexpress';
-  if (host.includes('shein'))     return 'shein';
-  if (host.includes('tiktok'))    return 'tiktok';
+function getPlatformKey(targetUrl) {
+  const str = String(targetUrl || (typeof window !== 'undefined' ? (window.location.href + ' ' + window.location.hostname) : '')).toLowerCase();
+  if (str.includes('tiktok') || str.includes('byteoversea') || str.includes('tiktokv')) return 'tiktokshop';
+  if (str.includes('shopee') || str.includes('shope.ee') || str.includes('s.shopee')) return 'shopee';
+  if (str.includes('mercadolivre') || str.includes('mercadolibre') || str.includes('meli.la') || str.includes('mliv.re')) return 'mercadolivre';
+  if (str.includes('amazon') || str.includes('amzn.to') || str.includes('a.co')) return 'amazon';
+  if (str.includes('aliexpress') || str.includes('ali.ski') || str.includes('a.aliexpress')) return 'aliexpress';
+  if (str.includes('shein') || str.includes('she.in')) return 'shein';
   return 'mercadolivre';
 }
 
@@ -1679,15 +2073,21 @@ function numToAppPrice(num) {
 
 function parseSalesCount(text) {
   if (!text) return 0;
-  const t = String(text).replace(/ /g, ' ').replace(/\n/g, ' ');
+  // Strip out currency price strings and rating scores so numbers in prices don't pollute sales counts
+  let t = String(text)
+    .replace(/R\$\s*[\d.]{1,12},\d{2}/gi, '')
+    .replace(/R\$\s*[\d.]+/gi, '')
+    .replace(/\b[1-5][.,]\d\b/g, '')
+    .replace(/ /g, ' ')
+    .replace(/\n/g, ' ');
 
   const reList = [
-    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought)/i,
-    /(?:vendidos?|comprados?|sold|bought|compras?)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
-    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought)/i,
-    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+/i,
-    /(\d+)\+?\s*(?:vendido|comprado|sold|bought)/i,
-    /(\d+(?:[\.,]\d+)?)\s*(?:mil|k)?\+?\s*(?:vendido|comprado|sold|bought|comprados no último mês|bought in past month)/i
+    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought|vendas?)/i,
+    /(?:vendidos?|comprados?|sold|bought|compras?|vendas?)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
+    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought|vendas?)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+\s*(?:vendidos?|comprados?|sold|bought)?/i,
+    /(\d+)\+?\s*(?:vendido|comprado|sold|bought|vendas)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(?:mil|k)?\+?\s*(?:vendidos?|comprados?|sold|bought|comprados no último mês|bought in past month)/i
   ];
 
   for (const re of reList) {
@@ -1716,9 +2116,12 @@ function parseSalesCount(text) {
 
 function extractInstallmentsText(scopeText) {
   if (!scopeText) return null;
-  const semJuros = scopeText.match(/(?:em\s*at[ée]\s*)?(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})\s*sem\s*juros/i);
+  const semJuros = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})\s*sem\s*juros/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+,\d{2})\s*sem\s*juros/i);
   if (semJuros) return `${semJuros[1]}x de R$ ${semJuros[2]} sem juros`;
-  const qualquer = scopeText.match(/(?:em\s*at[ée]\s*)?(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})/i);
+
+  const qualquer = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+,\d{2})/i);
   if (qualquer) return `${qualquer[1]}x de R$ ${qualquer[2]}`;
   return null;
 }
@@ -1813,14 +2216,14 @@ function extractDescriptionText() {
   return desc ? desc.slice(0, 1200) : null;
 }
 
-function getMarketplaceName() {
-  const host = window.location.hostname;
-  if (host.includes('mercadolivre') || host.includes('mercadolibre')) return 'Mercado Livre';
-  if (host.includes('shopee')) return 'Shopee';
-  if (host.includes('amazon')) return 'Amazon';
-  if (host.includes('shein')) return 'Shein';
-  if (host.includes('aliexpress')) return 'AliExpress';
-  if (host.includes('tiktok')) return 'TikTok Shop';
+function getMarketplaceName(urlOrPlatform) {
+  const plat = urlOrPlatform ? getPlatformKey(urlOrPlatform) : getPlatformKey();
+  if (plat === 'mercadolivre') return 'Mercado Livre';
+  if (plat === 'shopee') return 'Shopee';
+  if (plat === 'amazon') return 'Amazon';
+  if (plat === 'shein') return 'Shein';
+  if (plat === 'aliexpress') return 'AliExpress';
+  if (plat === 'tiktokshop' || plat === 'tiktok') return 'TikTok Shop';
   return 'E-commerce';
 }
 
@@ -2070,13 +2473,19 @@ function startAutoMining() {
 
     window.scrollBy({ top: 280, behavior: 'smooth' });
 
-    const cards = document.querySelectorAll(getProductCardSelectors().join(', '));
-    cards.forEach((card) => {
-      const rect = card.getBoundingClientRect();
-      if (rect.top >= -80 && rect.bottom <= window.innerHeight + 180) {
-        if (!card.dataset.amChecked) {
-          card.dataset.amChecked = '1';
-          mineCardProduct(card, false); // Auto-mine usa filtros
+    const rawCards = document.querySelectorAll(getProductCardSelectors().join(', '));
+    const processedCards = new Set();
+
+    rawCards.forEach((rawEl) => {
+      const card = getProductCardContainer(rawEl);
+      if (card && !processedCards.has(card)) {
+        processedCards.add(card);
+        const rect = card.getBoundingClientRect();
+        if (rect.top >= -120 && rect.bottom <= window.innerHeight + 240) {
+          if (!card.dataset.amChecked) {
+            card.dataset.amChecked = '1';
+            mineCardProduct(card, false); // Auto-mine usa filtros
+          }
         }
       }
     });
@@ -2111,7 +2520,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const report = `### ⚠️ Diagnóstico - Affiliate Miner v2.6.2\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
+  const report = `### ⚠️ Diagnóstico - Affiliate Miner v1.0.6\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `
     <div class="am-err-box">

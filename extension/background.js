@@ -113,14 +113,17 @@ function objToFs(obj) {
   return fields;
 }
 
-// Plataforma: nome display → chave aceita pelo app
-function normalizePlatform(raw) {
+// Plataforma: nome display ou URL → chave aceita pelo app
+function normalizePlatform(raw, url) {
   const r = (raw || '').toLowerCase();
-  if (r.includes('mercado')) return 'mercadolivre';
-  if (r.includes('shopee'))  return 'shopee';
-  if (r.includes('amazon'))  return 'amazon';
-  if (r.includes('ali'))     return 'aliexpress';
-  if (r.includes('shein'))   return 'shein';
+  const u = (url || '').toLowerCase();
+  const combined = `${r} ${u}`;
+  if (combined.includes('tiktok') || combined.includes('byteoversea') || combined.includes('tiktokv')) return 'tiktokshop';
+  if (combined.includes('shopee') || combined.includes('shope.ee') || combined.includes('s.shopee')) return 'shopee';
+  if (combined.includes('mercado') || combined.includes('meli.la') || combined.includes('mliv.re')) return 'mercadolivre';
+  if (combined.includes('amazon') || combined.includes('amzn.to') || combined.includes('a.co')) return 'amazon';
+  if (combined.includes('ali')) return 'aliexpress';
+  if (combined.includes('shein') || combined.includes('she.in')) return 'shein';
   return 'mercadolivre';
 }
 
@@ -177,6 +180,12 @@ function buildGlobalId(platform, url) {
         if (m) return `shein_${m[1].toLowerCase()}`;
         break;
       }
+      case 'tiktok':
+      case 'tiktokshop': {
+        const m = url.match(/\/view\/product\/(\d+)/i) || url.match(/\/product\/(\d+)/i) || url.match(/\/p\/(\d+)/i) || url.match(/item_id=(\d+)/i);
+        if (m) return `tiktokshop_${m[1]}`;
+        break;
+      }
     }
   } catch (_) {}
   // Fallback: hash da URL
@@ -231,8 +240,8 @@ async function addPriceHistory(globalId, priceTo, priceFrom, now, headers) {
 
 async function syncProductToFirestore(product, uid, idToken) {
   // Normalizar platform e link
-  const platform = normalizePlatform(product.platform || product.marketplace || '');
   const url      = cleanUrl(product.original_link || product.link || '');
+  const platform = normalizePlatform(product.platform || product.marketplace || '', url);
   if (!url) return;
 
   const globalId = buildGlobalId(platform, url);

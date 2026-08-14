@@ -308,6 +308,34 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 )}
               </div>
 
+              {/* Product Gallery Thumbnails */}
+              {currentProduct.pictures && currentProduct.pictures.length > 1 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-[#93a0b5] block">
+                    Todas as Fotos Extraídas ({currentProduct.pictures.length})
+                  </span>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+                    {currentProduct.pictures.map((pic, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setCurrentProduct(prev => ({ ...prev, image_url: pic }));
+                          setImgError(false);
+                        }}
+                        className={`w-12 h-12 rounded-lg border flex-shrink-0 overflow-hidden transition-all cursor-pointer ${
+                          currentProduct.image_url === pic
+                            ? 'border-blue-500 ring-2 ring-blue-500/30 scale-105'
+                            : 'border-[#1e2636] opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={pic} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Price Block */}
               <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2">
                 <PriceBlock

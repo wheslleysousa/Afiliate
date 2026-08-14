@@ -217,8 +217,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // Suporta tanto campos antigos (pixPrice, oldPrice) quanto novos (price_to, price_from)
       const pixVal    = prod.pixPrice  || 0;
       const oldVal    = prod.oldPrice  || 0;
-      const pixPriceStr = prod.price_to  || (pixVal ? `R$ ${parseFloat(pixVal).toFixed(2)}` : 'R$ --');
-      const oldPriceStr = prod.price_from|| (oldVal && oldVal > pixVal ? `R$ ${parseFloat(oldVal).toFixed(2)}` : '');
+      let pixPriceStr = prod.price_to || prod.pix_price;
+      if (!pixPriceStr && pixVal > 0) {
+        pixPriceStr = `R$ ${parseFloat(pixVal).toFixed(2).replace('.', ',')}`;
+      }
+      if (!pixPriceStr) pixPriceStr = 'R$ --';
+
+      let oldPriceStr = prod.price_from;
+      if (!oldPriceStr && oldVal && oldVal > pixVal) {
+        oldPriceStr = `R$ ${parseFloat(oldVal).toFixed(2).replace('.', ',')}`;
+      }
       const discountStr = prod.discount_pct || prod.discountPercent
         ? `-${prod.discount_pct || prod.discountPercent}%`
         : '';
@@ -339,13 +347,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return fields;
   }
 
-  function normalizePlatform(raw) {
+  function normalizePlatform(raw, url) {
     const r = (raw || '').toLowerCase();
-    if (r.includes('mercado')) return 'mercadolivre';
-    if (r.includes('shopee'))  return 'shopee';
-    if (r.includes('amazon'))  return 'amazon';
-    if (r.includes('ali'))     return 'aliexpress';
-    if (r.includes('shein'))   return 'shein';
+    const u = (url || '').toLowerCase();
+    const combined = `${r} ${u}`;
+    if (combined.includes('tiktok') || combined.includes('byteoversea') || combined.includes('tiktokv')) return 'tiktokshop';
+    if (combined.includes('shopee') || combined.includes('shope.ee') || combined.includes('s.shopee')) return 'shopee';
+    if (combined.includes('mercado') || combined.includes('meli.la') || combined.includes('mliv.re')) return 'mercadolivre';
+    if (combined.includes('amazon') || combined.includes('amzn.to') || combined.includes('a.co')) return 'amazon';
+    if (combined.includes('ali')) return 'aliexpress';
+    if (combined.includes('shein') || combined.includes('she.in')) return 'shein';
     return 'mercadolivre';
   }
 
@@ -374,10 +385,16 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       switch (platform) {
         case 'mercadolivre': { const m = url.match(/(MLB\d+)/i); if (m) return `mercadolivre_${m[1].toUpperCase()}`; break; }
-        case 'amazon': { const m = url.match(/\/dp\/([A-Z0-9]{10})/i); if (m) return `amazon_${m[1].toUpperCase()}`; break; }
+        case 'amazon': { const m = url.match(/\/dp\/([A-Z0-9]{10})/i) || url.match(/\/gp\/product\/([A-Z0-9]{10})/i); if (m) return `amazon_${m[1].toUpperCase()}`; break; }
         case 'shopee': { const m = url.match(/[-.]i\.(\d+)\.(\d+)/); if (m) return `shopee_${m[1]}_${m[2]}`; break; }
         case 'aliexpress': { const m = url.match(/\/item\/(\d+)/); if (m) return `aliexpress_${m[1]}`; break; }
         case 'shein': { const m = url.match(/\/p-([a-z0-9]+)/i); if (m) return `shein_${m[1].toLowerCase()}`; break; }
+        case 'tiktok':
+        case 'tiktokshop': {
+          const m = url.match(/\/view\/product\/(\d+)/i) || url.match(/\/product\/(\d+)/i) || url.match(/\/p\/(\d+)/i) || url.match(/item_id=(\d+)/i);
+          if (m) return `tiktokshop_${m[1]}`;
+          break;
+        }
       }
     } catch (_) {}
     let h = 0;
@@ -425,8 +442,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.isLoggedIn || !state.uid) return;
 
     const token    = await ensureValidToken();
-    const platform = normalizePlatform(product.platform || product.marketplace || '');
     const url      = cleanUrl(product.original_link || product.link || '');
+    const platform = normalizePlatform(product.platform || product.marketplace || '', url);
     if (!url) return;
 
     const globalId = buildGlobalId(platform, url);
@@ -787,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
-    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v2.0.0
+    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v1.0.4
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})
 **Autenticado**: ${state.isLoggedIn ? 'Sim' : 'Não'}

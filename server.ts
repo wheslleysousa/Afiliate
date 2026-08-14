@@ -2316,7 +2316,7 @@ async function scrapeTikTokShopHeadless(targetUrl: string): Promise<any> {
     const { chromium } = await import('playwright');
     console.log(`[TikTok Headless] Abrindo navegador para: ${targetUrl}`);
 
-    browser = await chromium.launch({
+    const launchOptions = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -2324,7 +2324,25 @@ async function scrapeTikTokShopHeadless(targetUrl: string): Promise<any> {
         '--disable-dev-shm-usage',
         '--disable-blink-features=AutomationControlled'
       ]
-    });
+    };
+
+    try {
+      browser = await chromium.launch(launchOptions);
+    } catch (launchErr: any) {
+      if (launchErr?.message?.includes("Executable doesn't exist") || launchErr?.message?.includes("executablePath")) {
+        console.warn("[TikTok Headless] Executável do Chromium não encontrado. Tentando instalar via Playwright...");
+        try {
+          const { execSync } = await import('child_process');
+          execSync('npx playwright install chromium', { stdio: 'inherit' });
+          browser = await chromium.launch(launchOptions);
+        } catch (installErr: any) {
+          console.error("[TikTok Headless] Não foi possível instalar/iniciar o Chromium para Playwright:", installErr?.message || installErr);
+          return null;
+        }
+      } else {
+        throw launchErr;
+      }
+    }
 
     const context = await browser.newContext({
       userAgent: TIKTOK_MOBILE_HEADERS["User-Agent"],

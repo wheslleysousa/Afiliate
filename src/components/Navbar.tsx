@@ -23,7 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, savedCo
                 <h1 className="font-extrabold text-lg text-white tracking-tight">AfiliaCopy</h1>
                 <span className="bg-blue-500/10 text-blue-400 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-blue-500/20 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                  v1.0.0
+                  v1.0.2
                 </span>
               </div>
               <p className="text-xs text-[#93a0b5] hidden sm:block">Extração & Gerador de Copy para Afiliados</p>

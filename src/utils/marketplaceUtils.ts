@@ -21,7 +21,8 @@ import { cleanAffiliateLink } from './affiliateLink';
  */
 export function extractPlatformId(platform: string, url: string): string {
   try {
-    switch (platform) {
+    const p = String(platform || '').toLowerCase();
+    switch (p) {
       case 'mercadolivre': {
         // Exemplo: https://www.mercadolivre.com.br/...MLB123456789...
         const match = url.match(/(MLB\d+)/i);
@@ -49,12 +50,34 @@ export function extractPlatformId(platform: string, url: string): string {
         const match = url.match(/\/p-([a-z0-9]+)/i);
         return match ? match[1].toLowerCase() : stableHash(url);
       }
+      case 'tiktok':
+      case 'tiktokshop': {
+        const match =
+          url.match(/\/view\/product\/(\d+)/i) ||
+          url.match(/\/product\/(\d+)/i) ||
+          url.match(/\/p\/(\d+)/i) ||
+          url.match(/item_id=(\d+)/i);
+        return match ? match[1] : stableHash(url);
+      }
       default:
         return stableHash(url);
     }
   } catch {
     return stableHash(url);
   }
+}
+
+/** Detecta a plataforma originária a partir de uma URL ou string de plataforma */
+export function detectPlatformFromUrl(inputUrl: string): string | null {
+  if (!inputUrl) return null;
+  const u = inputUrl.toLowerCase();
+  if (u.includes('tiktok') || u.includes('byteoversea') || u.includes('tiktokv') || u.includes('vt.tiktok') || u.includes('vm.tiktok')) return 'tiktokshop';
+  if (u.includes('shopee') || u.includes('shope.ee') || u.includes('s.shopee')) return 'shopee';
+  if (u.includes('mercadolivre') || u.includes('mercadolibre') || u.includes('meli.la') || u.includes('mliv.re')) return 'mercadolivre';
+  if (u.includes('amazon') || u.includes('amzn.to') || u.includes('amzn.br') || u.includes('a.co')) return 'amazon';
+  if (u.includes('aliexpress') || u.includes('ali.ski') || u.includes('s.click.aliexpress') || u.includes('a.aliexpress')) return 'aliexpress';
+  if (u.includes('shein') || u.includes('she.in') || u.includes('shein.top')) return 'shein';
+  return null;
 }
 
 /** Gera um hash estável e curto de uma string (usado como fallback de ID) */

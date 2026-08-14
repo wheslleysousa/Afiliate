@@ -34,6 +34,11 @@ const SAMPLE_LINKS = [
     name: 'Shein',
     url: 'https://br.shein.com/pd-p-18928301.html',
     platform: 'shein'
+  },
+  {
+    name: 'TikTok Shop',
+    url: 'https://www.tiktok.com/view/product/1729482910293849',
+    platform: 'tiktokshop'
   }
 ];
 
