@@ -106,45 +106,55 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* WhatsApp Connection Cards (Bloco Unificado com Métricas e Cadastro) */}
+    <div className="space-y-5 animate-fadeIn">
+      {/* Header Padronizado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-3">
+        <div>
+          <h1 className="text-lg font-extrabold text-white">Automação WhatsApp</h1>
+          <p className="text-xs text-[#93a0b5]">
+            Envio automático de ofertas, gerenciamento de grupos e monitoramento da fila.
+          </p>
+        </div>
+      </div>
+
+      {/* WhatsApp Connection Cards */}
       <WhatsAppSessionCard uid={uid} waGroupsCount={waGroups.length} />
 
       {/* Subtab Selector */}
-      <div className="flex items-center gap-2 border-b border-[#1e2636] pb-2 overflow-x-auto">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveSubTab('campaigns')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'campaigns'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
-              : 'bg-[#0e1119] text-stone-400 hover:text-white border border-[#1e2636]'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
+              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Zap className="w-4 h-4 text-amber-400" />
-          Automação / Disparos
+          <Zap className="w-3.5 h-3.5 text-amber-400" />
+          Disparos & Campanhas
         </button>
 
         <button
           onClick={() => setActiveSubTab('groups')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'groups'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
-              : 'bg-[#0e1119] text-stone-400 hover:text-white border border-[#1e2636]'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
+              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Users className="w-4 h-4 text-emerald-400" />
+          <Users className="w-3.5 h-3.5 text-emerald-400" />
           Grupos ({waGroups.length})
         </button>
 
         <button
           onClick={() => setActiveSubTab('queue-logs')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'queue-logs'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50'
-              : 'bg-[#0e1119] text-stone-400 hover:text-white border border-[#1e2636]'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
+              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Clock className="w-4 h-4 text-blue-400" />
+          <Clock className="w-3.5 h-3.5 text-blue-400" />
           Fila & Logs
         </button>
       </div>

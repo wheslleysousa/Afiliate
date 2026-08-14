@@ -35,51 +35,51 @@ const data = await response.json();
 console.log(data);`;
 
   return (
-    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-stone-800">
-        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
+      <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
+        <div className="p-2.5 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
           <Code2 className="w-6 h-6" />
         </div>
         <div>
           <h2 className="text-lg font-bold text-white">Documentação da API de Scraping (/scrape)</h2>
-          <p className="text-xs text-stone-400">Integração backend para extração de dados de afiliados</p>
+          <p className="text-xs text-[#93a0b5]">Integração backend para extração de dados de afiliados</p>
         </div>
       </div>
 
       {/* Endpoints overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-2">
+        <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="bg-emerald-500 text-stone-950 font-black text-[10px] px-2 py-0.5 rounded uppercase">
+            <span className="bg-emerald-500 text-[#07090f] font-black text-[10px] px-2 py-0.5 rounded uppercase">
               POST
             </span>
             <code className="text-xs text-emerald-400 font-bold font-mono">/scrape</code>
           </div>
-          <p className="text-xs text-stone-300">
+          <p className="text-xs text-[#eef2f9]">
             Recebe a URL do produto e retorna os dados extraídos (título, preço, parcelas, cupom e link).
           </p>
         </div>
 
-        <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-2">
+        <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="bg-blue-500 text-stone-950 font-black text-[10px] px-2 py-0.5 rounded uppercase">
+            <span className="bg-blue-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase">
               GET
             </span>
             <code className="text-xs text-blue-400 font-bold font-mono">/health</code>
           </div>
-          <p className="text-xs text-stone-300">
-            Endpoint de health check que retorna <code className="text-stone-400">{`{"status": "ok", "version": "1.0.0"}`}</code>.
+          <p className="text-xs text-[#eef2f9]">
+            Endpoint de health check que retorna <code className="text-[#93a0b5]">{`{"status": "ok", "version": "1.0.0"}`}</code>.
           </p>
         </div>
       </div>
 
       {/* Response Schema */}
-      <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-3">
-        <h3 className="text-xs font-bold text-stone-200 uppercase tracking-wider flex items-center gap-1.5">
-          <Server className="w-4 h-4 text-emerald-400" />
+      <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-3">
+        <h3 className="text-xs font-bold text-[#eef2f9] uppercase tracking-wider flex items-center gap-1.5">
+          <Server className="w-4 h-4 text-blue-400" />
           Estrutura do JSON de Resposta (HTTP 200)
         </h3>
-        <pre className="bg-stone-900 p-3 rounded-lg text-xs text-stone-300 font-mono overflow-x-auto">
+        <pre className="bg-[#07090f] p-3 rounded-lg text-xs text-[#eef2f9] font-mono overflow-x-auto border border-[#1e2636]">
 {`{
   "platform": "mercadolivre", // mercadolivre | shopee | amazon | aliexpress | shein
   "title": "Nome completo do produto",
@@ -95,58 +95,58 @@ console.log(data);`;
 
       {/* Code Snippets */}
       <div className="space-y-4">
-        <h3 className="text-xs font-bold text-stone-200 uppercase tracking-wider flex items-center gap-1.5">
-          <Terminal className="w-4 h-4 text-emerald-400" />
+        <h3 className="text-xs font-bold text-[#eef2f9] uppercase tracking-wider flex items-center gap-1.5">
+          <Terminal className="w-4 h-4 text-blue-400" />
           Exemplos de Chamada
         </h3>
 
         {/* cURL */}
-        <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-2">
+        <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-400">cURL (Terminal)</span>
             <button
               onClick={() => copySnippet('curl', curlExample)}
-              className="text-xs text-stone-400 hover:text-white flex items-center gap-1"
+              className="text-xs text-[#93a0b5] hover:text-white flex items-center gap-1"
             >
               {copiedSection === 'curl' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedSection === 'curl' ? 'Copiado' : 'Copiar'}</span>
             </button>
           </div>
-          <pre className="bg-stone-900 p-3 rounded-lg text-xs text-amber-200 font-mono overflow-x-auto">
+          <pre className="bg-[#07090f] p-3 rounded-lg text-xs text-amber-300 font-mono overflow-x-auto border border-[#1e2636]">
             {curlExample}
           </pre>
         </div>
 
         {/* Python */}
-        <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-2">
+        <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-blue-400">Python (httpx)</span>
             <button
               onClick={() => copySnippet('python', pythonExample)}
-              className="text-xs text-stone-400 hover:text-white flex items-center gap-1"
+              className="text-xs text-[#93a0b5] hover:text-white flex items-center gap-1"
             >
               {copiedSection === 'python' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedSection === 'python' ? 'Copiado' : 'Copiar'}</span>
             </button>
           </div>
-          <pre className="bg-stone-900 p-3 rounded-lg text-xs text-blue-200 font-mono overflow-x-auto">
+          <pre className="bg-[#07090f] p-3 rounded-lg text-xs text-blue-300 font-mono overflow-x-auto border border-[#1e2636]">
             {pythonExample}
           </pre>
         </div>
 
         {/* JS */}
-        <div className="bg-stone-950 border border-stone-800 rounded-xl p-4 space-y-2">
+        <div className="bg-[#151a26] border border-[#1e2636] rounded-xl p-4 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-400">JavaScript / Node.js (fetch)</span>
             <button
               onClick={() => copySnippet('js', jsExample)}
-              className="text-xs text-stone-400 hover:text-white flex items-center gap-1"
+              className="text-xs text-[#93a0b5] hover:text-white flex items-center gap-1"
             >
               {copiedSection === 'js' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedSection === 'js' ? 'Copiado' : 'Copiar'}</span>
             </button>
           </div>
-          <pre className="bg-stone-900 p-3 rounded-lg text-xs text-emerald-200 font-mono overflow-x-auto">
+          <pre className="bg-[#07090f] p-3 rounded-lg text-xs text-emerald-300 font-mono overflow-x-auto border border-[#1e2636]">
             {jsExample}
           </pre>
         </div>

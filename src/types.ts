@@ -49,6 +49,8 @@ export interface ApiKeysConfig {
   // Customização de Link Encurtado
   customShortDomain?: string; // Ex: https://lkrm.site
   customShortPrefix?: string; // Ex: radardeofertas
+  shortStyle?: 'random' | 'custom_random' | 'custom_only' | 'custom_custom';
+  useProductNameInShortLink?: boolean;
 }
 
 export type UserApiKeys = ApiKeysConfig;
@@ -259,6 +261,7 @@ export interface WaCampaign {
   schedule: CampaignSchedule;
   templateId?: string;
   customShortSlug?: string;
+  shortStyle?: 'default' | 'random' | 'custom_random' | 'custom_only';
   lastRunAt?: any;
   createdAt?: any;
 }

@@ -3,7 +3,7 @@ import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/fires
 import { db } from '../../lib/firebase';
 import type { WaCampaign, WaGroup, GlobalProduct, MinedProductRef, ApiKeysConfig } from '../../types';
 import { formatCopy } from '../../utils/formatCopy';
-import { buildAffiliateLink, buildShareableTrackingLink } from '../../utils/affiliateLink';
+import { buildAffiliateLink, buildShareableTrackingLink, slugify } from '../../utils/affiliateLink';
 import { isProductSharedRecently } from '../../utils/sharingLogUtils';
 import {
   X,
@@ -205,7 +205,17 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
           currentEst = new Date(currentEst.getTime() + gapMs);
         }
 
-        const affLink = buildShareableTrackingLink(product.id, product.original_link || '', product.platform || '', apiKeys || {}, product.title);
+        let affLink = '';
+        if (campaign.shortStyle === 'random') {
+          affLink = `https://lkrm.site/${slugify(product.id || 'prod')}`;
+        } else if (campaign.shortStyle === 'custom_only' && campaign.customShortSlug) {
+          affLink = `https://lkrm.site/${slugify(campaign.customShortSlug)}`;
+        } else if (campaign.shortStyle === 'custom_random') {
+          const pref = campaign.customShortSlug ? slugify(campaign.customShortSlug) : (apiKeys.customShortPrefix ? slugify(apiKeys.customShortPrefix) : 'oferta');
+          affLink = `https://lkrm.site/${pref}/${slugify(product.title || product.id || 'prod')}`;
+        } else {
+          affLink = buildShareableTrackingLink(product.id, product.original_link || '', product.platform || '', apiKeys || {}, product.title);
+        }
         const copyText = formatCopy({
           ...product,
           original_link: affLink,

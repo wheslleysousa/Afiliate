@@ -524,7 +524,9 @@ function detectPlatform(url: string): string {
     urlLower.includes("tiktok") ||
     urlLower.includes("tiktokshop") ||
     urlLower.includes("vt.tiktok") ||
-    urlLower.includes("vm.tiktok")
+    urlLower.includes("vm.tiktok") ||
+    urlLower.includes("s.tiktok") ||
+    urlLower.includes("v.tiktok")
   ) {
     return "tiktokshop";
   }
@@ -535,6 +537,13 @@ const DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
   "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+};
+
+const TIKTOK_MOBILE_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Referer": "https://www.tiktok.com/",
 };
 
 // Helper to refresh ML token
@@ -623,6 +632,10 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
                           currentUrl.includes('s.shopee.com.br') || 
                           currentUrl.includes('shopee.com.br') || 
                           currentUrl.includes('shein.top') || 
+                          currentUrl.includes('vt.tiktok') || 
+                          currentUrl.includes('vm.tiktok') || 
+                          currentUrl.includes('s.tiktok') || 
+                          currentUrl.includes('v.tiktok') || 
                           currentUrl.includes('tinyurl') || 
                           currentUrl.includes('bit.ly');
 
@@ -2297,66 +2310,422 @@ async function scrapeShein(url: string, sheinKey?: string) {
   }
 }
 
-async function scrapeTikTokShop(url: string, trackingId?: string) {
+async function scrapeTikTokShopHeadless(targetUrl: string): Promise<any> {
+  let browser: any = null;
   try {
-    const { finalUrl, html } = await resolveFinalUrlAndHtml(url);
-    const $ = cheerio.load(html);
+    const { chromium } = await import('playwright');
+    console.log(`[TikTok Headless] Abrindo navegador para: ${targetUrl}`);
 
-    const title = $('meta[property="og:title"]').attr('content') ||
-                  $('h1').first().text().trim() ||
-                  $('meta[name="twitter:title"]').attr('content') ||
-                  "";
-    
-    let image_url = $('meta[property="og:image"]').attr('content') ||
-                    $('meta[name="twitter:image"]').attr('content') ||
-                    null;
-    if (image_url && image_url.startsWith("//")) image_url = "https:" + image_url;
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
 
-    const price_to_raw = $('meta[property="product:price:amount"]').attr('content') ||
-                         $('meta[property="og:price:amount"]').attr('content') ||
-                         $('[class*="price"]').first().text().trim();
+    const context = await browser.newContext({
+      userAgent: TIKTOK_MOBILE_HEADERS["User-Agent"],
+      locale: "pt-BR",
+      viewport: { width: 412, height: 915 }
+    });
 
-    const description = $('meta[property="og:description"]').attr('content') ||
-                        $('meta[name="description"]').attr('content') ||
-                        null;
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);
 
-    let finalTitle = title;
-    if (!finalTitle || finalTitle.includes("TikTok - Make Your Day") || finalTitle.includes("TikTok Shop")) {
-      finalTitle = "Produto TikTok Shop";
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+    try {
+      await page.waitForSelector('#__UNIVERSAL_DATA_FOR_REHYDRATION__, [class*="price"], [class*="Price"]', { timeout: 8000 });
+    } catch (e) {
+      // Timeout aguardando seletor, prossegue com extração do DOM
     }
 
-    const price_to = cleanPrice(price_to_raw) || "Consulte no link";
-    const stars = extractStars($, html, null, null);
-    const sales_count = extractSalesCount($, html, null, null);
-    const coupon = extractCouponText($, html, null);
-    const free_shipping = checkFreeShipping(null, html);
+    const pageHtml = await page.content();
+    const $ = cheerio.load(pageHtml);
+
+    let title: string | null = null;
+    let priceTo: string | null = null;
+    let priceFrom: string | null = null;
+    let pictures: string[] = [];
+
+    const universalScript = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();
+    if (universalScript) {
+      try {
+        const parsed = JSON.parse(universalScript);
+        const pNode = parsed?.product_base || parsed?.product_info || parsed;
+        if (pNode?.title) title = String(pNode.title).trim();
+        const saleP = pNode?.sale_price || pNode?.price || pNode?.discount_price;
+        if (saleP) {
+          let val = typeof saleP === 'number' ? saleP : parseFloat(String(saleP).replace(/[^\d.,]/g, '').replace(',', '.'));
+          if (!isNaN(val) && val > 0) {
+            if (val > 500 && Number.isInteger(val)) val = val / 100;
+            priceTo = cleanPrice(val);
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!title) {
+      const ogTitle = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
+      if (ogTitle && !ogTitle.includes("TikTok - Make Your Day") && !ogTitle.includes("TikTok Shop")) {
+        title = ogTitle.trim();
+      }
+    }
+
+    if (!priceTo) {
+      const priceTxt = $('[class*="price"], [class*="Price"]').first().text().trim();
+      if (priceTxt) priceTo = cleanPrice(priceTxt);
+    }
+
+    $('img').each((_, el) => {
+      let src = $(el).attr('src') || $(el).attr('data-src');
+      if (src) {
+        if (src.startsWith('//')) src = 'https:' + src;
+        if (src.startsWith('http') && (src.includes('tiktok') || src.includes('byteimg') || src.includes('ibyteimg'))) {
+          if (!pictures.includes(src)) pictures.push(src);
+        }
+      }
+    });
 
     return {
-      title: finalTitle,
-      description: description ? description.slice(0, 300).trim() : null,
-      image_url,
-      price_from: null,
-      price_to,
-      installments: null,
-      max_installments_interest_free: null,
-      coupon,
-      stars,
-      sales_count,
-      free_shipping
+      title,
+      price_to: priceTo,
+      price_from: priceFrom,
+      pictures
     };
   } catch (err: any) {
-    console.error("[TikTok Shop Scraper Error]", err);
-    return {
-      title: "Produto TikTok Shop",
-      description: null,
-      image_url: null,
-      price_from: null,
-      price_to: "Consulte no link",
-      installments: null,
-      max_installments_interest_free: null,
-      coupon: null
-    };
+    console.warn("[TikTok Headless Error]", err?.message || err);
+    return null;
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {}
+    }
   }
+}
+
+async function scrapeTikTokShop(url: string, trackingId?: string) {
+  console.log(`[TikTok Shop Scraper] Iniciando extração para URL: ${url}`);
+  
+  // Camada A — Resolver link curto e obter HTML final
+  let finalUrl = url;
+  let html = "";
+  try {
+    const resolved = await resolveFinalUrlAndHtml(url);
+    finalUrl = resolved.finalUrl;
+    html = resolved.html;
+  } catch (err) {
+    console.warn("[TikTok Shop Scraper] Erro ao resolver URL:", err);
+  }
+
+  // Se o HTML resolvido estiver vazio ou bloqueado por anti-bot, tenta fetch direto com headers mobile
+  const isAntiBotOrEmpty = !html || html.length < 500 || 
+                          html.includes("verify") || html.includes("captcha") || 
+                          html.includes("Please wait") || html.includes("Pardon Our Interruption");
+
+  if (isAntiBotOrEmpty) {
+    try {
+      console.log("[TikTok Shop Scraper] Tentando fetch direto com headers mobile para:", finalUrl);
+      const res = await fetch(finalUrl, {
+        headers: TIKTOK_MOBILE_HEADERS,
+        redirect: "follow"
+      });
+      if (res.ok) {
+        finalUrl = res.url || finalUrl;
+        html = await res.text();
+      }
+    } catch (fetchErr) {
+      console.warn("[TikTok Shop Scraper] Fetch mobile direto falhou:", fetchErr);
+    }
+  }
+
+  const $ = cheerio.load(html || "");
+
+  let extractedTitle: string | null = null;
+  let extractedPriceTo: string | null = null;
+  let extractedPriceFrom: string | null = null;
+  let extractedImageUrl: string | null = null;
+  let extractedPictures: string[] = [];
+  let extractedDescription: string | null = null;
+  let extractedStars: string | null = null;
+  let extractedSalesCount: string | null = null;
+  let extractedCoupon: string | null = null;
+  let extractedFreeShipping: boolean = false;
+  let rawDataForEnrichment: any = null;
+
+  // Função para processar objeto JSON das tags script
+  function parseTikTokJsonData(dataObj: any) {
+    if (!dataObj || typeof dataObj !== 'object') return;
+
+    let productNode: any = null;
+
+    function searchNode(obj: any, depth = 0) {
+      if (!obj || depth > 8 || productNode) return;
+      if (typeof obj !== 'object') return;
+
+      if (obj.product_base || obj.product_info || obj.product_id || obj.product_name) {
+        if (obj.product_base) productNode = obj.product_base;
+        else if (obj.product_info) productNode = obj.product_info;
+        else if (obj.title || obj.product_name) productNode = obj;
+      }
+
+      if (productNode) return;
+
+      for (const key of Object.keys(obj)) {
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+          searchNode(obj[key], depth + 1);
+        }
+      }
+    }
+
+    searchNode(dataObj);
+
+    const p = productNode || dataObj;
+
+    // Título
+    if (!extractedTitle) {
+      const t = p.title || p.product_name || p.name || p.share_info?.title;
+      if (t && typeof t === 'string' && !t.includes("TikTok Shop") && !t.includes("Make Your Day")) {
+        extractedTitle = t.trim();
+      }
+    }
+
+    // Preços
+    if (!extractedPriceTo) {
+      let salePriceVal = p.sale_price || p.price || p.min_price || p.real_price || p.discount_price ||
+                         p.price_info?.sale_price || p.price_info?.price || p.price_info?.min_price ||
+                         p.skus?.[0]?.sale_price || p.skus?.[0]?.price;
+      
+      let origPriceVal = p.market_price || p.origin_price || p.original_price || p.max_price ||
+                         p.price_info?.market_price || p.price_info?.origin_price ||
+                         p.skus?.[0]?.market_price;
+
+      if (salePriceVal?.amount) salePriceVal = salePriceVal.amount;
+      if (origPriceVal?.amount) origPriceVal = origPriceVal.amount;
+
+      if (salePriceVal) {
+        let numSale = typeof salePriceVal === 'number' ? salePriceVal : parseFloat(String(salePriceVal).replace(/[^\d.,]/g, '').replace(',', '.'));
+        if (!isNaN(numSale) && numSale > 0) {
+          if (numSale > 500 && Number.isInteger(numSale) && !String(salePriceVal).includes('.')) {
+            numSale = numSale / 100;
+          }
+          extractedPriceTo = cleanPrice(numSale);
+        }
+      }
+
+      if (origPriceVal) {
+        let numOrig = typeof origPriceVal === 'number' ? origPriceVal : parseFloat(String(origPriceVal).replace(/[^\d.,]/g, '').replace(',', '.'));
+        if (!isNaN(numOrig) && numOrig > 0) {
+          if (numOrig > 500 && Number.isInteger(numOrig) && !String(origPriceVal).includes('.')) {
+            numOrig = numOrig / 100;
+          }
+          const cleanedOrig = cleanPrice(numOrig);
+          if (cleanedOrig !== extractedPriceTo) {
+            extractedPriceFrom = cleanedOrig;
+          }
+        }
+      }
+    }
+
+    // Imagens
+    const rawImages = p.images || p.image_list || p.product_images || p.pics || p.gallery;
+    if (Array.isArray(rawImages)) {
+      for (const img of rawImages) {
+        let urlStr = typeof img === 'string' ? img : (img.url || img.thumb_url || img.url_list?.[0]);
+        if (urlStr && typeof urlStr === 'string') {
+          if (urlStr.startsWith('//')) urlStr = 'https:' + urlStr;
+          if (urlStr.startsWith('http') && !extractedPictures.includes(urlStr)) {
+            extractedPictures.push(urlStr);
+          }
+        }
+      }
+    }
+
+    // Vendas
+    const sold = p.sold_count || p.sales_count || p.sold || p.volume_sold || p.sold_qty;
+    if (sold) {
+      const numSold = parseInt(String(sold), 10);
+      if (!isNaN(numSold) && numSold > 0) {
+        extractedSalesCount = numSold >= 1000 ? `${(numSold / 1000).toFixed(1)}k vendidos` : `${numSold} vendidos`;
+      }
+    }
+
+    // Avaliações
+    const rating = p.review?.rating_score || p.rating_score || p.rating || p.score || p.review_score;
+    if (rating) {
+      const numRate = parseFloat(String(rating));
+      if (!isNaN(numRate) && numRate >= 1 && numRate <= 5) {
+        extractedStars = numRate.toFixed(1);
+      }
+    }
+
+    rawDataForEnrichment = p;
+  }
+
+  // Camada B — JSON embutido na página (__UNIVERSAL_DATA_FOR_REHYDRATION__, SIGI_STATE, JSON-LD)
+  console.log("[TikTok Shop Scraper] Camada B - Analisando scripts e JSON embutido...");
+
+  const universalScript = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();
+  if (universalScript) {
+    try {
+      const parsed = JSON.parse(universalScript);
+      parseTikTokJsonData(parsed);
+    } catch (e) {
+      console.warn("[TikTok Shop Scraper] Falha ao parsear __UNIVERSAL_DATA_FOR_REHYDRATION__:", e);
+    }
+  }
+
+  if (!extractedTitle || !extractedPriceTo) {
+    const sigiScript = $('#SIGI_STATE').html();
+    if (sigiScript) {
+      try {
+        const parsed = JSON.parse(sigiScript);
+        parseTikTokJsonData(parsed);
+      } catch (e) {
+        console.warn("[TikTok Shop Scraper] Falha ao parsear SIGI_STATE:", e);
+      }
+    }
+  }
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const jsonText = $(el).html();
+      if (!jsonText) return;
+      const parsed = JSON.parse(jsonText);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of items) {
+        if (item?.['@type'] === 'Product' || item?.name) {
+          if (!extractedTitle && item.name && !item.name.includes("TikTok Shop")) {
+            extractedTitle = item.name.trim();
+          }
+          if (!extractedPriceTo && item.offers) {
+            const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+            if (offer?.price) {
+              extractedPriceTo = cleanPrice(offer.price);
+            }
+          }
+          if (item.image) {
+            const imgs = Array.isArray(item.image) ? item.image : [item.image];
+            for (let img of imgs) {
+              if (typeof img === 'string') {
+                if (img.startsWith('//')) img = 'https:' + img;
+                if (img.startsWith('http') && !extractedPictures.includes(img)) {
+                  extractedPictures.push(img);
+                }
+              }
+            }
+          }
+          if (!extractedStars && item.aggregateRating?.ratingValue) {
+            const val = parseFloat(String(item.aggregateRating.ratingValue));
+            if (!isNaN(val) && val >= 1 && val <= 5) extractedStars = val.toFixed(1);
+          }
+          if (!extractedSalesCount && (item.aggregateRating?.reviewCount || item.aggregateRating?.ratingCount)) {
+            extractedSalesCount = `${item.aggregateRating.reviewCount || item.aggregateRating.ratingCount} avaliações`;
+          }
+        }
+      }
+    } catch (e) {}
+  });
+
+  // Camada C — Meta OpenGraph / Twitter (fallback leve)
+  if (!extractedTitle || !extractedPriceTo || extractedPictures.length === 0) {
+    console.log("[TikTok Shop Scraper] Camada C - Executando fallback Meta OpenGraph...");
+    
+    if (!extractedTitle) {
+      const ogTitle = $('meta[property="og:title"]').attr('content') ||
+                      $('meta[name="twitter:title"]').attr('content') ||
+                      $('h1').first().text().trim();
+      if (ogTitle && !ogTitle.includes("TikTok - Make Your Day") && !ogTitle.includes("TikTok Shop")) {
+        extractedTitle = ogTitle.trim();
+      }
+    }
+
+    if (!extractedPriceTo) {
+      const metaPrice = $('meta[property="product:price:amount"]').attr('content') ||
+                        $('meta[property="og:price:amount"]').attr('content') ||
+                        $('[class*="price"]').first().text().trim();
+      if (metaPrice) {
+        extractedPriceTo = cleanPrice(metaPrice);
+      }
+    }
+
+    if (extractedPictures.length === 0) {
+      let ogImg = $('meta[property="og:image"]').attr('content') ||
+                  $('meta[name="twitter:image"]').attr('content');
+      if (ogImg) {
+        if (ogImg.startsWith("//")) ogImg = "https:" + ogImg;
+        if (ogImg.startsWith("http")) extractedPictures.push(ogImg);
+      }
+    }
+
+    if (!extractedDescription) {
+      extractedDescription = $('meta[property="og:description"]').attr('content') ||
+                              $('meta[name="description"]').attr('content') || null;
+    }
+  }
+
+  // Verifica sanidade da extração estática
+  const numPriceEstatico = extractedPriceTo ? parseFloat(extractedPriceTo.replace(/\./g, "").replace(",", ".")) : NaN;
+  const isPlausibleEstatico = !isNaN(numPriceEstatico) && numPriceEstatico > 0.5;
+
+  // Camada D — Fallback Headless com Playwright (apenas quando estático falhar)
+  if (!isPlausibleEstatico || !extractedTitle || extractedTitle === "Produto TikTok Shop") {
+    console.log("[TikTok Shop Scraper] Camada D - Camadas estáticas não obtiveram preço/título plausível. Executando Headless...");
+    try {
+      const headlessData = await scrapeTikTokShopHeadless(finalUrl);
+      if (headlessData) {
+        if (headlessData.title && headlessData.title !== "Produto TikTok Shop") {
+          extractedTitle = headlessData.title;
+        }
+        if (headlessData.price_to) {
+          extractedPriceTo = headlessData.price_to;
+        }
+        if (headlessData.price_from) {
+          extractedPriceFrom = headlessData.price_from;
+        }
+        if (headlessData.pictures && headlessData.pictures.length > 0) {
+          extractedPictures = [...new Set([...extractedPictures, ...headlessData.pictures])];
+        }
+      }
+    } catch (headlessErr) {
+      console.warn("[TikTok Shop Scraper] Fallback Headless falhou com segurança:", headlessErr);
+    }
+  }
+
+  let finalTitle = extractedTitle || "Produto TikTok Shop";
+  if (finalTitle.includes("TikTok - Make Your Day") || finalTitle.includes("Verify") || finalTitle.includes("Captcha")) {
+    finalTitle = "Produto TikTok Shop";
+  }
+
+  const image_url = extractedPictures.length > 0 ? extractedPictures[0] : null;
+
+  // Enriquecimento final
+  if (!extractedStars) extractedStars = extractStars($, html, null, rawDataForEnrichment);
+  if (!extractedSalesCount) extractedSalesCount = extractSalesCount($, html, null, rawDataForEnrichment);
+  if (!extractedCoupon) extractedCoupon = extractCouponText($, html, rawDataForEnrichment);
+  extractedFreeShipping = checkFreeShipping(rawDataForEnrichment, html);
+
+  const numFinalPrice = extractedPriceTo ? parseFloat(extractedPriceTo.replace(/\./g, "").replace(",", ".")) : NaN;
+  const finalPriceTo = (!isNaN(numFinalPrice) && numFinalPrice > 0.5) ? extractedPriceTo : null;
+
+  return {
+    title: finalTitle,
+    description: extractedDescription ? extractedDescription.slice(0, 300).trim() : null,
+    image_url,
+    pictures: extractedPictures,
+    price_from: extractedPriceFrom,
+    price_to: finalPriceTo,
+    installments: null,
+    max_installments_interest_free: null,
+    coupon: extractedCoupon,
+    stars: extractedStars,
+    sales_count: extractedSalesCount,
+    free_shipping: extractedFreeShipping
+  };
 }
 
 // Health Endpoint
@@ -3075,7 +3444,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
         platform = detectPlatform(workingUrl);
       } catch (redirectErr) {
         return res.status(400).json({
-          error: "Plataforma não suportada. Use links do Mercado Livre, Shopee, Amazon, AliExpress ou Shein.",
+          error: "Plataforma não suportada. Use links do Mercado Livre, Shopee, Amazon, AliExpress, Shein ou TikTok Shop.",
           detail: "Não foi possível identificar uma plataforma suportada na URL informada."
         });
       }

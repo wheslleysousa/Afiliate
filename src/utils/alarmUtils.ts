@@ -263,15 +263,15 @@ export function sendBrowserNotification(title: string, body: string) {
 /**
  * Verifica se a hora atual está dentro da janela configurada (ex: 08:00 às 22:00)
  */
-export function isWithinAlarmTimeWindow(startHourStr: string, endHourStr: string): boolean {
+export function isWithinAlarmTimeWindow(startHourStr?: string | null, endHourStr?: string | null): boolean {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-  const [startH, startM] = startHourStr.split(':').map(Number);
-  const [endH, endM] = endHourStr.split(':').map(Number);
+  const [startH, startM] = (startHourStr || '08:00').split(':').map(Number);
+  const [endH, endM] = (endHourStr || '22:00').split(':').map(Number);
 
-  const startTotalMinutes = (startH || 8) * 60 + (startM || 0);
-  const endTotalMinutes = (endH || 22) * 60 + (endM || 0);
+  const startTotalMinutes = (isNaN(startH) ? 8 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+  const endTotalMinutes = (isNaN(endH) ? 22 : endH) * 60 + (isNaN(endM) ? 0 : endM);
 
   if (startTotalMinutes <= endTotalMinutes) {
     return currentMinutes >= startTotalMinutes && currentMinutes <= endTotalMinutes;

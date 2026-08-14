@@ -252,31 +252,36 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
     setAiCustomPrompt('');
   };
 
+  const [showVariablesGuide, setShowVariablesGuide] = useState(false);
+
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-[#0e1119] border border-[#1e2636] rounded-2xl shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl">
-            <LayoutTemplate className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Gerenciador de Templates</h2>
-            <p className="text-xs text-[#93a0b5]">
-              Crie, edite e personalize modelos reutilizáveis de mensagens com IA e variáveis dinâmicas
-            </p>
-          </div>
+    <div className="space-y-5 animate-fadeIn">
+      {/* Header Padronizado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-3">
+        <div>
+          <h1 className="text-lg font-extrabold text-white">Modelos de Mensagem</h1>
+          <p className="text-xs text-[#93a0b5]">
+            Modelos inteligentes com tags automáticas de produto, preço e link.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowVariablesGuide(!showVariablesGuide)}
+            className="px-3 py-1.5 rounded-xl bg-[#0e1119] hover:bg-[#151a26] text-[#93a0b5] hover:text-white border border-[#1e2636] font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Info className="w-3.5 h-3.5 text-blue-400" />
+            <span>Tags Dinâmicas</span>
+          </button>
+
           <button
             onClick={() => {
               setIsAiModalOpen(true);
               setAiError(null);
             }}
-            className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-purple-600/30 border border-purple-400/30"
+            className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-blue-600/20 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" />
+            <Sparkles className="w-3.5 h-3.5 text-blue-200" />
             <span>Gerar com IA</span>
           </button>
 
@@ -285,69 +290,60 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
               setIsCreating(!isCreating);
               setEditingId(null);
             }}
-            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20"
+            className="px-3.5 py-1.5 rounded-xl bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Criar Novo Template</span>
+            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            <span>Novo Modelo</span>
           </button>
         </div>
       </div>
 
-      {/* GUIA DE COMO FUNCIONAM OS TEMPLATES E O QUE É NECESSÁRIO */}
-      <div className="p-5 bg-[#0e1119] border border-blue-500/30 rounded-2xl space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#1e2636] pb-3 flex-wrap gap-2">
-          <div className="flex items-center gap-2.5">
-            <Info className="w-5 h-5 text-blue-400 shrink-0" />
-            <h3 className="text-sm font-extrabold text-white">
-              Como os Templates Funcionam e o que é Necessário
-            </h3>
+      {/* GUIA DE COMO FUNCIONAM OS TEMPLATES (Colapsável) */}
+      {showVariablesGuide && (
+        <div className="p-4 bg-[#0e1119] border border-[#1e2636] rounded-2xl space-y-3 shadow-lg animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-[#1e2636] pb-2 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-400 shrink-0" />
+              <h3 className="text-xs font-extrabold text-white">
+                Tags Dinâmicas Disponíveis
+              </h3>
+            </div>
+
+            {deletedPresetIds.length > 0 && (
+              <button
+                onClick={handleRestorePresets}
+                className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Restaurar Padrões ({deletedPresetIds.length})</span>
+              </button>
+            )}
           </div>
 
-          {deletedPresetIds.length > 0 && (
-            <button
-              onClick={handleRestorePresets}
-              className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Restaurar Templates Padrão ({deletedPresetIds.length})</span>
-            </button>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {TEMPLATE_VARIABLES.map((v) => (
+              <div key={v.tag} className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-0.5">
+                <span className="px-1.5 py-0.5 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded font-mono text-[11px] font-bold inline-block">
+                  {v.tag}
+                </span>
+                <h4 className="text-[11px] font-bold text-white pt-0.5">{v.label}</h4>
+                <p className="text-[10px] text-[#93a0b5] leading-tight">{v.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
-
-        <p className="text-xs text-[#93a0b5] leading-relaxed">
-          Para que o template consiga puxar as informações reais dos produtos automaticamente nas campanhas do WhatsApp e nos botões de cópia rápida, basta incluir as <strong className="text-white">tags dinâmicas entre chaves duplas</strong>:
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {TEMPLATE_VARIABLES.map((v) => (
-            <div key={v.tag} className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-1">
-              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md font-mono text-xs font-bold inline-block">
-                {v.tag}
-              </span>
-              <h4 className="text-xs font-bold text-white pt-1">{v.label}</h4>
-              <p className="text-[11px] text-[#93a0b5] leading-tight">{v.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-300 flex items-start gap-2">
-          <Sparkles className="w-4 h-4 shrink-0 text-blue-400 mt-0.5" />
-          <span>
-            <strong className="text-white">Dica Importante:</strong> Toda vez que você selecionar um produto no Marketplace ou em Meus Produtos e escolher um template, o sistema substituirá <code className="text-amber-300 font-mono font-bold">{"{{produto}}"}</code>, <code className="text-amber-300 font-mono font-bold">{"{{preco}}"}</code> e <code className="text-amber-300 font-mono font-bold">{"{{link}}"}</code> instantaneamente antes do envio.
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Editor de Criação */}
       {isCreating && (
-        <div className="p-5 bg-[#0e1119] border border-amber-500/40 rounded-2xl space-y-4 animate-fadeIn shadow-xl">
+        <div className="p-5 bg-[#0e1119] border border-blue-500/40 rounded-2xl space-y-4 animate-fadeIn shadow-xl">
           <div className="flex items-center justify-between border-b border-[#1e2636] pb-3">
-            <h3 className="text-sm font-extrabold text-amber-300 flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-blue-400 flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> Novo Template Personalizado
             </h3>
             <button
               onClick={() => setIsCreating(false)}
-              className="text-xs text-stone-400 hover:text-white"
+              className="text-xs text-[#93a0b5] hover:text-white"
             >
               Cancelar ✕
             </button>
@@ -355,13 +351,13 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Nome do Template</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Nome do Template</label>
               <input
                 type="text"
                 placeholder="Ex: Oferta Grupo VIP WhatsApp"
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white placeholder-[#64708a] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
               />
             </div>
 
@@ -376,7 +372,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                     key={v.tag}
                     type="button"
                     onClick={() => insertVariable(v.tag, 'new')}
-                    className="px-2.5 py-1 bg-[#151a26] hover:bg-amber-500/20 text-amber-300 border border-[#1e2636] hover:border-amber-500/40 rounded-lg text-xs font-mono font-bold transition-all"
+                    className="px-2.5 py-1 bg-[#151a26] hover:bg-blue-500/20 text-blue-300 border border-[#1e2636] hover:border-blue-500/40 rounded-lg text-xs font-mono font-bold transition-all"
                     title={v.desc}
                   >
                     + {v.tag}
@@ -386,26 +382,26 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Conteúdo da Mensagem</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Conteúdo da Mensagem</label>
               <textarea
                 rows={6}
                 placeholder="Digite o modelo de mensagem..."
                 value={newTemplateBody}
                 onChange={(e) => setNewTemplateBody(e.target.value)}
-                className="w-full p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-amber-500 leading-relaxed"
+                className="w-full p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white placeholder-[#64708a] font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 leading-relaxed"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsCreating(false)}
-                className="px-4 py-2 bg-[#151a26] text-stone-300 rounded-xl text-xs font-bold hover:bg-stone-800"
+                className="px-4 py-2 bg-[#151a26] text-[#93a0b5] rounded-xl text-xs font-bold hover:bg-[#1e2636] hover:text-white"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSaveNew}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-blue-600/20"
               >
                 <Save className="w-4 h-4" />
                 Salvar Template
@@ -422,19 +418,19 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             <h3 className="text-sm font-extrabold text-blue-400 flex items-center gap-2">
               <Edit3 className="w-4 h-4" /> Editar Template
             </h3>
-            <button onClick={() => setEditingId(null)} className="text-xs text-stone-400 hover:text-white">
+            <button onClick={() => setEditingId(null)} className="text-xs text-[#93a0b5] hover:text-white">
               Cancelar ✕
             </button>
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Nome do Template</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Nome do Template</label>
               <input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
               />
             </div>
 
@@ -458,25 +454,25 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Conteúdo da Mensagem</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Conteúdo da Mensagem</label>
               <textarea
                 rows={6}
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
-                className="w-full p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 leading-relaxed"
+                className="w-full p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 leading-relaxed"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setEditingId(null)}
-                className="px-4 py-2 bg-[#151a26] text-stone-300 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-[#151a26] text-[#93a0b5] rounded-xl text-xs font-bold hover:bg-[#1e2636] hover:text-white"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-blue-600/20"
               >
                 <Save className="w-4 h-4" />
                 Salvar Alterações
@@ -489,8 +485,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       {/* Lista de Templates */}
       {allTemplates.length === 0 ? (
         <div className="p-12 text-center bg-[#0e1119] border border-[#1e2636] rounded-2xl space-y-3">
-          <LayoutTemplate className="w-10 h-10 text-stone-600 mx-auto" />
-          <h3 className="text-sm font-bold text-stone-300">Nenhum template encontrado</h3>
+          <LayoutTemplate className="w-10 h-10 text-[#93a0b5]/50 mx-auto" />
+          <h3 className="text-sm font-bold text-white">Nenhum template encontrado</h3>
           <p className="text-xs text-[#93a0b5]">Clique em "Criar Novo Template" ou "Gerar com IA" para adicionar um modelo de mensagem.</p>
           {deletedPresetIds.length > 0 && (
             <button
@@ -510,7 +506,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             return (
               <div
                 key={tmpl.id}
-                className="p-5 bg-[#0e1119] border border-[#1e2636] hover:border-stone-700 rounded-2xl flex flex-col justify-between gap-4 transition-all shadow-lg"
+                className="p-5 bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/30 rounded-2xl flex flex-col justify-between gap-4 transition-all shadow-lg"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -522,8 +518,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                         Padrão
                       </span>
                     ) : isAi ? (
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-purple-300" />
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-blue-300" />
                         IA
                       </span>
                     ) : (
@@ -537,7 +533,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                     <p className="text-[11px] text-[#93a0b5]">{tmpl.description}</p>
                   )}
 
-                  <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs font-mono text-stone-300 whitespace-pre-line leading-relaxed max-h-36 overflow-y-auto">
+                  <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs font-mono text-[#eef2f9] whitespace-pre-line leading-relaxed max-h-36 overflow-y-auto">
                     {tmpl.template}
                   </div>
                 </div>
@@ -551,9 +547,9 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                         setCopiedId(tmpl.id);
                         setTimeout(() => setCopiedId(null), 2000);
                       }}
-                      className="px-3 py-1.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-lg font-bold flex items-center gap-1.5 transition-all"
+                      className="px-3 py-1.5 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] rounded-lg font-bold flex items-center gap-1.5 transition-all border border-[#1e2636]"
                     >
-                      {copiedId === tmpl.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+                      {copiedId === tmpl.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-[#93a0b5]" />}
                       {copiedId === tmpl.id ? 'Copiado!' : 'Copiar'}
                     </button>
 
@@ -564,7 +560,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                     ) : (
                       <button
                         onClick={() => onSaveDefaultTemplateId?.(tmpl.id)}
-                        className="text-[10px] font-bold px-2.5 py-1.5 bg-[#0e1119] hover:bg-amber-400 hover:text-[#0e1119] text-stone-400 border border-[#1e2636] rounded-lg transition-all flex items-center gap-1"
+                        className="text-[10px] font-bold px-2.5 py-1.5 bg-[#0e1119] hover:bg-amber-400 hover:text-[#0e1119] text-[#93a0b5] border border-[#1e2636] rounded-lg transition-all flex items-center gap-1"
                       >
                         ☆ Usar como Padrão
                       </button>
@@ -574,7 +570,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleDuplicate(tmpl)}
-                      className="p-1.5 text-stone-400 hover:text-white bg-[#151a26] hover:bg-stone-800 rounded-lg transition-colors"
+                      className="p-1.5 text-[#93a0b5] hover:text-white bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] rounded-lg transition-colors"
                       title="Duplicar Template"
                     >
                       <Copy className="w-3.5 h-3.5" />
@@ -582,7 +578,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
                     <button
                       onClick={() => handleStartEdit(tmpl)}
-                      className="p-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
+                      className="p-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
                       title="Editar Template"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -590,7 +586,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
                     <button
                       onClick={() => setTemplateToDelete(tmpl)}
-                      className="p-1.5 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+                      className="p-1.5 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
                       title="Excluir Template"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -606,10 +602,10 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       {/* MODAL DE GERAR TEMPLATE COM IA */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-lg bg-[#0e1119] border border-purple-500/40 rounded-2xl p-6 space-y-5 shadow-2xl">
+          <div className="relative w-full max-w-lg bg-[#0e1119] border border-blue-500/40 rounded-2xl p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#1e2636] pb-3">
-              <div className="flex items-center gap-2 text-purple-300 font-extrabold text-sm">
-                <Wand2 className="w-5 h-5 text-purple-400" />
+              <div className="flex items-center gap-2 text-blue-400 font-extrabold text-sm">
+                <Wand2 className="w-5 h-5 text-blue-400" />
                 <span>Gerador de Templates com IA (Gemini)</span>
               </div>
               <button
@@ -617,7 +613,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                   setIsAiModalOpen(false);
                   setGeneratedResult(null);
                 }}
-                className="text-stone-400 hover:text-white"
+                className="text-[#93a0b5] hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -625,13 +621,13 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-stone-300 block mb-1">
+                <label className="text-xs font-bold text-[#eef2f9] block mb-1">
                   1. Estilo / Objetivo da Mensagem:
                 </label>
                 <select
                   value={aiCategory}
                   onChange={(e) => setAiCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
                 >
                   <option value="Urgência & Escassez (Estoque Baixo)">🚨 Urgência & Escassez (Estoque Baixo / Preço caindo)</option>
                   <option value="Recomendação Pessoal / Amigável (UGC)">⭐️ Recomendação Pessoal / Dica de amigo</option>
@@ -643,13 +639,13 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-300 block mb-1">
+                <label className="text-xs font-bold text-[#eef2f9] block mb-1">
                   2. Nicho ou Categoria de Produto:
                 </label>
                 <select
                   value={aiNiche}
                   onChange={(e) => setAiNiche(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
                 >
                   <option value="Achadinhos & Ofertas Gerais">🔥 Achadinhos & Ofertas Gerais</option>
                   <option value="Eletrônicos & Tecnologia">📱 Eletrônicos & Tecnologia</option>
@@ -661,7 +657,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-300 block mb-1">
+                <label className="text-xs font-bold text-[#eef2f9] block mb-1">
                   3. Instrução Personalizada (Opcional):
                 </label>
                 <input
@@ -669,7 +665,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                   placeholder="Ex: Use emojis de fogo e destaque que tem frete grátis liberado"
                   value={aiCustomPrompt}
                   onChange={(e) => setAiCustomPrompt(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white placeholder-[#64708a] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
                 />
               </div>
 
@@ -681,18 +677,18 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
 
               {/* Resultado Gerado */}
               {generatedResult && (
-                <div className="p-4 bg-[#151a26] border border-purple-500/50 rounded-xl space-y-3 animate-fadeIn">
+                <div className="p-4 bg-[#151a26] border border-blue-500/50 rounded-xl space-y-3 animate-fadeIn">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-purple-300 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs font-extrabold text-blue-300 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-blue-400" />
                       {generatedResult.name}
                     </span>
-                    <span className="text-[10px] font-bold text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-md border border-purple-500/30">
+                    <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-md border border-blue-500/30">
                       Resultado IA
                     </span>
                   </div>
                   <p className="text-[11px] text-[#93a0b5]">{generatedResult.description}</p>
-                  <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-lg text-xs font-mono text-stone-200 whitespace-pre-line leading-relaxed max-h-40 overflow-y-auto">
+                  <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-lg text-xs font-mono text-[#eef2f9] whitespace-pre-line leading-relaxed max-h-40 overflow-y-auto">
                     {generatedResult.template}
                   </div>
                 </div>
@@ -705,7 +701,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                   setIsAiModalOpen(false);
                   setGeneratedResult(null);
                 }}
-                className="px-4 py-2 bg-[#151a26] text-stone-300 hover:bg-stone-800 rounded-xl text-xs font-bold transition-all"
+                className="px-4 py-2 bg-[#151a26] text-[#93a0b5] hover:text-white hover:bg-[#1e2636] rounded-xl text-xs font-bold transition-all border border-[#1e2636]"
               >
                 Cancelar
               </button>
@@ -716,14 +712,14 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                     <button
                       onClick={handleGenerateTemplateWithAi}
                       disabled={isGeneratingAi}
-                      className="px-3.5 py-2 bg-[#151a26] hover:bg-stone-800 text-purple-300 rounded-xl text-xs font-bold transition-all border border-purple-500/30 flex items-center gap-1.5"
+                      className="px-3.5 py-2 bg-[#151a26] hover:bg-[#1e2636] text-blue-300 rounded-xl text-xs font-bold transition-all border border-blue-500/30 flex items-center gap-1.5"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Gerar Outro</span>
                     </button>
                     <button
                       onClick={handleApplyAiResult}
-                      className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-lg shadow-purple-950/50"
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-lg shadow-blue-600/20"
                     >
                       <Check className="w-4 h-4" />
                       Salvar este Template
@@ -733,7 +729,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                   <button
                     onClick={handleGenerateTemplateWithAi}
                     disabled={isGeneratingAi}
-                    className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-lg shadow-purple-950/50"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
                   >
                     {isGeneratingAi ? (
                       <>
@@ -765,18 +761,18 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
               </div>
               <button
                 onClick={() => setTemplateToDelete(null)}
-                className="text-stone-400 hover:text-white"
+                className="text-[#93a0b5] hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-stone-300 leading-relaxed">
+              <p className="text-xs text-[#eef2f9] leading-relaxed">
                 Tem certeza de que deseja excluir o template <strong className="text-white">"{templateToDelete.name}"</strong>?
               </p>
 
-              <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs font-mono text-stone-400 line-clamp-3">
+              <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs font-mono text-[#93a0b5] line-clamp-3">
                 {templateToDelete.template}
               </div>
 
@@ -788,7 +784,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1e2636]">
               <button
                 onClick={() => setTemplateToDelete(null)}
-                className="px-4 py-2 bg-[#151a26] text-stone-300 hover:bg-stone-800 rounded-xl text-xs font-bold transition-all"
+                className="px-4 py-2 bg-[#151a26] text-[#93a0b5] hover:text-white hover:bg-[#1e2636] rounded-xl text-xs font-bold transition-all border border-[#1e2636]"
               >
                 Cancelar
               </button>

@@ -196,34 +196,44 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
   const activeFiltersCount = (platformFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + (sortBy !== 'commission_amount' ? 1 : 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-fadeIn">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1e2636] pb-3">
+        <div>
+          <h1 className="text-lg font-extrabold text-white">Marketplace</h1>
+          <p className="text-xs text-[#93a0b5]">
+            Explore produtos minerados pela comunidade prontos para afiliação e divulgação.
+          </p>
+        </div>
+      </div>
+
       {/* Search Header: Pesquisa + Botão Filtro */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-center gap-2.5 bg-[#0e1119] border border-[#1e2636] p-3 sm:p-3.5 rounded-2xl">
         {/* Campo de Pesquisa */}
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93a0b5]" />
           <input
             type="text"
-            placeholder="Pesquisar produto..."
+            placeholder="Pesquisar por título, categoria ou marca..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-white placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs sm:text-sm text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
           />
         </div>
 
         {/* Botão de Filtro */}
         <button
           onClick={() => setIsFilterModalOpen(true)}
-          className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 border transition-all shrink-0 ${
+          className={`w-full sm:w-auto px-4 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all shrink-0 cursor-pointer ${
             activeFiltersCount > 0
               ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
-              : 'bg-[#151a26] hover:bg-stone-800 text-stone-200 border-[#1e2636]'
+              : 'bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] border-[#1e2636]'
           }`}
         >
           <SlidersHorizontal className="w-4 h-4 text-blue-400" />
-          <span>Filtro</span>
+          <span>Filtros</span>
           {activeFiltersCount > 0 && (
-            <span className="ml-1 w-5 h-5 rounded-full bg-white text-blue-600 text-[10px] font-black flex items-center justify-center">
+            <span className="ml-0.5 px-1.5 py-0.2 bg-white text-blue-600 text-[10px] font-black rounded-full">
               {activeFiltersCount}
             </span>
           )}
@@ -235,7 +245,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-bold text-[#93a0b5]">Filtros ativos:</span>
           {platformFilter && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-white">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-[#eef2f9]">
               Plataforma: {platformLabel[platformFilter] || platformFilter}
               <button onClick={() => setPlatformFilter('')} className="hover:text-red-400">
                 <X className="w-3 h-3" />
@@ -243,7 +253,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
             </span>
           )}
           {categoryFilter && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-white">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-xs font-semibold text-[#eef2f9]">
               Categoria: {categoryFilter}
               <button onClick={() => setCategoryFilter('')} className="hover:text-red-400">
                 <X className="w-3 h-3" />
@@ -263,10 +273,17 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading Skeleton State */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 space-y-3 animate-pulse">
+              <div className="w-full aspect-square bg-[#151a26] rounded-xl" />
+              <div className="h-3 bg-[#151a26] rounded-full w-2/3" />
+              <div className="h-4 bg-[#151a26] rounded-full w-full" />
+              <div className="h-6 bg-[#151a26] rounded-xl w-1/2 pt-2" />
+            </div>
+          ))}
         </div>
       )}
 
@@ -274,10 +291,10 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
       {!loading && (
         <>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-[#0e1119] rounded-2xl border border-[#1e2636] p-6 space-y-2">
-              <ShoppingBag className="w-12 h-12 text-stone-600 mb-1" />
+            <div className="flex flex-col items-center justify-center py-14 text-center bg-[#0e1119] rounded-2xl border border-[#1e2636] p-6 space-y-2">
+              <ShoppingBag className="w-10 h-10 text-[#93a0b5] opacity-50" />
               <p className="text-sm font-extrabold text-white">Nenhum produto encontrado</p>
-              <p className="text-xs text-[#93a0b5]">
+              <p className="text-xs text-[#93a0b5] max-w-sm">
                 Tente ajustar o termo de pesquisa ou remover os filtros aplicados.
               </p>
             </div>
@@ -296,7 +313,7 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
                   <div
                     key={product.id}
                     onClick={() => setSelectedProductForModal(product)}
-                    className="bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/50 rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all hover:scale-[1.02] group shadow-lg"
+                    className="bg-[#0e1119] border border-[#1e2636] hover:border-blue-500/50 rounded-2xl p-4 flex flex-col justify-between gap-3 cursor-pointer transition-all hover:scale-[1.01] group shadow-lg"
                   >
                     <div className="space-y-2">
                       <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-xl overflow-hidden flex items-center justify-center p-2">
@@ -304,15 +321,16 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
                           <img
                             src={product.image_url}
                             alt={product.title}
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                             className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <ShoppingBag className="w-10 h-10 text-stone-600" />
+                          <ShoppingBag className="w-10 h-10 text-[#93a0b5]" />
                         )}
                       </div>
 
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] || 'bg-stone-800 text-stone-300'}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] || 'bg-[#151a26] text-[#93a0b5]'}`}>
                           {platformLabel[product.platform] || product.platform}
                         </span>
                         {product.category && (

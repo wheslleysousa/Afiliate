@@ -9,26 +9,24 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, savedCount }) => {
   return (
-    <header className="sticky top-0 z-30 bg-stone-900/95 backdrop-blur-md border-b border-stone-800 text-stone-100 shadow-md">
+    <header className="sticky top-0 z-30 bg-[#0e1119]/95 backdrop-blur-md border-b border-[#1e2636] text-[#eef2f9] shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <div className="w-full h-full bg-stone-950 rounded-[10px] flex items-center justify-center">
-                <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400/20" />
-              </div>
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-600/10">
+              <Zap className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg text-white tracking-tight">AfiliaCopy</h1>
-                <span className="bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <h1 className="font-extrabold text-lg text-white tracking-tight">AfiliaCopy</h1>
+                <span className="bg-blue-500/10 text-blue-400 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-blue-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
                   v1.0.0
                 </span>
               </div>
-              <p className="text-xs text-stone-400 hidden sm:block">Extração & Gerador de Copy para Afiliados</p>
+              <p className="text-xs text-[#93a0b5] hidden sm:block">Extração & Gerador de Copy para Afiliados</p>
             </div>
           </div>
 
@@ -36,10 +34,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, savedCo
           <nav className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => setActiveTab('generator')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === 'generator'
-                  ? 'bg-emerald-500 text-stone-950 shadow-sm shadow-emerald-500/20'
-                  : 'text-stone-300 hover:text-white hover:bg-stone-800'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  : 'text-[#93a0b5] hover:text-white hover:bg-[#151a26]'
               }`}
             >
               <Sparkles className="w-4 h-4" />
@@ -48,17 +46,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, savedCo
 
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all relative ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all relative ${
                 activeTab === 'history'
-                  ? 'bg-emerald-500 text-stone-950 shadow-sm shadow-emerald-500/20'
-                  : 'text-stone-300 hover:text-white hover:bg-stone-800'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  : 'text-[#93a0b5] hover:text-white hover:bg-[#151a26]'
               }`}
             >
               <History className="w-4 h-4" />
               <span>Histórico</span>
               {savedCount > 0 && (
-                <span className={`text-xs px-1.5 py-0.2 rounded-full font-bold ${
-                  activeTab === 'history' ? 'bg-stone-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-400'
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  activeTab === 'history' ? 'bg-[#0e1119] text-blue-400' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 }`}>
                   {savedCount}
                 </span>
@@ -67,10 +65,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, savedCo
 
             <button
               onClick={() => setActiveTab('apiDocs')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === 'apiDocs'
-                  ? 'bg-emerald-500 text-stone-950 shadow-sm shadow-emerald-500/20'
-                  : 'text-stone-300 hover:text-white hover:bg-stone-800'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  : 'text-[#93a0b5] hover:text-white hover:bg-[#151a26]'
               }`}
             >
               <Code2 className="w-4 h-4" />

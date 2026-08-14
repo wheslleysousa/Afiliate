@@ -1,6 +1,7 @@
 import React from 'react';
 import type { GlobalProduct, ProductData } from '../types';
 import { formatPrice } from '../utils/formatPrice';
+import { parsePriceNumber } from '../utils/marketplaceUtils';
 
 interface PriceBlockProps {
   product?: Partial<ProductData> | Partial<GlobalProduct>;
@@ -32,44 +33,35 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
   className = '',
   size = 'md',
 }) => {
-  const price_to = product?.price_to || rawPriceTo || priceTo || '0,00';
-  const price_from = product?.price_from || rawPriceFrom || priceFrom || null;
-  const pix_price = product?.pix_price || rawPixPrice || null;
-  const discount_pct = product?.discount_pct ?? rawDiscountPct ?? null;
+  const rawTo = product?.price_to || rawPriceTo || priceTo || null;
+  const rawFrom = product?.price_from || rawPriceFrom || priceFrom || null;
+  const rawPix = product?.pix_price || rawPixPrice || null;
+  const rawDiscount = product?.discount_pct ?? rawDiscountPct ?? null;
   const installments = product?.installments || rawInstallments || null;
   const installments_interest_free = product?.installments_interest_free ?? rawSemJuros ?? false;
   const coupon = product?.coupon || rawCoupon || null;
 
-  // Checar se preço antigo existe e é diferente do preço atual
-  const hasFrom = Boolean(
-    price_from &&
-      price_from.trim() !== '' &&
-      price_from !== price_to
-  );
+  const numTo = parsePriceNumber(rawTo);
+  const numPix = parsePriceNumber(rawPix);
+  const numFrom = parsePriceNumber(rawFrom);
 
-  // Calcular % de desconto caso não tenha vindo preenchido
-  const computedDiscount =
-    discount_pct ??
-    (() => {
-      if (!hasFrom || !price_from || !price_to) return null;
-      try {
-        const from = parseFloat(
-          price_from.replace(/[R$\s.]/g, '').replace(',', '.')
-        );
-        const to = parseFloat(
-          price_to.replace(/[R$\s.]/g, '').replace(',', '.')
-        );
-        if (from > 0 && to > 0 && from > to) {
-          return Math.round((1 - to / from) * 100);
-        }
-      } catch {
-        return null;
-      }
-      return null;
-    })();
+  const hasValidMainPrice = numPix > 0 || numTo > 0;
+  const mainPriceValue = numPix > 0 ? (rawPix || numPix) : (rawTo || numTo);
+  const effectiveCurrentNum = numPix > 0 ? numPix : numTo;
 
-  // Preço principal destacado (Pix se houver, senão price_to)
-  const mainPrice = pix_price || price_to;
+  // Checar se preço original "De" é estritamente maior que o preço atual
+  const hasFrom = numFrom > 0 && effectiveCurrentNum > 0 && numFrom > effectiveCurrentNum;
+
+  // Calcular % de desconto garantindo limite entre 1% e 99% (sem valores negativos ou irreais)
+  let computedDiscount: number | null = null;
+  if (rawDiscount != null && rawDiscount > 0 && rawDiscount <= 99) {
+    computedDiscount = Math.round(rawDiscount);
+  } else if (hasFrom && numFrom > effectiveCurrentNum) {
+    const calc = Math.round(((numFrom - effectiveCurrentNum) / numFrom) * 100);
+    if (calc > 0 && calc <= 99) {
+      computedDiscount = calc;
+    }
+  }
 
   // Checar se as parcelas são sem juros
   const isSemJuros = Boolean(
@@ -92,12 +84,12 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
   return (
     <div className={`flex flex-col gap-0.5 ${className}`}>
       {/* 1) De {price_from} riscado + badge "-{discount_pct}%" */}
-      {hasFrom && price_from && (
+      {hasFrom && rawFrom && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className={`${subTextClasses} text-[#93a0b5] line-through`}>
-            De {formatPrice(price_from)}
+            De {formatPrice(rawFrom)}
           </span>
-          {computedDiscount != null && computedDiscount > 0 && (
+          {computedDiscount != null && (
             <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
               -{computedDiscount}%
             </span>
@@ -105,20 +97,28 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
         </div>
       )}
 
-      {/* 2) Preço atual em destaque: {pix_price || price_to} + rótulo "à vista/Pix" */}
-      {mainPrice && (
+      {/* 2) Preço atual ou Fallback Neutro "Consulte no link" */}
+      {hasValidMainPrice ? (
         <div className="flex items-baseline gap-1.5 flex-wrap my-0.5">
           <span className={mainPriceClasses}>
-            {formatPrice(mainPrice)}
+            {formatPrice(mainPriceValue)}
           </span>
-          <span className="text-[9px] sm:text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
-            à vista/Pix
+          {numPix > 0 && (
+            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
+              à vista/Pix
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="my-0.5">
+          <span className="text-xs sm:text-sm font-bold text-[#93a0b5] italic">
+            Consulte no link
           </span>
         </div>
       )}
 
-      {/* 3) Parcelas: se installments existir, SEMPRE mostrar */}
-      {installments && installments.trim() !== '' && (
+      {/* 3) Parcelas: se installments existir, SEMPRE mostrar com segurança */}
+      {installments && installments.trim() !== '' && installments !== '—' && (
         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
           <span
             className={`${subTextClasses} font-medium ${
@@ -135,8 +135,8 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
         </div>
       )}
 
-      {/* 4) Cupom: se coupon existir, mostrar um selo "🎟 Cupom: {coupon}" */}
-      {coupon && coupon.trim() !== '' && (
+      {/* 4) Cupom: se coupon existir, mostrar selo */}
+      {coupon && coupon.trim() !== '' && coupon !== '—' && (
         <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md w-fit mt-1">
           <span>🎟</span>
           <span className="truncate">Cupom: {coupon}</span>

@@ -76,8 +76,12 @@ const LOCAL_STORAGE_KEY = 'afiliacopy_user_timezone';
 
 export const getSavedTimezone = (): string => {
   if (typeof window === 'undefined') return 'America/Sao_Paulo';
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (saved) return saved;
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) return saved;
+  } catch (e) {
+    // Ignore localStorage access errors
+  }
 
   // Tentar detectar timezone nativo do navegador
   try {
@@ -94,7 +98,11 @@ export const getSavedTimezone = (): string => {
 
 export const saveTimezoneToStorage = (tz: string): void => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(LOCAL_STORAGE_KEY, tz);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, tz);
+    } catch (e) {
+      console.warn('Could not save timezone to localStorage:', e);
+    }
   }
 };
 

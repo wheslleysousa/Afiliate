@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate, ProductData } from '../types';
-import { buildAffiliateLink, buildShareableTrackingLink, slugify } from '../utils/affiliateLink';
+import { buildAffiliateLink, buildShareableTrackingLink, slugify, getShortCodeForProduct } from '../utils/affiliateLink';
 import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
@@ -51,8 +51,8 @@ const platformColor: Record<string, string> = {
   shopee: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress: 'bg-red-500/20 text-red-300 border-red-500/30',
-  shein: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  tiktokshop: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  shein: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  tiktokshop: 'bg-blue-600/20 text-blue-300 border-blue-500/30',
 };
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -143,15 +143,31 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   useEffect(() => {
     if (currentProduct && currentUserId) {
       const targetUrl = buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys || {});
-      const slug = slugify(currentProduct.title) || slugify(currentProduct.id) || 'oferta';
+      const useProductName = keys?.useProductNameInShortLink === true;
+      const shortCode = getShortCodeForProduct(currentProduct.id);
+      const slug = (useProductName && currentProduct.title ? slugify(currentProduct.title) : '') || shortCode;
+      const prefix = keys?.customShortPrefix ? slugify(keys.customShortPrefix) : '';
+      const docId = prefix ? `${prefix}-${slug}` : slug;
+
       if (targetUrl) {
-        setDoc(doc(db, 'shortLinks', slug), {
+        setDoc(doc(db, 'shortLinks', docId), {
           targetUrl,
           userId: currentUserId,
           productId: currentProduct.id || null,
           title: currentProduct.title || null,
           createdAt: new Date().toISOString()
         }, { merge: true }).catch(console.error);
+
+        // Também salva o alias direto do slug para redundância
+        if (prefix) {
+          setDoc(doc(db, 'shortLinks', slug), {
+            targetUrl,
+            userId: currentUserId,
+            productId: currentProduct.id || null,
+            title: currentProduct.title || null,
+            createdAt: new Date().toISOString()
+          }, { merge: true }).catch(console.error);
+        }
       }
     }
   }, [currentProduct.title, currentProduct.original_link, currentUserId, keys]);
@@ -241,43 +257,44 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       <div className="relative w-full max-w-3xl bg-[#0e1119] border border-[#1e2636] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col animate-fadeIn">
         
         {/* Top Header Sticky */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2636] bg-[#0e1119] sticky top-0 z-20 backdrop-blur">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[#1e2636] bg-[#0e1119] sticky top-0 z-20">
+          <div className="flex items-center gap-2.5">
             <span
-              className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                platformColor[currentProduct.platform] ?? 'bg-stone-800 text-stone-300'
+              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                platformColor[currentProduct.platform] ?? 'bg-[#151a26] text-[#eef2f9] border-[#1e2636]'
               }`}
             >
               {platformLabel[currentProduct.platform] ?? currentProduct.platform}
             </span>
-            <span className="text-xs font-semibold text-[#93a0b5] truncate max-w-xs sm:max-w-md">
-              {currentProduct.category || 'Geral'}
-            </span>
+            {currentProduct.category && (
+              <span className="text-xs font-semibold text-[#93a0b5] truncate max-w-[180px] sm:max-w-xs">
+                {currentProduct.category}
+              </span>
+            )}
             {enriching && (
               <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Atualizando dados...
+                Atualizando...
               </span>
             )}
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-[#93a0b5] hover:text-white hover:bg-[#151a26] border border-transparent hover:border-[#1e2636] transition-all"
+            className="p-1.5 rounded-xl text-[#93a0b5] hover:text-white hover:bg-[#151a26] border border-transparent hover:border-[#1e2636] transition-all cursor-pointer"
             aria-label="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+        {/* Scrollable Body - 2 Block Layout */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           
-          {/* Section 1: Main Product Display */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
             
-            {/* Left Col: Photo */}
-            <div className="md:col-span-5 flex flex-col items-center">
+            {/* Left Block: Image & Price & Commission */}
+            <div className="md:col-span-5 space-y-3">
               <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-2xl p-4 flex items-center justify-center overflow-hidden group">
                 {!imgError && currentProduct.image_url ? (
                   <img
@@ -287,116 +304,91 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <ShoppingBag className="w-16 h-16 text-stone-600" />
+                  <ShoppingBag className="w-14 h-14 text-[#93a0b5]/40" />
                 )}
               </div>
-            </div>
-
-            {/* Right Col: Details */}
-            <div className="md:col-span-7 space-y-4">
-              <h2 className="text-base sm:text-lg font-extrabold text-white leading-snug">
-                {currentProduct.title}
-              </h2>
 
               {/* Price Block */}
-              <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
-                <span className="text-[11px] font-bold text-[#93a0b5] uppercase tracking-wider block">
-                  Preço do Produto
-                </span>
+              <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2">
                 <PriceBlock
                   product={currentProduct}
-                  size="lg"
+                  size="md"
                 />
               </div>
 
               {/* Commission Highlight Box */}
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-1">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
-                    <Percent className="w-4 h-4" /> Comissão Máxima Estimada
+                  <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                    <Percent className="w-3.5 h-3.5" /> Comissão Estimada
                   </span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     {commission.ratePct}%
                   </span>
                 </div>
-                <p className="text-lg font-extrabold text-white">
-                  {formatPrice(commission.amount)} <span className="text-xs text-[#93a0b5] font-normal">/ por venda realizada</span>
+                <p className="text-base font-extrabold text-white">
+                  {formatPrice(commission.amount)} <span className="text-[11px] text-[#93a0b5] font-normal">/ por venda</span>
+                </p>
+                <p className="text-[10px] text-[#93a0b5]">
+                  {commission.isCategoryBased && commission.categoryUsed 
+                    ? `Baseado na categoria: ${commission.categoryUsed}`
+                    : commission.isDefaultFallback 
+                    ? `Taxa padrão estimada da plataforma` 
+                    : `Configuração personalizada`}
                 </p>
               </div>
 
-              {/* Sales in Last 7 Days & Trend & Rating */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Volume de Vendas</span>
-                  <span className="text-sm font-extrabold text-white">
-                    {currentProduct.sales_count ? currentProduct.sales_count : (currentProduct.sales_7d ? `${currentProduct.sales_7d} unid.` : 'Alta demanda')}
+              {/* Demand & Rating */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl">
+                  <span className="text-[#93a0b5] block text-[10px] font-semibold">Vendas / Procura</span>
+                  <span className="text-xs font-bold text-white truncate block">
+                    {currentProduct.sales_count || '—'}
                   </span>
                 </div>
 
-                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[11px] font-semibold mb-0.5">Avaliação / Nota</span>
-                  <span className="text-sm font-extrabold text-yellow-400 flex items-center gap-1">
-                    ⭐ {currentProduct.stars ? `${currentProduct.stars} / 5.0` : 'Excelente'}
+                <div className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl">
+                  <span className="text-[#93a0b5] block text-[10px] font-semibold">Avaliação</span>
+                  <span className="text-xs font-bold text-yellow-400">
+                    {currentProduct.stars ? `⭐ ${currentProduct.stars} / 5` : 'Sem avaliação'}
                   </span>
                 </div>
               </div>
-
-            </div>
-          </div>
-
-          {/* Product Description */}
-          {currentProduct.description && (
-            <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
-              <span className="text-xs font-extrabold text-white block">Descrição do Produto</span>
-              <p className="text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line max-h-36 overflow-y-auto">
-                {currentProduct.description}
-              </p>
-            </div>
-          )}
-
-          {/* Section 2: Promover Produto (WhatsApp) */}
-          <div className="p-5 bg-[#151a26] border border-emerald-500/40 rounded-2xl space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1e2636] pb-3">
-              <div>
-                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                  <Send className="w-4 h-4 text-emerald-400" /> Promover Produto no WhatsApp
-                </h3>
-                <p className="text-xs text-[#93a0b5]">
-                  Envie diretamente para seus contatos e grupos do WhatsApp com o seu link de afiliado rastreado.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGenerateAiCopy}
-                disabled={generatingAiCopy}
-                className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 font-bold text-xs flex items-center gap-1.5 transition-all self-start sm:self-auto shrink-0"
-              >
-                {generatingAiCopy ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" /> : <Sparkles className="w-3.5 h-3.5 text-blue-400" />}
-                <span>Melhorar com IA</span>
-              </button>
             </div>
 
-            {/* Message Preview Box */}
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-                <label className="text-xs font-bold text-stone-300">
-                  Mensagem Formatada para WhatsApp:
-                </label>
-                
-                {/* Subtle Template Active Indicator and Selector */}
-                <div className="flex items-center gap-1.5 text-[11px] text-[#93a0b5]">
-                  <span>Template ativo:</span>
-                  <span className="font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                    {activeTemplate?.name || 'Padrão'}
-                  </span>
-                  
+            {/* Right Block: Details & WhatsApp Promotion */}
+            <div className="md:col-span-7 space-y-3.5">
+              <h2 className="text-sm sm:text-base font-extrabold text-white leading-snug">
+                {currentProduct.title}
+              </h2>
+
+              {/* WhatsApp Promotion Card */}
+              <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between gap-2 border-b border-[#1e2636] pb-2.5">
+                  <h3 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-emerald-400" /> Mensagem para WhatsApp
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiCopy}
+                    disabled={generatingAiCopy}
+                    className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] flex items-center gap-1 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {generatingAiCopy ? <Loader2 className="w-3 h-3 animate-spin text-blue-400" /> : <Sparkles className="w-3 h-3 text-blue-400" />}
+                    <span>Gerar com IA</span>
+                  </button>
+                </div>
+
+                {/* Template Selector dropdown */}
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-[#93a0b5]">Modelo:</span>
                   <select
                     value={activeTemplateId}
                     onChange={(e) => setActiveTemplateId(e.target.value)}
-                    className="bg-[#0e1119] border border-[#1e2636] text-amber-300 hover:text-amber-200 text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500 cursor-pointer transition-colors"
+                    className="bg-[#0e1119] border border-[#1e2636] text-amber-300 text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500 cursor-pointer"
                   >
-                    <optgroup label="Modelos Predefinidos">
+                    <optgroup label="Modelos Padrão">
                       {DEFAULT_TEMPLATES.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.name}
@@ -404,7 +396,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       ))}
                     </optgroup>
                     {customTemplates && customTemplates.length > 0 && (
-                      <optgroup label="Meus Modelos e IA">
+                      <optgroup label="Meus Modelos">
                         {customTemplates.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
@@ -414,57 +406,49 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     )}
                   </select>
                 </div>
-              </div>
 
-              <textarea
-                rows={6}
-                value={currentMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                className="w-full p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-stone-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500"
-              />
-            </div>
+                {/* Message Textarea */}
+                <textarea
+                  rows={6}
+                  value={currentMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  className="w-full p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] font-mono leading-relaxed focus:outline-none focus:border-emerald-500 resize-none shadow-inner"
+                />
 
-            {/* Main Action Button */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
-              <button
-                onClick={handlePromoteWhatsApp}
-                className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20"
-              >
-                <Send className="w-5 h-5" />
-                <span>Promover Produto no WhatsApp</span>
-              </button>
-              
-              <a
-                href={affiliateLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto px-4 py-3.5 rounded-xl bg-[#0e1119] hover:bg-stone-800 text-stone-300 border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-2 shrink-0 transition-all"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Abrir Encurtado</span>
-              </a>
-            </div>
-
-            {keys && (
-              <div className="mt-4 pt-4 border-t border-[#1e2636]">
-                <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mb-1">
-                  Seu Link de Afiliado Oficial (Bruto)
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#0e1119] border border-blue-500/20 rounded p-2 overflow-hidden text-[10px] text-blue-200/80 font-mono truncate">
-                    {buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys)}
-                  </div>
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                  <button
+                    onClick={handlePromoteWhatsApp}
+                    className="w-full py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-stone-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Enviar no WhatsApp</span>
+                  </button>
+                  
                   <a
-                    href={buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys)}
+                    href={affiliateLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1.5 rounded font-bold whitespace-nowrap transition-colors"
+                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"
                   >
-                    Testar
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Abrir Link</span>
                   </a>
                 </div>
               </div>
-            )}
+
+              {/* Description preview */}
+              {currentProduct.description && (
+                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-1">
+                  <span className="text-[11px] font-bold text-white block">Descrição do Produto</span>
+                  <p className="text-xs text-[#93a0b5] leading-relaxed line-clamp-3">
+                    {currentProduct.description}
+                  </p>
+                </div>
+              )}
+
+            </div>
+
           </div>
 
         </div>

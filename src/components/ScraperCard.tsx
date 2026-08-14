@@ -128,7 +128,7 @@ export const ScraperCard: React.FC<ScraperCardProps> = ({
       </div>
 
       <p className="text-stone-400 text-xs sm:text-sm mb-4">
-        Cole o link de afiliado gerado no <span className="text-stone-200 font-medium">Mercado Livre, Shopee, Amazon, AliExpress ou Shein</span>.
+        Cole o link de afiliado gerado no <span className="text-stone-200 font-medium">Mercado Livre, Shopee, Amazon, AliExpress, Shein ou TikTok Shop</span>.
       </p>
 
       {/* Input box */}

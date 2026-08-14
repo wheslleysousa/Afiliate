@@ -184,8 +184,8 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
         );
       case 'paused':
         return (
-          <span className="bg-stone-500/20 text-stone-300 border border-stone-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Pause className="w-3 h-3 text-stone-400" />
+          <span className="bg-[#151a26] text-[#93a0b5] border border-[#1e2636] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Pause className="w-3 h-3 text-[#93a0b5]" />
             Pausado
           </span>
         );
@@ -193,7 +193,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
       case 'completed':
       case 'success':
         return (
-          <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
             Enviado
           </span>
@@ -201,7 +201,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
       case 'failed':
       case 'error':
         return (
-          <span className="bg-red-500/10 text-red-300 border border-red-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
             <XCircle className="w-3 h-3 text-red-400" />
             Falhou
           </span>
@@ -226,8 +226,8 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
             onClick={() => setSubTab('queue')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               subTab === 'queue'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/40'
-                : 'text-stone-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
+                : 'text-[#93a0b5] hover:text-white'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -237,8 +237,8 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
             onClick={() => setSubTab('logs')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               subTab === 'logs'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/40'
-                : 'text-stone-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/40'
+                : 'text-[#93a0b5] hover:text-white'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -252,7 +252,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="bg-[#151a26] border border-[#1e2636] text-stone-300 text-xs rounded-xl px-3 py-2 focus:outline-none"
+                className="bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
               >
                 <option value="all">Todos os Status</option>
                 <option value="sent">Enviados (Sucesso)</option>
@@ -262,7 +262,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
               {logItems.length > 0 && (
                 <button
                   onClick={() => setShowClearHistoryModal(true)}
-                  className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+                  className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Trash2 className="w-4 h-4 text-red-400" />
                   Limpar histórico
@@ -272,13 +272,13 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
           )}
 
           <div className="relative w-full sm:w-60">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-[#93a0b5] absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Buscar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+              className="w-full bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -288,16 +288,16 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
       {subTab === 'queue' && (
         <div className="space-y-4">
           {loadingQueue && (
-            <div className="p-8 text-center text-stone-400">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400" />
+            <div className="p-8 text-center text-[#93a0b5]">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-400" />
             </div>
           )}
 
           {!loadingQueue && filteredQueue.length === 0 && (
             <div className="bg-[#0e1119] border border-[#1e2636] p-10 rounded-2xl text-center space-y-2">
-              <Clock className="w-8 h-8 text-stone-500 mx-auto" />
+              <Clock className="w-8 h-8 text-[#93a0b5] mx-auto" />
               <h4 className="text-sm font-bold text-white">Fila de envios vazia</h4>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-[#93a0b5]">
                 Quando um disparo for programado, os itens em fila aparecerão aqui em tempo real.
               </p>
             </div>
@@ -313,7 +313,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
               return (
                 <div
                   key={item.id || `qitem-${idx}`}
-                  className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start hover:border-emerald-500/30 transition-all"
+                  className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-start hover:border-blue-500/40 transition-all"
                 >
                   {item.imageUrl ? (
                     <img
@@ -322,7 +322,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                       className="w-16 h-16 rounded-xl object-cover border border-[#1e2636] shrink-0"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-[#151a26] border border-[#1e2636] flex items-center justify-center text-stone-500 text-xs shrink-0 font-medium">
+                    <div className="w-16 h-16 rounded-xl bg-[#151a26] border border-[#1e2636] flex items-center justify-center text-[#93a0b5] text-xs shrink-0 font-medium">
                       Sem Foto
                     </div>
                   )}
@@ -334,15 +334,15 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                       </h4>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(item.status)}
-                        <span className="text-[10px] text-stone-400 font-mono">
+                        <span className="text-[10px] text-[#93a0b5] font-mono">
                           Horário: {formatTime(item.scheduledAt)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400">
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#93a0b5]">
                       <span className="flex items-center gap-1">
-                        <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                        <Smartphone className="w-3.5 h-3.5 text-blue-400" />
                         <strong>Conta:</strong> {accountLabel}
                       </span>
                       <span><strong>Grupo:</strong> {item.groupName || item.groupId}</span>
@@ -352,7 +352,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                     </div>
 
                     {item.copyText && (
-                      <p className="text-[11px] font-mono text-stone-300 bg-[#151a26] p-2.5 rounded-xl border border-[#1e2636] truncate">
+                      <p className="text-[11px] font-mono text-[#eef2f9] bg-[#151a26] p-2.5 rounded-xl border border-[#1e2636] truncate">
                         {item.copyText}
                       </p>
                     )}
@@ -363,18 +363,18 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                       onClick={() => item.id && handleTogglePauseQueueItem(item.id, item.status)}
                       className={`p-2 rounded-xl border border-[#1e2636] text-xs font-bold flex items-center gap-1.5 transition-all ${
                         isPaused
-                          ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
-                          : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
+                          ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/30'
+                          : 'bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9]'
                       }`}
                       title={isPaused ? 'Retomar Envio' : 'Pausar Envio'}
                     >
-                      {isPaused ? <Play className="w-4 h-4 text-emerald-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
+                      {isPaused ? <Play className="w-4 h-4 text-blue-400" /> : <Pause className="w-4 h-4 text-amber-400" />}
                       <span className="text-[11px]">{isPaused ? 'Retomar' : 'Pausar'}</span>
                     </button>
 
                     <button
                       onClick={() => item.id && handleDeleteQueueItem(item.id)}
-                      className="p-2 text-stone-400 hover:text-red-400 bg-[#151a26] hover:bg-red-500/20 rounded-xl border border-[#1e2636]"
+                      className="p-2 text-[#93a0b5] hover:text-red-400 bg-[#151a26] hover:bg-red-500/20 rounded-xl border border-[#1e2636]"
                       title="Cancelar / Remover"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -390,16 +390,16 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
       {subTab === 'logs' && (
         <div className="space-y-4">
           {loadingLogs && (
-            <div className="p-8 text-center text-stone-400">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400" />
+            <div className="p-8 text-center text-[#93a0b5]">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-400" />
             </div>
           )}
 
           {!loadingLogs && filteredLogs.length === 0 && (
             <div className="bg-[#0e1119] border border-[#1e2636] p-10 rounded-2xl text-center space-y-2">
-              <FileText className="w-8 h-8 text-stone-500 mx-auto" />
+              <FileText className="w-8 h-8 text-[#93a0b5] mx-auto" />
               <h4 className="text-sm font-bold text-white">Nenhum registro no histórico</h4>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-[#93a0b5]">
                 O histórico de disparos executados aparecerá aqui.
               </p>
             </div>
@@ -438,13 +438,13 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                       </h4>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(log.status)}
-                        <span className="text-[10px] text-stone-400 font-mono">
+                        <span className="text-[10px] text-[#93a0b5] font-mono">
                           {formatTime(log.sentAt)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400">
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#93a0b5]">
                       <span><strong>Conta:</strong> {accountLabel}</span>
                       <span><strong>Grupo:</strong> {log.groupName || log.groupId}</span>
                       {log.campaignName && (
@@ -453,7 +453,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                     </div>
 
                     {log.error && (
-                      <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-300 text-[11px] rounded-lg mt-1 font-mono">
+                      <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded-lg mt-1 font-mono">
                         <strong>Erro:</strong> {log.error}
                       </div>
                     )}
@@ -463,7 +463,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
                         href={log.affiliateLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 pt-0.5"
+                        className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 pt-0.5"
                       >
                         <ExternalLink className="w-3 h-3" />
                         Ver Link
@@ -489,7 +489,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
               </div>
             </div>
 
-            <div className="space-y-3 text-xs text-stone-300">
+            <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
                 Essa ação é irreversível. Tem certeza de que deseja apagar todos os registros do histórico?
               </p>
@@ -499,7 +499,7 @@ export const WhatsAppQueueLogsView: React.FC<WhatsAppQueueLogsViewProps> = ({ ui
               <button
                 disabled={isClearingHistory}
                 onClick={() => setShowClearHistoryModal(false)}
-                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
               </button>

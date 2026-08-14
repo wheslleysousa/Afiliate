@@ -14,6 +14,7 @@ import { UrlShortenerTab } from './components/UrlShortenerTab';
 import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppTab, UserProfile, SavedHistoryItem, ProductData, GeminiCopyVariation, ApiKeysConfig, ScrapedProduct, MinedProductRef, GlobalProduct, CommissionRatesConfig, CopyTemplate } from './types';
 import { Sparkles, Menu, ShieldCheck, Zap, Loader2, PackageCheck, Globe, Clock, AlertCircle } from 'lucide-react';
 import {
@@ -75,25 +76,29 @@ export default function App() {
 
         getDoc(doc(db, 'shortLinks', lookupSlug)).then((docSnap) => {
           if (docSnap.exists() && docSnap.data().targetUrl) {
-            window.location.href = docSnap.data().targetUrl;
+            const targetUrl = docSnap.data().targetUrl;
+            setRedirectingState({ status: 'redirecting', url: targetUrl });
+            window.location.href = targetUrl;
           } else {
             // Also try full path slug lookup
             const fullSlug = parts.join('-');
             getDoc(doc(db, 'shortLinks', fullSlug)).then((exactSnap) => {
               if (exactSnap.exists() && exactSnap.data().targetUrl) {
-                window.location.href = exactSnap.data().targetUrl;
+                const targetUrl = exactSnap.data().targetUrl;
+                setRedirectingState({ status: 'redirecting', url: targetUrl });
+                window.location.href = targetUrl;
               } else {
                 setRedirectingState({ status: 'error' });
-                setTimeout(() => { window.location.href = '/'; }, 3000);
+                setTimeout(() => { window.location.href = '/'; }, 3500);
               }
             }).catch(() => {
               setRedirectingState({ status: 'error' });
-              setTimeout(() => { window.location.href = '/'; }, 3000);
+              setTimeout(() => { window.location.href = '/'; }, 3500);
             });
           }
         }).catch(() => {
           setRedirectingState({ status: 'error' });
-          setTimeout(() => { window.location.href = '/'; }, 3000);
+          setTimeout(() => { window.location.href = '/'; }, 3500);
         });
       }
     }
@@ -863,18 +868,50 @@ export default function App() {
     }
   };
 
-  // Redirecting Screen for Short Links
+  // Universal Redirecting Screen for Short Links (Products, Groups, Sites, Channels)
   if (redirectingState.status === 'redirecting') {
     return (
       <ThemeProvider>
-        <div className="min-h-screen bg-[#0e1119] flex flex-col items-center justify-center p-4">
-          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+        <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0e1119] border border-[#1e2636] rounded-3xl p-6 sm:p-8 flex flex-col items-center text-center shadow-2xl space-y-5 animate-fadeIn">
+            {/* Animated Spinner Icon */}
+            <div className="relative flex items-center justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-600/10">
+                <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+              </div>
+            </div>
+
+            {/* Typography */}
+            <div className="space-y-2">
+              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                Redirecionando...
+              </h2>
+              <p className="text-xs text-[#93a0b5] leading-relaxed max-w-xs mx-auto">
+                Aguarde um instante enquanto conectamos você ao seu destino com segurança.
+              </p>
+            </div>
+
+            {/* Subtle Progress Bar */}
+            <div className="w-full bg-[#151a26] h-1.5 rounded-full overflow-hidden border border-[#1e2636]">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full animate-pulse w-full" />
+            </div>
+
+            {/* Security Badge */}
+            <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-400/90 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Conexão segura e verificada</span>
+            </div>
+
+            {/* Fallback Direct Click */}
+            {redirectingState.url && (
+              <a
+                href={redirectingState.url}
+                className="text-[11px] text-[#93a0b5] hover:text-blue-400 underline underline-offset-2 transition-colors pt-1"
+              >
+                Clique aqui se não for redirecionado automaticamente
+              </a>
+            )}
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Carregando Oferta...</h2>
-          <p className="text-sm text-stone-400 text-center max-w-sm">
-            Você está sendo redirecionado para a página oficial do produto.
-          </p>
         </div>
       </ThemeProvider>
     );
@@ -883,14 +920,28 @@ export default function App() {
   if (redirectingState.status === 'error') {
     return (
       <ThemeProvider>
-        <div className="min-h-screen bg-[#0e1119] flex flex-col items-center justify-center p-4">
-          <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
-            <AlertCircle className="w-8 h-8 text-red-400" />
+        <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0e1119] border border-[#1e2636] rounded-3xl p-6 sm:p-8 flex flex-col items-center text-center shadow-2xl space-y-5 animate-fadeIn">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shadow-lg shadow-red-500/10">
+              <AlertCircle className="w-8 h-8 text-red-400" />
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                Link não encontrado
+              </h2>
+              <p className="text-xs text-[#93a0b5] leading-relaxed max-w-xs mx-auto">
+                Este link foi desativado, expirou ou o endereço foi digitado incorretamente.
+              </p>
+            </div>
+
+            <a
+              href="/"
+              className="w-full py-2.5 px-4 rounded-xl bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs transition-all"
+            >
+              Ir para o início
+            </a>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Oferta não encontrada</h2>
-          <p className="text-sm text-stone-400 text-center max-w-sm">
-            Este link não existe mais ou expirou. Você será redirecionado para a página inicial.
-          </p>
         </div>
       </ThemeProvider>
     );
@@ -899,10 +950,10 @@ export default function App() {
   // Loading indicator for Mercado Livre OAuth exchange
   if (oauthExchanging) {
     return (
-      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 text-stone-100 space-y-4 text-center">
+      <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center p-4 text-[#eef2f9] space-y-4 text-center">
         <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
         <h3 className="text-lg font-bold text-white">Vinculando sua conta do Mercado Livre...</h3>
-        <p className="text-xs text-stone-400 max-w-sm">
+        <p className="text-xs text-[#93a0b5] max-w-sm">
           Aguarde um instante enquanto nosso servidor realiza a autenticação oficial e gera as suas chaves de acesso automáticas de afiliados.
         </p>
       </div>
@@ -913,11 +964,11 @@ export default function App() {
   if (authLoading) {
     return (
       <ThemeProvider>
-        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white space-y-3">
+        <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center p-4 text-white space-y-3">
           <div className="p-3 rounded-2xl bg-blue-600/15 border border-blue-500/30 shadow-lg shadow-blue-600/10">
             <Loader2 className="w-7 h-7 text-blue-400 animate-spin" />
           </div>
-          <p className="text-xs font-bold text-stone-200 tracking-wider uppercase">Carregando dados</p>
+          <p className="text-xs font-bold text-[#93a0b5] tracking-wider uppercase">Carregando dados</p>
         </div>
       </ThemeProvider>
     );
@@ -969,7 +1020,7 @@ export default function App() {
             {/* Mobile Hamburger Menu Toggle */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-[#151a26] hover:bg-stone-800 text-stone-200 border border-[#1e2636]"
+              className="md:hidden p-2 rounded-xl bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636]"
               aria-label="Abrir menu"
             >
               <Menu className="w-5 h-5" />
@@ -1047,111 +1098,135 @@ export default function App() {
           )}
 
           {activeTab === 'new-product' && (
-            <NewProductTab
-              onSaveProduct={handleSaveProduct}
-              savedCount={savedItems.length}
-              apiKeys={apiKeys}
-              onSaveApiKeys={handleSaveApiKeys}
-              uid={currentUser.id}
-              selectedProductForCopy={selectedProductForCopy}
-              commissionRates={commissionRates}
-              customTemplates={customTemplates}
-              onAddCustomTemplate={handleAddCustomTemplate}
-              onDeleteCustomTemplate={handleDeleteCustomTemplate}
-              defaultTemplateId={defaultTemplateId}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Novo Produto">
+              <NewProductTab
+                onSaveProduct={handleSaveProduct}
+                savedCount={savedItems.length}
+                apiKeys={apiKeys}
+                onSaveApiKeys={handleSaveApiKeys}
+                uid={currentUser.id}
+                selectedProductForCopy={selectedProductForCopy}
+                commissionRates={commissionRates}
+                customTemplates={customTemplates}
+                onAddCustomTemplate={handleAddCustomTemplate}
+                onDeleteCustomTemplate={handleDeleteCustomTemplate}
+                defaultTemplateId={defaultTemplateId}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'saved-products' && (
-            <SavedProductsTab
-              items={savedItems}
-              onDelete={handleDeleteSavedItem}
-              onClearAll={handleClearAllSaved}
-              onNavigateToNew={() => setActiveTab('new-product')}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Meus Produtos Salvos">
+              <SavedProductsTab
+                items={savedItems}
+                onDelete={handleDeleteSavedItem}
+                onClearAll={handleClearAllSaved}
+                onNavigateToNew={() => setActiveTab('new-product')}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'marketplace' && (
-            <MarketplaceTab
-              currentUserId={currentUser?.id}
-              apiKeys={apiKeys}
-              commissionRates={commissionRates}
-              sharedMap={sharedMap}
-              onToggleShared={handleToggleSharedProduct}
-              onUseProduct={handleUseProduct}
-              onUpdateProductCommission={handleUpdateProductCommission}
-              onNavigateToSettings={() => setActiveTab('settings')}
-              onNavigateToMyProducts={() => setActiveTab('my-products')}
-              onAddCustomTemplate={handleAddCustomTemplate}
-              userMinedIds={new Set(minedItems.map((m) => m.productId))}
-              customTemplates={customTemplates}
-              defaultTemplateId={defaultTemplateId}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Marketplace Global">
+              <MarketplaceTab
+                currentUserId={currentUser?.id}
+                apiKeys={apiKeys}
+                commissionRates={commissionRates}
+                sharedMap={sharedMap}
+                onToggleShared={handleToggleSharedProduct}
+                onUseProduct={handleUseProduct}
+                onUpdateProductCommission={handleUpdateProductCommission}
+                onNavigateToSettings={() => setActiveTab('settings')}
+                onNavigateToMyProducts={() => setActiveTab('my-products')}
+                onAddCustomTemplate={handleAddCustomTemplate}
+                userMinedIds={new Set(minedItems.map((m) => m.productId))}
+                customTemplates={customTemplates}
+                defaultTemplateId={defaultTemplateId}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'my-products' && (
-            <MinedProductsTab
-              uid={currentUser?.id || ''}
-              dailyMineCount={dailyMineCount}
-              dailyMineLimit={PLAN_LIMITS.free}
-              apiKeys={apiKeys}
-              commissionRates={commissionRates}
-              sharedMap={sharedMap}
-              onToggleShared={handleToggleSharedProduct}
-              onUseProduct={handleUseProduct}
-              onUpdateProductCommission={handleUpdateProductCommission}
-              onAddCustomTemplate={handleAddCustomTemplate}
-              customTemplates={customTemplates}
-              defaultTemplateId={defaultTemplateId}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Meus Produtos Minerados">
+              <MinedProductsTab
+                uid={currentUser?.id || ''}
+                dailyMineCount={dailyMineCount}
+                dailyMineLimit={PLAN_LIMITS.free}
+                apiKeys={apiKeys}
+                commissionRates={commissionRates}
+                sharedMap={sharedMap}
+                onToggleShared={handleToggleSharedProduct}
+                onUseProduct={handleUseProduct}
+                onUpdateProductCommission={handleUpdateProductCommission}
+                onAddCustomTemplate={handleAddCustomTemplate}
+                customTemplates={customTemplates}
+                defaultTemplateId={defaultTemplateId}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'whatsapp-auto' && currentUser && (
-            <WhatsAppAutomationTab
-              uid={currentUser.id}
-              apiKeys={apiKeys}
-              customTemplates={customTemplates}
-              defaultTemplateId={defaultTemplateId}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Automação WhatsApp">
+              <WhatsAppAutomationTab
+                uid={currentUser.id}
+                apiKeys={apiKeys}
+                customTemplates={customTemplates}
+                defaultTemplateId={defaultTemplateId}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'templates' && (
-            <TemplatesTab
-              customTemplates={customTemplates}
-              onAddCustomTemplate={handleAddCustomTemplate}
-              onDeleteCustomTemplate={handleDeleteCustomTemplate}
-              apiKeys={apiKeys}
-              defaultTemplateId={defaultTemplateId}
-              onSaveDefaultTemplateId={handleSaveDefaultTemplateId}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Templates">
+              <TemplatesTab
+                customTemplates={customTemplates}
+                onAddCustomTemplate={handleAddCustomTemplate}
+                onDeleteCustomTemplate={handleDeleteCustomTemplate}
+                apiKeys={apiKeys}
+                defaultTemplateId={defaultTemplateId}
+                onSaveDefaultTemplateId={handleSaveDefaultTemplateId}
+              />
+            </ErrorBoundary>
           )}
 
-          {activeTab === 'extension' && <ExtensionTab />}
+          {activeTab === 'extension' && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar Extensão">
+              <ExtensionTab />
+            </ErrorBoundary>
+          )}
 
           {activeTab === 'url-shortener' && (
-            <UrlShortenerTab
-              apiKeys={apiKeys}
-              onSaveApiKeys={handleSaveApiKeys}
-              uid={currentUser?.id}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Encurtador de Links">
+              <UrlShortenerTab
+                apiKeys={apiKeys}
+                onSaveApiKeys={handleSaveApiKeys}
+                uid={currentUser?.id}
+              />
+            </ErrorBoundary>
           )}
 
           {activeTab === 'settings' && (
-            <SettingsTab
-              user={currentUser}
-              apiKeys={apiKeys}
-              alarmSettings={alarmSettings}
-              commissionRates={commissionRates}
-              currentTimezone={currentTimezone}
-              onOpenTimezoneModal={() => setShowTimezoneModal(true)}
-              onSaveAlarmSettings={handleSaveAlarmSettings}
-              onSaveApiKeys={handleSaveApiKeys}
-              onSaveCommissionRates={handleSaveCommissionRates}
-              onUpdateProfile={handleUpdateProfile}
-            />
+            <ErrorBoundary isTabLevel title="Erro ao carregar Configurações">
+              <SettingsTab
+                user={currentUser}
+                apiKeys={apiKeys}
+                alarmSettings={alarmSettings}
+                commissionRates={commissionRates}
+                currentTimezone={currentTimezone}
+                onOpenTimezoneModal={() => setShowTimezoneModal(true)}
+                onSaveAlarmSettings={handleSaveAlarmSettings}
+                onSaveApiKeys={handleSaveApiKeys}
+                onSaveCommissionRates={handleSaveCommissionRates}
+                onUpdateProfile={handleUpdateProfile}
+              />
+            </ErrorBoundary>
           )}
 
-          {activeTab === 'api-docs' && <ApiDocsModal />}
+          {activeTab === 'api-docs' && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar Documentação API">
+              <ApiDocsModal />
+            </ErrorBoundary>
+          )}
         </main>
 
         {/* Modal de Alarme / Lembrete de Divulgação */}
@@ -1176,7 +1251,7 @@ export default function App() {
         <footer className="border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-stone-200">Afiliate</span>
+              <span className="font-bold text-white">Afiliate</span>
               <span>© {new Date().getFullYear()} — Todos os direitos reservados.</span>
             </div>
           </div>

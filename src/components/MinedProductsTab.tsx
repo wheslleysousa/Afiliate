@@ -103,6 +103,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 
   useEffect(() => {
     if (!uid) return;
+    let isMounted = true;
     setLoading(true);
 
     const q = query(
@@ -129,16 +130,21 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           })
         );
 
-        setItems(enriched);
-        setLoading(false);
+        if (isMounted) {
+          setItems(enriched);
+          setLoading(false);
+        }
       },
       (e) => {
         console.error('[MinedProducts] Erro em tempo real:', e);
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [uid]);
 
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<EnrichedMinedProduct | null>(null);
@@ -207,19 +213,14 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header com Busca */}
-      <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="p-2.5 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
-            <PackageCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-extrabold text-white">Meus Produtos Adicionados</h2>
-            <p className="text-xs text-[#93a0b5]">
-              {filtered.length} produto{filtered.length !== 1 ? 's' : ''} em sua coleção
-            </p>
-          </div>
+    <div className="space-y-5 animate-fadeIn">
+      {/* Header Padronizado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-3">
+        <div>
+          <h1 className="text-lg font-extrabold text-white">Meus Produtos</h1>
+          <p className="text-xs text-[#93a0b5]">
+            {filtered.length} produto{filtered.length !== 1 ? 's' : ''} minerado{filtered.length !== 1 ? 's' : ''} em sua coleção pessoal.
+          </p>
         </div>
 
         {/* Busca em Meus Produtos */}
@@ -230,68 +231,67 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             placeholder="Pesquisar em meus produtos..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[#151a26] border border-[#1e2636] rounded-xl text-xs text-white placeholder-[#93a0b5] focus:outline-none focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] placeholder-[#93a0b5] focus:outline-none focus:border-blue-500 shadow-inner"
           />
         </div>
       </div>
 
-      {/* Painel de Filtros Organizado em Grupos de Chips */}
-      <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-2xl space-y-4">
-        {/* Grupo 1: Status */}
-        <div className="space-y-2">
-          <span className="text-[11px] font-extrabold text-[#93a0b5] uppercase tracking-wider block">
-            Status do Produto:
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {STATUS_OPTIONS.map((st) => {
-              const isActive = statusFilter === st.id;
-              return (
-                <button
-                  key={st.id}
-                  onClick={() => setStatusFilter(st.id as any)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                    isActive
-                      ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
-                      : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              );
-            })}
-          </div>
+      {/* Painel de Filtros Compacto com Chips */}
+      <div className="bg-[#0e1119] border border-[#1e2636] p-3 sm:p-4 rounded-2xl space-y-3">
+        {/* Status */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Status:</span>
+          {STATUS_OPTIONS.map((st) => {
+            const isActive = statusFilter === st.id;
+            return (
+              <button
+                key={st.id}
+                onClick={() => setStatusFilter(st.id as any)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
+                    : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
+                }`}
+              >
+                {st.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Grupo 2: Plataforma */}
-        <div className="space-y-2 pt-2 border-t border-[#1e2636]">
-          <span className="text-[11px] font-extrabold text-[#93a0b5] uppercase tracking-wider block">
-            Plataforma:
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {PLATFORMS.map((pl) => {
-              const isActive = platformFilter === pl.id;
-              return (
-                <button
-                  key={pl.id}
-                  onClick={() => setPlatformFilter(pl.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                    isActive
-                      ? 'bg-amber-500 text-stone-950 border-amber-400 font-extrabold shadow-md shadow-amber-500/20'
-                      : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
-                  }`}
-                >
-                  {pl.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Plataforma */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1e2636]">
+          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Loja:</span>
+          {PLATFORMS.map((pl) => {
+            const isActive = platformFilter === pl.id;
+            return (
+              <button
+                key={pl.id}
+                onClick={() => setPlatformFilter(pl.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  isActive
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                    : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
+                }`}
+              >
+                {pl.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Loading State */}
+      {/* Loading Skeleton State */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 space-y-3 animate-pulse">
+              <div className="w-full aspect-square bg-[#151a26] rounded-xl" />
+              <div className="h-3 bg-[#151a26] rounded-full w-2/3" />
+              <div className="h-4 bg-[#151a26] rounded-full w-full" />
+              <div className="h-6 bg-[#151a26] rounded-xl w-1/2 pt-2" />
+            </div>
+          ))}
         </div>
       )}
 
@@ -299,11 +299,11 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       {!loading && (
         <>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-[#0e1119] rounded-2xl border border-[#1e2636] p-6 space-y-2">
-              <ShoppingBag className="w-12 h-12 text-stone-600 mb-1" />
+            <div className="flex flex-col items-center justify-center py-14 text-center bg-[#0e1119] rounded-2xl border border-[#1e2636] p-6 space-y-2">
+              <ShoppingBag className="w-10 h-10 text-[#93a0b5] opacity-50" />
               <p className="text-sm font-extrabold text-white">Nenhum produto em Meus Produtos</p>
-              <p className="text-xs text-[#93a0b5]">
-                Acesse a aba "Marketplace Global" para explorar e adicionar novos produtos à sua coleção.
+              <p className="text-xs text-[#93a0b5] max-w-sm">
+                Nenhum item corresponde ao filtro ou busca selecionada.
               </p>
             </div>
           ) : (
@@ -326,14 +326,14 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                   >
                     {/* Botões Superiores: Favoritar / Excluir */}
                     <div className="flex items-center justify-between gap-2 z-10">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] || 'bg-stone-800 text-stone-300'}`}>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${platformColor[product.platform] || 'bg-[#151a26] text-[#93a0b5]'}`}>
                         {platformLabel[product.platform] || product.platform}
                       </span>
 
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => toggleFavorite(item.productId, Boolean(item.favorite))}
-                          className="p-1 rounded-lg bg-[#151a26] hover:bg-stone-800 text-amber-400 transition-colors"
+                          className="p-1 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-amber-400 transition-colors cursor-pointer"
                           title={item.favorite ? 'Remover dos favoritos' : 'Favoritar produto'}
                         >
                           <Star className={`w-3.5 h-3.5 ${item.favorite ? 'fill-amber-400' : ''}`} />
@@ -341,7 +341,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 
                         <button
                           onClick={() => toggleArchive(item.productId, Boolean(item.archived))}
-                          className="p-1 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-400 hover:text-white transition-colors"
+                          className="p-1 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white transition-colors cursor-pointer"
                           title={item.archived ? 'Desarquivar' : 'Arquivar'}
                         >
                           <Archive className="w-3.5 h-3.5" />
@@ -349,7 +349,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 
                         <button
                           onClick={() => setDeleteConfirmItem(item)}
-                          className="p-1 rounded-lg bg-[#151a26] hover:bg-red-500/20 text-stone-400 hover:text-red-400 transition-colors"
+                          className="p-1 rounded-lg bg-[#151a26] hover:bg-red-500/20 text-[#93a0b5] hover:text-red-400 transition-colors cursor-pointer"
                           title="Remover produto"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -367,10 +367,11 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                           <img
                             src={product.image_url}
                             alt={product.title}
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                             className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <ShoppingBag className="w-10 h-10 text-stone-600" />
+                          <ShoppingBag className="w-10 h-10 text-[#93a0b5]" />
                         )}
                       </div>
 
@@ -387,7 +388,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                               <span className="font-bold">{product.stars}</span>
                             </div>
                           )}
-                          {product.stars && product.sales_count && <span className="text-stone-700">•</span>}
+                          {product.stars && product.sales_count && <span className="text-[#1e2636]">•</span>}
                           {product.sales_count && (
                             <span className="truncate">{product.sales_count}</span>
                           )}
@@ -445,11 +446,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                   {deleteConfirmItem.productData?.title || 'Produto'}
                 </h4>
                 <p className="text-[11px] text-emerald-400 font-extrabold mt-0.5">
-                  {deleteConfirmItem.productData?.price_to
-                    ? (typeof deleteConfirmItem.productData.price_to === 'number'
-                        ? `R$ ${(deleteConfirmItem.productData.price_to as number).toFixed(2).replace('.', ',')}`
-                        : `R$ ${deleteConfirmItem.productData.price_to}`)
-                    : ''}
+                  {formatPrice(deleteConfirmItem.productData?.price_to)}
                 </p>
               </div>
             </div>

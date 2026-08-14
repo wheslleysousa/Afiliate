@@ -36,3 +36,84 @@
   border-color: #1e2636;
 }
 
+.text-main {
+  color: #eef2f9;
+}
+
+.text-muted {
+  color: #93a0b5;
+}
+
+/* Base Component Classes */
+.card-premium {
+  background-color: #151a26;
+  border: 1px solid #1e2636;
+  border-radius: 1rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+}
+
+.input-premium {
+  background-color: #0e1119;
+  border: 1px solid #1e2636;
+  border-radius: 0.75rem;
+  color: #eef2f9;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+.input-premium::placeholder {
+  color: #64708a;
+}
+.input-premium:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary {
+  background-color: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+.btn-primary:hover {
+  background-color: #3b82f6;
+}
+
+.btn-secondary {
+  background-color: #0e1119;
+  border: 1px solid #1e2636;
+  color: #eef2f9;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  transition: all 0.2s ease-in-out;
+}
+.btn-secondary:hover {
+  background-color: #151a26;
+}
+
+.btn-success {
+  background-color: #059669;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+.btn-success:hover {
+  background-color: #10b981;
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+.btn-danger:hover {
+  background-color: #ef4444;
+}
+

@@ -222,8 +222,30 @@ export function slugify(text: string | undefined | null): string {
 }
 
 /**
- * Constrói o link de rastreamento encurtado e amigável com o nome do produto para compartilhamento.
- * Exemplo: https://radardeofertas.app/r/fone-bluetooth-redmi?url=...
+ * Converte qualquer ID de produto longo em um código curto determinístico de 6 caracteres.
+ * Exemplo: "mercadolivremlb3370779645" -> "b2x9z1"
+ */
+export function getShortCodeForProduct(productId: string | undefined | null): string {
+  if (!productId) return 'x7k9ab';
+  const raw = String(productId).trim();
+  if (!raw) return 'x7k9ab';
+
+  const cleanRaw = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (cleanRaw.length >= 4 && cleanRaw.length <= 8 && !cleanRaw.includes('mercadolivre') && !cleanRaw.includes('shopee') && !cleanRaw.includes('amazon') && !cleanRaw.includes('aliexpress') && !cleanRaw.includes('shein') && !cleanRaw.includes('tiktok')) {
+    return cleanRaw;
+  }
+
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) + hash) + raw.charCodeAt(i);
+  }
+  const posHash = Math.abs(hash).toString(36);
+  return posHash.padStart(6, 'k').slice(0, 6);
+}
+
+/**
+ * Constrói o link de rastreamento encurtado e amigável para compartilhamento respeitando as preferências do usuário.
+ * Exemplo: https://lkrm.site/radardeofertas/x7k9ab ou https://lkrm.site/radardeofertas/fone-bluetooth ou https://lkrm.site/x7k9ab
  */
 export function buildShareableTrackingLink(
   productId: string,
@@ -235,27 +257,41 @@ export function buildShareableTrackingLink(
   const directAffiliateUrl = buildAffiliateLink(originalLink, platform, apiKeys);
   if (!directAffiliateUrl) return '';
 
-  const cleanTitleSlug = slugify(productTitle);
-  const cleanIdSlug = slugify(productId);
-  const identifier = cleanTitleSlug || cleanIdSlug || 'oferta';
+  const domain = apiKeys.customShortDomain ? apiKeys.customShortDomain.replace(/\/+$/, '') : 'https://lkrm.site';
+  const rawPrefix = apiKeys.customShortPrefix ? apiKeys.customShortPrefix.trim() : '';
+  const prefix = slugify(rawPrefix);
+  const shortStyle = apiKeys.shortStyle || 'custom_random';
+  const useProductName = apiKeys.useProductNameInShortLink === true;
 
-  let domain = '';
-  if (apiKeys.customShortDomain) {
-    domain = apiKeys.customShortDomain.replace(/\/+$/, '');
-  } else if (typeof window !== 'undefined' && window.location && window.location.origin) {
-    domain = window.location.origin;
+  // Decide qual identificador usar no final do link (código curto de 6 chars ou nome do produto)
+  const shortCode = getShortCodeForProduct(productId);
+  let identifier = '';
+
+  if (useProductName && productTitle) {
+    identifier = slugify(productTitle) || shortCode;
+  } else {
+    // Se o usuário desmarcou usar nome do produto, usa sempre o código curto limpo de 6 caracteres
+    identifier = shortCode;
   }
 
-  const prefix = apiKeys.customShortPrefix ? apiKeys.customShortPrefix.trim().replace(/^\/+|\/+$/g, '') : '';
+  // Se o estilo for estritamente aleatório (sem prefixo de loja)
+  if (shortStyle === 'random') {
+    return `${domain}/${identifier}`;
+  }
 
-  if (domain) {
+  // Se o estilo for somente o nome da loja/canal
+  if (shortStyle === 'custom_only') {
     if (prefix) {
-      return `${domain}/${prefix}/${identifier}`;
+      return `${domain}/${prefix}`;
     }
-    return `${domain}/r/${identifier}`;
+    return `${domain}/${identifier}`;
   }
 
-  return directAffiliateUrl;
+  // Estilo custom_random ou padrão (nome da loja + código ou produto)
+  if (prefix) {
+    return `${domain}/${prefix}/${identifier}`;
+  }
+  return `${domain}/${identifier}`;
 }
 
 /**

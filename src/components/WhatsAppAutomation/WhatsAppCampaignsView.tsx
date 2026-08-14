@@ -223,12 +223,12 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
 
       {/* Timezone Selector Bar */}
       <div className="bg-[#151a26] border border-[#1e2636] p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2.5 text-stone-200 font-bold">
+        <div className="flex items-center gap-2.5 text-[#eef2f9] font-bold">
           <Globe className="w-4 h-4 text-blue-400 shrink-0" />
           <span>Fuso horário:</span>
           <span className="text-emerald-400 font-mono">{getUserLocalTimezone()}</span>
         </div>
-        <p className="text-[11px] text-stone-400">
+        <p className="text-[11px] text-[#93a0b5]">
           O horário dos disparos segue automaticamente o fuso configurado nas regras.
         </p>
       </div>
@@ -241,7 +241,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
           </div>
           <div className="space-y-1">
             <h4 className="text-sm font-bold text-white">Nenhuma campanha configurada</h4>
-            <p className="text-xs text-stone-400 max-w-md mx-auto">
+            <p className="text-xs text-[#93a0b5] max-w-md mx-auto">
               Crie sua primeira regra de disparo automático.
             </p>
           </div>
@@ -277,16 +277,16 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                       <span
                         className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
                           camp.enabled
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-stone-800 text-stone-400 border-stone-700'
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                            : 'bg-[#151a26] text-[#93a0b5] border-[#1e2636]'
                         }`}
                       >
                         {camp.enabled ? 'Ativa' : 'Pausada'}
                       </span>
                     </div>
 
-                    <div className="text-xs text-stone-400 truncate flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <div className="text-xs text-[#93a0b5] truncate flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                       <span className="truncate" title={targetNames}>
                         {camp.targetGroupIds?.length || 0} grupo(s): {targetNames || 'Nenhum'}
                       </span>
@@ -297,8 +297,8 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                     onClick={() => handleToggleEnabled(camp)}
                     className={`p-2 rounded-xl border text-xs font-bold transition-all shrink-0 ${
                       camp.enabled
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
-                        : 'bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700'
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                        : 'bg-[#151a26] text-[#eef2f9] border-[#1e2636] hover:bg-[#1e2636]'
                     }`}
                     title={camp.enabled ? 'Pausar Campanha' : 'Ativar Campanha'}
                   >
@@ -309,11 +309,11 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                 {/* Real-time Countdown & Schedule Status Badge */}
                 <div className="bg-[#151a26] p-3 rounded-xl border border-[#1e2636] space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-stone-400 flex items-center gap-1">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#93a0b5] flex items-center gap-1">
                       <Timer className="w-3.5 h-3.5 text-amber-400" />
                       Contagem Regressiva & Status
                     </span>
-                    <span className="text-[10px] font-mono text-stone-500">
+                    <span className="text-[10px] font-mono text-[#93a0b5]">
                       {scheduleStatus.timezone}
                     </span>
                   </div>
@@ -322,12 +322,12 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                     <span className={`px-2.5 py-1 rounded-lg border text-xs font-black flex items-center gap-1.5 ${scheduleStatus.badgeColor}`}>
                       {scheduleStatus.badgeText}
                     </span>
-                    <span className="text-[11px] text-stone-400 font-mono">
+                    <span className="text-[11px] text-[#93a0b5] font-mono">
                       Agora: {scheduleStatus.currentTimeInTz}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-stone-400 font-medium">
+                  <p className="text-[11px] text-[#93a0b5] font-medium">
                     {scheduleStatus.subtext}
                   </p>
                 </div>
@@ -335,29 +335,29 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                 {/* Details Badges Grid */}
                 <div className="grid grid-cols-2 gap-2 text-xs bg-[#151a26]/50 p-3 rounded-xl border border-[#1e2636]">
                   <div>
-                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Objetivo</span>
-                    <span className="text-blue-300 font-bold capitalize">
+                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Objetivo</span>
+                    <span className="text-blue-400 font-bold capitalize">
                       {camp.objective.replace('_', ' ')}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Qtd / Janela</span>
-                    <span className="text-stone-200 font-semibold">
+                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Qtd / Janela</span>
+                    <span className="text-[#eef2f9] font-semibold">
                       {camp.quantity} ofertas / {camp.windowMinutes} min
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Ritmo (Pacing)</span>
-                    <span className="text-amber-300 font-semibold capitalize">
+                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Ritmo (Pacing)</span>
+                    <span className="text-amber-400 font-semibold capitalize">
                       {camp.pacing} ({camp.minGapSec}s-{camp.maxGapSec}s)
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-stone-500 uppercase font-bold block">Horário</span>
-                    <span className="text-stone-300 font-mono text-[11px]">
+                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Horário</span>
+                    <span className="text-[#eef2f9] font-mono text-[11px]">
                       {camp.schedule?.startHour} - {camp.schedule?.endHour}
                     </span>
                   </div>
@@ -370,16 +370,16 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                       setPreviewCampaign(camp);
                       setIsPreviewOpen(true);
                     }}
-                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+                    className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
                   >
-                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                    <Eye className="w-3.5 h-3.5 text-blue-400" />
                     Ver Prévia de Envio
                   </button>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditCampaign(camp)}
-                      className="p-1.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 rounded-lg border border-[#1e2636] transition-all"
+                      className="p-1.5 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] rounded-lg border border-[#1e2636] transition-all"
                       title="Editar"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -429,7 +429,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
           <div className="max-w-md w-full bg-[#151a26] border border-red-500/30 rounded-2xl p-6 shadow-2xl space-y-5 text-center relative">
             <button
               onClick={() => setDeletingCampaign(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-lg hover:bg-[#1e2636] transition-all"
+              className="absolute top-4 right-4 text-[#93a0b5] hover:text-white p-1 rounded-lg hover:bg-[#1e2636] transition-all"
             >
               <X className="w-5 h-5" />
             </button>
@@ -440,12 +440,12 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
 
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-white">Excluir Campanha?</h3>
-              <p className="text-xs text-stone-300 leading-relaxed">
+              <p className="text-xs text-[#eef2f9] leading-relaxed">
                 Tem certeza de que deseja excluir a campanha{' '}
                 <strong className="text-white font-semibold">"{deletingCampaign.name}"</strong>?
               </p>
-              <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-left text-[11px] text-stone-400">
-                ⚠️ <strong className="text-stone-300">Atenção:</strong> Esta ação é irreversível. O robô no Termux interromperá os disparos automáticos associados a esta campanha imediatamente.
+              <div className="p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-left text-[11px] text-[#93a0b5]">
+                ⚠️ <strong className="text-[#eef2f9]">Atenção:</strong> Esta ação é irreversível. O robô no Termux interromperá os disparos automáticos associados a esta campanha imediatamente.
               </div>
             </div>
 
@@ -454,7 +454,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                 type="button"
                 onClick={() => setDeletingCampaign(null)}
                 disabled={isDeleting}
-                className="flex-1 bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-stone-300 font-semibold py-2.5 px-4 rounded-xl text-xs transition-all"
+                className="flex-1 bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] font-semibold py-2.5 px-4 rounded-xl text-xs transition-all"
               >
                 Cancelar
               </button>

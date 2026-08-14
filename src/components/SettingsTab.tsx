@@ -265,54 +265,64 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-5 max-w-4xl mx-auto animate-fadeIn">
+      {/* Header Padronizado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-3">
+        <div>
+          <h1 className="text-lg font-extrabold text-white">Configurações</h1>
+          <p className="text-xs text-[#93a0b5]">
+            Perfil, chaves de IA, IDs de afiliados e preferências de alertas.
+          </p>
+        </div>
+      </div>
+
       {/* Sub-navegação do Menu de Configurações */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-[#1e2636]">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
             activeTab === 'profile'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
               : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <User className="w-4 h-4" />
+          <User className="w-3.5 h-3.5" />
           <span>Meu Perfil</span>
         </button>
 
         <button
           onClick={() => setActiveTab('gemini')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
             activeTab === 'gemini'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
               : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-amber-400" />
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
           <span>Chave Gemini</span>
         </button>
 
         <button
           onClick={() => setActiveTab('affiliates')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
             activeTab === 'affiliates'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
               : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Key className="w-4 h-4 text-emerald-400" />
+          <Key className="w-3.5 h-3.5 text-emerald-400" />
           <span>Contas e Afiliados</span>
         </button>
 
         <button
           onClick={() => setActiveTab('alarm')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
             activeTab === 'alarm'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
               : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
           }`}
         >
-          <Bell className="w-4 h-4 text-amber-400" />
+          <Bell className="w-3.5 h-3.5 text-amber-400" />
           <span>Alarmes</span>
         </button>
       </div>
@@ -332,7 +342,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Nome Completo</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Nome Completo</label>
               <input
                 type="text"
                 value={name}
@@ -342,7 +352,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">E-mail Cadastrado</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">E-mail Cadastrado</label>
               <input
                 type="email"
                 value={email}
@@ -423,7 +433,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-stone-300 block mb-1">Digite sua chave API</label>
+              <label className="text-xs font-bold text-[#eef2f9] block mb-1">Digite sua chave API</label>
               <div className="relative">
                 <input
                   type={showGeminiKey ? 'text' : 'password'}
@@ -435,7 +445,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowGeminiKey(!showGeminiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#93a0b5] hover:text-white"
                 >
                   {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -453,7 +463,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
               <button
                 onClick={handleSaveGeminiKey}
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
               >
                 <Save className="w-4 h-4" />
                 <span>Salvar</span>
@@ -540,9 +550,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 fieldKey: 'sheinAffiliateToken' as keyof ApiKeysConfig,
                 apiKeyField: 'sheinKey' as keyof ApiKeysConfig,
                 placeholder: 'Cole seu Token Shein ou link de indicação',
-                colorBorder: 'border-pink-500/30 focus:border-pink-500',
-                colorBadge: 'bg-pink-400/10 text-pink-300 border-pink-400/20',
-                colorTitle: 'text-pink-400',
+                colorBorder: 'border-blue-500/30 focus:border-blue-500',
+                colorBadge: 'bg-blue-400/10 text-blue-300 border-blue-400/20',
+                colorTitle: 'text-blue-400',
               },
               {
                 id: 'tiktokshop',
@@ -552,9 +562,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 fieldKey: 'tiktokshopTrackingId' as keyof ApiKeysConfig,
                 apiKeyField: 'tiktokshopKey' as keyof ApiKeysConfig,
                 placeholder: 'Cole seu ID TikTok Shop, @usuario ou link de criador (ex: https://vt.tiktok.com/...)',
-                colorBorder: 'border-cyan-500/30 focus:border-cyan-500',
-                colorBadge: 'bg-cyan-400/10 text-cyan-300 border-cyan-400/20',
-                colorTitle: 'text-cyan-400',
+                colorBorder: 'border-blue-600/30 focus:border-blue-600',
+                colorBadge: 'bg-blue-600/10 text-blue-300 border-blue-600/20',
+                colorTitle: 'text-blue-400',
               },
             ].map((plat) => {
               const isOfficialConnected = Boolean(plat.apiKeyField && (keys[plat.apiKeyField] as string)?.trim());
@@ -591,7 +601,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             ID Configurado
                           </span>
                         ) : (
-                          <span className="text-[9px] text-stone-400 bg-stone-800/80 px-2 py-0.5 rounded">
+                          <span className="text-[9px] text-[#93a0b5] bg-[#1e2636] px-2 py-0.5 rounded">
                             Não Inserido
                           </span>
                         )}
@@ -622,7 +632,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                                 setSavedPlatformNotice(plat.id);
                                 setTimeout(() => setSavedPlatformNotice(null), 2500);
                               }}
-                              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs flex items-center gap-1 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
                             >
                               <Check className="w-3.5 h-3.5" />
                               <span>Salvar ID</span>
@@ -630,7 +640,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             <button
                               type="button"
                               onClick={() => toggleEditPlatform(plat.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-300 border border-[#1e2636] text-xs font-medium transition-all cursor-pointer"
+                              className="px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white border border-[#1e2636] text-xs font-medium transition-all cursor-pointer"
                             >
                               Cancelar
                             </button>
@@ -643,7 +653,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               {isIdConfigured ? (
                                 isRevealed ? trackingIdVal : '••••••••••••••••'
                               ) : (
-                                <span className="text-stone-500 italic font-sans text-xs">Nenhum ID inserido</span>
+                                <span className="text-[#93a0b5]/60 italic font-sans text-xs">Nenhum ID inserido</span>
                               )}
                             </span>
                           </div>
@@ -653,7 +663,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               <button
                                 type="button"
                                 onClick={() => toggleRevealPlatform(plat.id)}
-                                className="p-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-stone-300 border border-[#1e2636] transition-all cursor-pointer"
+                                className="p-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white border border-[#1e2636] transition-all cursor-pointer"
                                 title={isRevealed ? "Esconder ID" : "Mostrar ID"}
                               >
                                 {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -663,7 +673,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             <button
                               type="button"
                               onClick={() => toggleEditPlatform(plat.id)}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#151a26] hover:bg-stone-800 text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                             >
                               <Pencil className="w-3 h-3" />
                               <span>{isIdConfigured ? 'Editar ID' : 'Inserir ID'}</span>
@@ -692,7 +702,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       : (isOfficialConnected ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-[#0e1119] border-[#1e2636]')
                   }`}>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-300 flex items-center gap-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#eef2f9] flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> {plat.id === 'shopee' ? 'Configuração da API Shopee' : 'Autenticação Oficial (Login / API)'}
                       </span>
                       {plat.id === 'shopee' ? (
@@ -701,7 +711,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             <CheckCircle2 className="w-3 h-3" /> API Configurada
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-stone-800 text-stone-400 border border-stone-700">
+                          <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-[#151a26] text-[#93a0b5] border border-[#1e2636]">
                             Pendente de Configuração
                           </span>
                         )
@@ -710,7 +720,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                           <CheckCircle2 className="w-3 h-3" /> Conta Oficial Conectada
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-stone-800 text-stone-400 border border-stone-700">
+                        <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-[#151a26] text-[#93a0b5] border border-[#1e2636]">
                           Conta Oficial Não Conectada
                         </span>
                       )}
@@ -737,7 +747,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                                   <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
                                   <span>App Secret:</span>
                                 </span>
-                                <span className="text-stone-300 font-mono">
+                                <span className="text-[#eef2f9] font-mono">
                                   {isRevealed ? keys.shopeeSecret : '••••••••••••••••'}
                                 </span>
                               </div>
@@ -747,7 +757,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               <button
                                 type="button"
                                 onClick={() => toggleRevealPlatform('shopee')}
-                                className="text-[10px] text-stone-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                                className="text-[10px] text-[#93a0b5] hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
                               >
                                 {isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                                 <span>{isRevealed ? "Esconder Secret" : "Mostrar Secret"}</span>
@@ -755,7 +765,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setIsEditingShopeeApi(true)}
-                                className="px-2.5 py-1 rounded-lg bg-[#151a26] hover:bg-stone-800 text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                                className="px-2.5 py-1 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-amber-400 border border-[#1e2636] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                               >
                                 <Pencil className="w-3 h-3" />
                                 <span>Editar</span>
@@ -764,13 +774,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            <p className="text-[10px] text-stone-300 leading-relaxed">
+                            <p className="text-[10px] text-[#eef2f9] leading-relaxed">
                               Informe seu <strong>App ID</strong> e <strong>Senha (App Secret)</strong> gerados na sua conta de afiliado da Shopee.
                             </p>
 
                             <div className="space-y-2">
                               <div>
-                                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">
+                                <label className="block text-[10px] font-bold text-[#93a0b5] uppercase mb-1">
                                   App ID (Shopee Open API)
                                 </label>
                                 <input
@@ -783,7 +793,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               </div>
 
                               <div>
-                                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">
+                                <label className="block text-[10px] font-bold text-[#93a0b5] uppercase mb-1">
                                   App Secret / Senha (Shopee Open API)
                                 </label>
                                 <input
@@ -820,7 +830,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                                     setShopeeEditSecret(keys.shopeeSecret || '');
                                     setIsEditingShopeeApi(false);
                                   }}
-                                  className="py-1.5 px-3 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs transition-all cursor-pointer"
+                                  className="py-1.5 px-3 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white font-bold text-xs transition-all cursor-pointer"
                                 >
                                   Cancelar
                                 </button>
@@ -843,11 +853,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               <span>Abrir Painel Shopee Open API</span>
                             </a>
 
-                            <div className="p-2 bg-[#0e1119] border border-orange-500/10 rounded-xl space-y-0.5 text-[9px] text-stone-300">
+                            <div className="p-2 bg-[#0e1119] border border-orange-500/10 rounded-xl space-y-0.5 text-[9px] text-[#eef2f9]">
                               <span className="font-bold text-orange-400 flex items-center gap-1">
                                 <HelpCircle className="w-3 h-3" /> Onde encontrar na Shopee:
                               </span>
-                              <ol className="list-decimal list-inside space-y-0.5 text-stone-400 pt-0.5">
+                              <ol className="list-decimal list-inside space-y-0.5 text-[#93a0b5] pt-0.5">
                                 <li>Clique no link acima para abrir o painel de afiliados.</li>
                                 <li>Copie o seu <strong>AppID</strong> e cole no campo acima.</li>
                                 <li>Copie o seu <strong>App Secret (Senha)</strong> e cole no campo acima.</li>
@@ -870,12 +880,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                               <span>Conta Mercado Livre: <strong className="text-white">@{keys.mercadoLivreNickname || 'Autenticado'}</strong></span>
                             </div>
                             {keys.mercadoLivreUserId && (
-                              <div className="text-[10px] text-stone-300 font-mono pl-5">
+                              <div className="text-[10px] text-[#eef2f9] font-mono pl-5">
                                 ID do Usuário: {keys.mercadoLivreUserId}
                               </div>
                             )}
                             {keys.mercadoLivreEmail && (
-                              <div className="text-[10px] text-stone-300 pl-5">
+                              <div className="text-[10px] text-[#eef2f9] pl-5">
                                 Email: {keys.mercadoLivreEmail}
                               </div>
                             )}
@@ -883,7 +893,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         )}
 
                         <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-emerald-500/20">
-                          <span className="text-[10px] text-stone-400 font-mono truncate">
+                          <span className="text-[10px] text-[#93a0b5] font-mono truncate">
                             {isRevealed
                               ? ((keys[plat.apiKeyField!] as string) || 'Token de Acesso Ativo')
                               : '•••••••••••••••• (Autenticado)'}
@@ -899,15 +909,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         </div>
                       </div>
                     ) : plat.id === 'tiktokshop' ? (
-                      <div className="p-2.5 bg-[#07090f] border border-cyan-500/20 rounded-xl space-y-2">
-                        <div className="flex items-center gap-1.5 text-cyan-400 font-bold text-[11px]">
-                          <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <div className="p-2.5 bg-[#07090f] border border-blue-600/20 rounded-xl space-y-2">
+                        <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[11px]">
+                          <Info className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                           <span>Integração Simplificada de Criadores</span>
                         </div>
-                        <p className="text-[10px] text-stone-300 leading-relaxed">
+                        <p className="text-[10px] text-[#eef2f9] leading-relaxed">
                           Como Criador/Afiliado do TikTok Shop, você não precisa de CNPJ corporativo nem de API de vendedor.
                         </p>
-                        <div className="p-2 bg-[#151a26] border border-[#1e2636] rounded-lg text-[9px] text-stone-300 space-y-1">
+                        <div className="p-2 bg-[#151a26] border border-[#1e2636] rounded-lg text-[9px] text-[#eef2f9] space-y-1">
                           <p className="text-emerald-400 font-bold">✓ Como Funciona:</p>
                           <p>1. Pegue seu ID/Usuário ou link de vitrine no app do TikTok (Central do Criador).</p>
                           <p>2. Insira no campo acima (Seção 1) e clique em <strong>Salvar ID</strong>.</p>
@@ -944,7 +954,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             <span>{plat.connectButtonText || `Conectar Conta Oficial ${plat.title}`}</span>
                           </a>
                         ) : (
-                          <p className="text-[10px] text-stone-400 italic">
+                          <p className="text-[10px] text-[#93a0b5] italic">
                             Conexão de conta oficial indisponível para esta plataforma.
                           </p>
                         )}
@@ -969,7 +979,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
             <button
               onClick={handleSaveAffiliateKeys}
-              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
+              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
             >
               <Save className="w-4 h-4" />
               <span>Salvar Todas</span>
@@ -997,7 +1007,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             {/* Ícone de Engrenagem Configurações */}
             <button
               onClick={() => setIsAlarmModalOpen(true)}
-              className="p-2.5 rounded-xl bg-[#151a26] hover:bg-stone-800 text-amber-400 border border-[#1e2636] transition-all flex items-center gap-1.5 font-bold text-xs"
+              className="p-2.5 rounded-xl bg-[#151a26] hover:bg-[#1e2636] text-amber-400 border border-[#1e2636] transition-all flex items-center gap-1.5 font-bold text-xs"
               title="Configurações do Alarme"
             >
               <SettingsIcon className="w-4 h-4" />
@@ -1020,8 +1030,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               onClick={handleToggleAlarm}
               className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
                 alarm.enabled
-                  ? 'bg-emerald-500 text-stone-950 shadow-md shadow-emerald-500/20'
-                  : 'bg-stone-800 text-stone-400'
+                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                  : 'bg-[#151a26] text-[#93a0b5]'
               }`}
             >
               {alarm.enabled ? 'Alarme Ativado ✓' : 'Alarme Desativado'}
@@ -1046,7 +1056,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <div className="space-y-4 text-xs">
               {/* 1. Intervalo */}
               <div>
-                <label className="font-bold text-stone-300 block mb-1.5 flex items-center gap-1.5">
+                <label className="font-bold text-[#eef2f9] block mb-1.5 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-400" /> Intervalo de Repetição
                 </label>
                 <div className="grid grid-cols-5 gap-2">
@@ -1056,7 +1066,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       onClick={() => handleUpdateAlarmField({ intervalMinutes: m })}
                       className={`py-2 rounded-xl font-bold border text-center transition-all ${
                         alarm.intervalMinutes === m
-                          ? 'bg-amber-500 text-stone-950 border-amber-400 font-extrabold'
+                          ? 'bg-amber-500 text-white border-amber-400 font-extrabold'
                           : 'bg-[#151a26] text-[#93a0b5] border-[#1e2636] hover:text-white'
                       }`}
                     >
@@ -1069,7 +1079,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               {/* 2. Janela de Horário */}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#1e2636]">
                 <div>
-                  <label className="font-bold text-stone-300 block mb-1">Horário Inicial</label>
+                  <label className="font-bold text-[#eef2f9] block mb-1">Horário Inicial</label>
                   <input
                     type="time"
                     value={alarm.startHour}
@@ -1079,7 +1089,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-bold text-stone-300 block mb-1">Horário Final</label>
+                  <label className="font-bold text-[#eef2f9] block mb-1">Horário Final</label>
                   <input
                     type="time"
                     value={alarm.endHour}
@@ -1091,7 +1101,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
               {/* 3. Som do Alarme & Upload Personalizado */}
               <div className="space-y-2 pt-2 border-t border-[#1e2636]">
-                <label className="font-bold text-stone-300 block flex items-center gap-1.5">
+                <label className="font-bold text-[#eef2f9] block flex items-center gap-1.5">
                   <Volume2 className="w-3.5 h-3.5 text-amber-400" /> Som do Alarme
                 </label>
 
@@ -1116,7 +1126,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       type="file"
                       accept="audio/*"
                       onChange={handleCustomAudioUpload}
-                      className="text-xs text-stone-300 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-stone-950 hover:file:bg-amber-400"
+                      className="text-xs text-[#eef2f9] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-white hover:file:bg-amber-400"
                     />
                     {audioUploadError && (
                       <p className="text-[11px] text-red-400 font-bold">{audioUploadError}</p>
@@ -1127,7 +1137,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <button
                   type="button"
                   onClick={() => playAlarmSound(alarm.soundType)}
-                  className="px-3 py-1.5 bg-[#151a26] hover:bg-stone-800 text-amber-400 font-bold rounded-lg border border-[#1e2636] transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-[#151a26] hover:bg-[#1e2636] text-amber-400 font-bold rounded-lg border border-[#1e2636] transition-all flex items-center gap-1.5"
                 >
                   <Volume2 className="w-3.5 h-3.5" />
                   <span>Testar Som</span>
@@ -1137,7 +1147,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               {/* 4. Permissões Notificações Android / Navegador */}
               <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2 pt-2 border-t border-[#1e2636]">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-stone-200 flex items-center gap-1.5">
+                  <span className="font-bold text-white flex items-center gap-1.5">
                     <Smartphone className="w-4 h-4 text-emerald-400" /> Notificações Android / Navegador
                   </span>
 
@@ -1155,7 +1165,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 {notifPermission !== 'granted' && (
                   <button
                     onClick={handleRequestNotifPermission}
-                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-extrabold rounded-xl transition-all shadow-md shadow-emerald-500/20"
+                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold rounded-xl transition-all shadow-md shadow-emerald-500/20"
                   >
                     Solicitar Permissão de Notificação
                   </button>
@@ -1167,7 +1177,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <div className="flex justify-end pt-3 border-t border-[#1e2636]">
               <button
                 onClick={() => setIsAlarmModalOpen(false)}
-                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs shadow-md shadow-amber-500/20"
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-extrabold text-xs shadow-md shadow-amber-500/20"
               >
                 Concluído
               </button>

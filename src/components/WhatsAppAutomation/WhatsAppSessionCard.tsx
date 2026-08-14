@@ -249,17 +249,17 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
           </div>
           <div>
             <h3 className="text-base font-extrabold text-white">Contas do WhatsApp Conectadas</h3>
-            <p className="text-xs text-stone-400">Gerencie seus números e sessões ativas</p>
+            <p className="text-xs text-[#93a0b5]">Gerencie seus números e sessões ativas</p>
           </div>
         </div>
 
         {/* Bloco Unificado: Contas conectadas, ativas, grupos */}
-        <div className="bg-[#151a26] border border-[#1e2636] p-3 rounded-xl text-xs text-stone-300 space-y-1 shrink-0 w-full md:w-auto">
-          <div className="flex items-center gap-2 text-stone-200 font-bold">
+        <div className="bg-[#151a26] border border-[#1e2636] p-3 rounded-xl text-xs text-[#eef2f9] space-y-1 shrink-0 w-full md:w-auto">
+          <div className="flex items-center gap-2 text-[#eef2f9] font-bold">
             <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
             Contas conectadas: <span className="text-white font-extrabold">{sessions.length}</span>
           </div>
-          <div className="flex items-center gap-4 text-[11px] text-stone-400 pt-1 border-t border-[#1e2636]">
+          <div className="flex items-center gap-4 text-[11px] text-[#93a0b5] pt-1 border-t border-[#1e2636]">
             <span>Ativas: <strong className="text-emerald-400">{sessions.filter(s => s.status === 'connected').length}</strong></span>
             <span>Grupos: <strong className="text-blue-400">{waGroupsCount}</strong></span>
           </div>
@@ -268,7 +268,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
       {/* Loading State */}
       {loading && (
-        <div className="py-10 flex flex-col items-center justify-center text-stone-400 space-y-3">
+        <div className="py-10 flex flex-col items-center justify-center text-[#93a0b5] space-y-3">
           <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
           <p className="text-xs">Carregando suas sessões de WhatsApp...</p>
         </div>
@@ -286,7 +286,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
               Nenhum número cadastrado
             </span>
             <h4 className="text-lg font-extrabold text-white">Cadastre seu Número de WhatsApp</h4>
-            <p className="text-xs text-stone-300 leading-relaxed">
+            <p className="text-xs text-[#eef2f9] leading-relaxed">
               Para automatizar o envio de ofertas nos seus grupos, insira seu número de WhatsApp abaixo para gerar o QR Code e conectar.
             </p>
           </div>
@@ -314,7 +314,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
             return (
               <div
                 key={session.id || session.sessionId || `session-${idx}`}
-                className="bg-[#151a26] border border-[#1e2636] rounded-xl p-5 space-y-4 relative overflow-hidden transition-all hover:border-[#2a3447]"
+                className="bg-[#151a26] border border-[#1e2636] rounded-xl p-5 space-y-4 relative overflow-hidden transition-all hover:border-blue-500/40"
               >
                 {/* Top Card Info Bar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1e2636]">
@@ -341,7 +341,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                         </button>
                         <button
                           onClick={() => setEditingSessionId(null)}
-                          className="p-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-xs"
+                          className="p-1.5 bg-[#0e1119] hover:bg-[#1e2636] text-[#93a0b5] rounded-lg text-xs border border-[#1e2636]"
                           title="Cancelar"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -357,7 +357,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                             setEditingSessionId(sId);
                             setEditLabelInput(session.label || '');
                           }}
-                          className="text-stone-400 hover:text-emerald-400 p-1"
+                          className="text-[#93a0b5] hover:text-emerald-400 p-1"
                           title="Editar apelido da conta"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -387,7 +387,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                       </span>
                     )}
                     {status === 'disconnected' && (
-                      <span className="bg-stone-800 text-stone-400 border border-stone-700 text-[11px] font-bold px-2.5 py-1 rounded-full">
+                      <span className="bg-[#0e1119] text-[#93a0b5] border border-[#1e2636] text-[11px] font-bold px-2.5 py-1 rounded-full">
                         Desconectado
                       </span>
                     )}
@@ -439,7 +439,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                         Escaneie o QR Code no seu WhatsApp
                       </div>
 
-                      <ol className="space-y-2 text-xs text-stone-300 list-decimal list-inside bg-[#151a26] p-3.5 rounded-xl border border-[#1e2636]">
+                      <ol className="space-y-2 text-xs text-[#eef2f9] list-decimal list-inside bg-[#151a26] p-3.5 rounded-xl border border-[#1e2636]">
                         <li>
                           Abra o <strong>WhatsApp</strong> no celular desta conta.
                         </li>
@@ -449,7 +449,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                         <li>Aponte a câmera do seu celular para o QR Code ao lado.</li>
                       </ol>
 
-                      <p className="text-[11px] text-stone-500 italic flex items-center gap-1">
+                      <p className="text-[11px] text-[#93a0b5] italic flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin text-emerald-500" />
                         O QR Code é atualizado em tempo real.
                       </p>
@@ -460,7 +460,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                   <div className="py-6 bg-[#0e1119] border border-[#1e2636] rounded-xl flex flex-col items-center justify-center text-center space-y-2">
                     <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
                     <p className="text-xs font-bold text-white">Solicitando conexão ao worker...</p>
-                    <p className="text-[11px] text-stone-400">
+                    <p className="text-[11px] text-[#93a0b5]">
                       O worker está gerando o QR Code para a conta "{session.label}". Aparecerá em instantes.
                     </p>
                   </div>
@@ -474,7 +474,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                           +{session.phoneNumber || 'Número Conectado'}
                         </div>
                         {session.name && (
-                          <div className="text-[11px] text-stone-400">
+                          <div className="text-[11px] text-[#93a0b5]">
                             Nome: {session.name}
                           </div>
                         )}
@@ -487,7 +487,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                   </div>
                 ) : (
                   /* DISCONNECTED STATE */
-                  <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-xl flex items-center justify-between gap-3 text-xs text-stone-400">
+                  <div className="bg-[#0e1119] border border-[#1e2636] p-4 rounded-xl flex items-center justify-between gap-3 text-xs text-[#93a0b5]">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
                       <span>
@@ -509,7 +509,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
           {/* Botão para cadastrar novo número localizado logo abaixo das contas ativas */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#1e2636]">
-            <p className="text-xs text-stone-400">Deseja cadastrar e conectar mais um número de WhatsApp?</p>
+            <p className="text-xs text-[#93a0b5]">Deseja cadastrar e conectar mais um número de WhatsApp?</p>
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/50 flex items-center gap-2 shrink-0"
@@ -532,7 +532,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-stone-400 hover:text-white p-1"
+                className="text-[#93a0b5] hover:text-white p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -540,7 +540,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
             <form onSubmit={handleCreateAccount} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-stone-300 mb-1.5">
+                <label className="block text-xs font-bold text-[#eef2f9] mb-1.5">
                   Apelido do Número / Identificação *
                 </label>
                 <input
@@ -551,14 +551,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                   placeholder="Ex: Meu WhatsApp Principal, Zap Ofertas #1"
                   className="w-full bg-[#151a26] border border-[#1e2636] text-white text-xs px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500"
                 />
-                <p className="text-[11px] text-stone-500 mt-1">
+                <p className="text-[11px] text-[#93a0b5] mt-1">
                   Nome fácil para você identificar qual celular responderá pelas mensagens.
                 </p>
               </div>
 
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3.5 rounded-xl text-xs text-stone-300 space-y-1">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3.5 rounded-xl text-xs text-[#eef2f9] space-y-1">
                 <p className="font-bold text-emerald-400">Como funciona:</p>
-                <p className="text-[11px] leading-relaxed text-stone-400">
+                <p className="text-[11px] leading-relaxed text-[#93a0b5]">
                   Ao criar o cadastro, o sistema gera o QR Code na tela para você escanear com a câmera do seu celular no WhatsApp.
                 </p>
               </div>
@@ -567,7 +567,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-all"
+                  className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-bold rounded-xl border border-[#1e2636] transition-all"
                 >
                   Cancelar
                 </button>
@@ -599,14 +599,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
               </h3>
               <button
                 onClick={() => setDisconnectModalSession(null)}
-                className="text-stone-400 hover:text-white p-1"
+                className="text-[#93a0b5] hover:text-white p-1"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-stone-300 leading-relaxed">
+              <p className="text-xs text-[#eef2f9] leading-relaxed">
                 Tem certeza que deseja desconectar o WhatsApp{' '}
                 <strong className="text-white font-bold">
                   "{disconnectModalSession.label || disconnectModalSession.sessionId}"
@@ -626,7 +626,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 type="button"
                 onClick={() => setDisconnectModalSession(null)}
                 disabled={isDisconnecting}
-                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-all"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-bold rounded-xl border border-[#1e2636] transition-all"
               >
                 Cancelar
               </button>
@@ -659,14 +659,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
               </h3>
               <button
                 onClick={() => setDeleteModalSession(null)}
-                className="text-stone-400 hover:text-white p-1"
+                className="text-[#93a0b5] hover:text-white p-1"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-stone-300 leading-relaxed">
+              <p className="text-xs text-[#eef2f9] leading-relaxed">
                 Tem certeza que deseja excluir permanentemente a conta{' '}
                 <strong className="text-white font-bold">
                   "{deleteModalSession.label || deleteModalSession.sessionId}"
@@ -686,7 +686,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 type="button"
                 onClick={() => setDeleteModalSession(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl transition-all"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-bold rounded-xl border border-[#1e2636] transition-all"
               >
                 Cancelar
               </button>

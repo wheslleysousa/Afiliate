@@ -610,7 +610,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               <select
                 value={accountFilter}
                 onChange={(e) => setAccountFilter(e.target.value)}
-                className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+                className="w-full bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
               >
                 <option value="connected">Apenas Contas Conectadas ({connectedSessions.length})</option>
                 <option value="all">Todas as contas</option>
@@ -628,13 +628,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
           {/* Search */}
           <div className="relative w-full sm:w-52">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-[#93a0b5] absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Buscar grupo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+              className="w-full bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
             />
           </div>
 
@@ -698,7 +698,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
           <div className="space-y-1 max-w-md mx-auto">
             <h4 className="text-base font-bold text-white">Nenhum grupo encontrado</h4>
-            <p className="text-xs text-stone-400 leading-relaxed">
+            <p className="text-xs text-[#93a0b5] leading-relaxed">
               Você ainda não tem grupos cadastrados ou sincronizados. Conecte um WhatsApp e clique em <strong>"Criar Grupo / Comunidade"</strong> para criar o seu primeiro grupo de ofertas.
             </p>
           </div>
@@ -724,10 +724,10 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               className="h-32 bg-[#0e1119] border border-[#1e2636] rounded-2xl animate-pulse p-4 space-y-3"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-stone-800 rounded-full" />
+                <div className="w-10 h-10 bg-[#151a26] rounded-full" />
                 <div className="space-y-2 flex-1">
-                  <div className="h-4 bg-stone-800 rounded w-3/4" />
-                  <div className="h-3 bg-stone-800/60 rounded w-1/2" />
+                  <div className="h-4 bg-[#151a26] rounded w-3/4" />
+                  <div className="h-3 bg-[#151a26]/60 rounded w-1/2" />
                 </div>
               </div>
             </div>
@@ -780,7 +780,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-stone-400 flex-wrap">
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-[#93a0b5] flex-wrap">
                       <span className="flex items-center gap-1 bg-[#151a26] px-2 py-0.5 rounded-md border border-[#1e2636] text-[11px]">
                         <Users className="w-3 h-3 text-emerald-400" />
                         {memberCount} membros
@@ -800,21 +800,21 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                     </div>
 
                     {group.description && (
-                      <p className="text-[11px] text-stone-500 truncate mt-1">
+                      <p className="text-[11px] text-[#93a0b5] truncate mt-1">
                         {group.description}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-stone-400">
+                <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-[#93a0b5]">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setDeleteConfirmGroup(group);
                       }}
-                      className="p-1 text-stone-500 hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
+                      className="p-1 text-[#93a0b5] hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
                       title="Excluir grupo da lista"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -838,7 +838,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-xl rounded-2xl p-6 space-y-5 animate-fadeIn relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setSelectedGroup(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-white p-1.5 rounded-lg bg-[#151a26]"
+              className="absolute top-4 right-4 text-[#93a0b5] hover:text-white p-1.5 rounded-lg bg-[#151a26]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -889,7 +889,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                           detailTab === 'info'
                             ? 'bg-emerald-600 text-white shadow-md'
-                            : 'bg-[#151a26] text-stone-400 hover:text-white border border-[#1e2636]'
+                            : 'bg-[#151a26] text-[#93a0b5] hover:text-white border border-[#1e2636]'
                         }`}
                       >
                         <Info className="w-3.5 h-3.5" />
@@ -901,7 +901,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                           detailTab === 'members'
                             ? 'bg-emerald-600 text-white shadow-md'
-                            : 'bg-[#151a26] text-stone-400 hover:text-white border border-[#1e2636]'
+                            : 'bg-[#151a26] text-[#93a0b5] hover:text-white border border-[#1e2636]'
                         }`}
                       >
                         <Users className="w-3.5 h-3.5" />
@@ -925,8 +925,8 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   {detailTab === 'info' && (
                     <div className="space-y-4">
                       {selectedGroup.description && (
-                        <div className="bg-[#151a26] p-3.5 rounded-xl border border-[#1e2636] text-xs text-stone-300 space-y-1">
-                          <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
+                        <div className="bg-[#151a26] p-3.5 rounded-xl border border-[#1e2636] text-xs text-[#eef2f9] space-y-1">
+                          <span className="text-[10px] font-bold uppercase text-[#93a0b5] tracking-wider">
                             Descrição do Grupo
                           </span>
                           <p className="leading-relaxed whitespace-pre-wrap">{selectedGroup.description}</p>
@@ -936,7 +936,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       <div className="bg-[#151a26]/70 p-4 rounded-xl border border-[#1e2636] flex items-center justify-between gap-4">
                         <div>
                           <h4 className="text-xs font-bold text-white">Contatos dos Grupos</h4>
-                          <p className="text-[11px] text-stone-400 mt-0.5">
+                          <p className="text-[11px] text-[#93a0b5] mt-0.5">
                             Extração automática de participantes via integração real.
                           </p>
                         </div>
@@ -957,13 +957,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   {detailTab === 'members' && (
                     <div className="space-y-3">
                       {/* Explanatory Banner */}
-                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-stone-300 flex items-start gap-2.5">
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-[#eef2f9] flex items-start gap-2.5">
                         <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                         <div className="space-y-1">
                           <p className="font-bold text-white">
                             Entenda os Contatos do Grupo (LIDs x Números Reais)
                           </p>
-                          <p className="text-[11px] text-stone-300 leading-relaxed">
+                          <p className="text-[11px] text-[#93a0b5] leading-relaxed">
                             O WhatsApp oculta os telefones de membros que não estão salvos na sua agenda, fornecendo um <strong>ID de Privacidade (LID)</strong> (ex: <code className="text-blue-300 font-mono bg-blue-950/60 px-1 rounded">1311819075...</code>). As mensagens do disparo automático funcionam normalmente com esses IDs!
                           </p>
                         </div>
@@ -972,13 +972,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       {/* Search member & Export action */}
                       <div className="flex items-center gap-2">
                         <div className="relative flex-1">
-                          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+                          <Search className="w-4 h-4 text-[#93a0b5] absolute left-3 top-2.5" />
                           <input
                             type="text"
                             placeholder="Buscar participante ou ID..."
                             value={memberSearch}
                             onChange={(e) => setMemberSearch(e.target.value)}
-                            className="w-full bg-[#151a26] border border-[#1e2636] text-stone-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
+                            className="w-full bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-emerald-500/50"
                           />
                         </div>
                         <button
@@ -1001,8 +1001,8 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
                           if (filtered.length === 0) {
                             return (
-                              <div className="p-5 text-center text-xs text-stone-400 bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-2">
-                                <p className="font-semibold text-stone-300">
+                              <div className="p-5 text-center text-xs text-[#93a0b5] bg-[#151a26]/50 border border-[#1e2636] rounded-xl space-y-2">
+                                <p className="font-semibold text-white">
                                   {memberSearch
                                     ? 'Nenhum participante encontrado para a busca.'
                                     : 'Nenhum participante extraído ainda para este grupo.'}
@@ -1043,7 +1043,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                                       )}
                                     </div>
                                     <div className={`text-[11px] font-mono truncate ${
-                                      isLidItem ? 'text-stone-400' : 'text-emerald-400 font-semibold'
+                                      isLidItem ? 'text-[#93a0b5]' : 'text-emerald-400 font-semibold'
                                     }`}>
                                       {isLidItem ? `ID WhatsApp: ${rawNumber}` : rawNumber}
                                     </div>
@@ -1060,7 +1060,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                                       });
                                     }
                                   }}
-                                  className="px-2.5 py-1 bg-[#0e1119] hover:bg-emerald-500/20 text-stone-300 hover:text-emerald-400 border border-[#1e2636] rounded-lg text-[10px] font-bold transition-all shrink-0 flex items-center gap-1"
+                                  className="px-2.5 py-1 bg-[#0e1119] hover:bg-emerald-500/20 text-[#eef2f9] hover:text-emerald-400 border border-[#1e2636] rounded-lg text-[10px] font-bold transition-all shrink-0 flex items-center gap-1"
                                   title="Copiar contato ou ID"
                                 >
                                   Copiar
@@ -1080,7 +1080,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
               <button
                 onClick={() => setSelectedGroup(null)}
-                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636]"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636]"
               >
                 Fechar
               </button>
@@ -1128,7 +1128,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">Adicionar / Editar Números Reais</h3>
-                  <p className="text-xs text-stone-400 truncate max-w-[260px]">
+                  <p className="text-xs text-[#93a0b5] truncate max-w-[260px]">
                     {manageGroupModal.name}
                   </p>
                 </div>
@@ -1138,14 +1138,14 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   setManageGroupModal(null);
                   setManageInputText('');
                 }}
-                className="text-stone-400 hover:text-white p-1 rounded-lg bg-[#151a26]"
+                className="text-[#93a0b5] hover:text-white p-1 rounded-lg bg-[#151a26]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <label className="block text-xs font-semibold text-stone-300">
+              <label className="block text-xs font-semibold text-[#eef2f9]">
                 Insira ou cole os números reais dos integrantes do grupo:
               </label>
               <textarea
@@ -1153,9 +1153,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 placeholder={`Cole os números um por linha ou separados por vírgula:\n\nExemplos:\n(91) 98123-4567\n5591999887766\nMaria: 91987654321\n+55 (11) 99887-6655`}
                 value={manageInputText}
                 onChange={(e) => setManageInputText(e.target.value)}
-                className="w-full bg-[#151a26] border border-[#1e2636] rounded-xl p-3 text-xs text-stone-200 font-mono placeholder:text-stone-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full bg-[#151a26] border border-[#1e2636] rounded-xl p-3 text-xs text-[#eef2f9] font-mono placeholder:text-[#93a0b5]/50 focus:outline-none focus:border-emerald-500/50"
               />
-              <p className="text-[11px] text-stone-400 flex items-center gap-1.5">
+              <p className="text-[11px] text-[#93a0b5] flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 Todos os números são formatados automaticamente com o código do país (+55) e DDD.
               </p>
@@ -1167,7 +1167,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   setManageGroupModal(null);
                   setManageInputText('');
                 }}
-                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636]"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636]"
               >
                 Cancelar
               </button>
@@ -1206,7 +1206,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               </div>
             </div>
 
-            <div className="space-y-3 text-xs text-stone-300">
+            <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
                 Essa ação é irreversível. Tem certeza de que deseja excluir este grupo?
               </p>
@@ -1216,7 +1216,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               <button
                 disabled={isDeletingGroup}
                 onClick={() => setDeleteConfirmGroup(null)}
-                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
               </button>
@@ -1255,13 +1255,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               </div>
             </div>
 
-            <div className="space-y-3 text-xs text-stone-300">
+            <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
                 Tem certeza de que deseja remover os{' '}
                 <strong className="text-amber-300 font-bold">{disconnectedGroups.length} grupos</strong>{' '}
                 pertencentes a números que foram desconectados?
               </p>
-              <div className="bg-[#151a26] p-3 rounded-xl border border-[#1e2636] text-[11px] text-stone-400 space-y-1">
+              <div className="bg-[#151a26] p-3 rounded-xl border border-[#1e2636] text-[11px] text-[#93a0b5] space-y-1">
                 <p className="text-emerald-400 font-semibold flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" /> Os grupos da sua conta conectada atual continuarão salvos.
                 </p>
@@ -1273,7 +1273,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               <button
                 disabled={isCleaning}
                 onClick={() => setShowDeleteDisconnectedModal(false)}
-                className="px-4 py-2 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
+                className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
               </button>

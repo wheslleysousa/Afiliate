@@ -48,14 +48,14 @@ export function getPlatformInfo(platformStr: string) {
   } else if (p.includes('shein')) {
     return {
       name: 'Shein',
-      badgeClass: 'bg-stone-900 text-blue-300 border-stone-800',
+      badgeClass: 'bg-[#151a26] text-white border-[#1e2636]',
       colorHex: '#000000',
       logoText: 'Shein'
     };
   } else if (p.includes('tiktok') || p.includes('tiktokshop')) {
     return {
       name: 'TikTok Shop',
-      badgeClass: 'bg-stone-950 text-white border-pink-500/50 shadow-[0_0_10px_rgba(236,72,153,0.3)]',
+      badgeClass: 'bg-[#151a26] text-white border-blue-500/40 shadow-sm',
       colorHex: '#000000',
       logoText: 'TikTok'
     };

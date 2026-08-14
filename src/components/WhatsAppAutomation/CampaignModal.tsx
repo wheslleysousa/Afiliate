@@ -26,6 +26,7 @@ import {
   Smartphone,
   Globe,
   Compass,
+  Link2,
 } from 'lucide-react';
 
 interface CampaignModalProps {
@@ -73,6 +74,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [targetGroupIds, setTargetGroupIds] = useState<string[]>([]);
   const [objective, setObjective] = useState<CampaignObjective>('mais_vendidos');
   const [templateId, setTemplateId] = useState<string>('');
+  const [shortStyle, setShortStyle] = useState<'default' | 'random' | 'custom_random' | 'custom_only'>('default');
+  const [customShortSlug, setCustomShortSlug] = useState<string>('');
   
   // Filters
   const [minSales, setMinSales] = useState<number | ''>('');
@@ -113,6 +116,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTargetGroupIds(campaign.targetGroupIds || []);
       setObjective(campaign.objective || 'mais_vendidos');
       setTemplateId(campaign.templateId || defaultTemplateId || 'whatsapp-urgency');
+      setShortStyle(campaign.shortStyle || 'default');
+      setCustomShortSlug(campaign.customShortSlug || '');
       
       setMinSales(campaign.filters?.minSales ?? '');
       setMinDiscount(campaign.filters?.minDiscount ?? '');
@@ -138,6 +143,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setSessionId(defaultSId);
       setEnabled(true);
       setTemplateId(defaultTemplateId || 'whatsapp-urgency');
+      setShortStyle('default');
+      setCustomShortSlug('');
       
       const filteredDefaults = waGroups
         .filter((g) => !defaultSId || !g.sessionId || g.sessionId === defaultSId)
@@ -228,6 +235,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         targetGroupIds,
         objective,
         templateId,
+        shortStyle,
+        customShortSlug: customShortSlug.trim() || undefined,
         filters: {
           minSales: minSales !== '' && !isNaN(Number(minSales)) ? Number(minSales) : null,
           minDiscount: minDiscount !== '' && !isNaN(Number(minDiscount)) ? Number(minDiscount) : null,
@@ -269,7 +278,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               <h3 className="text-lg font-bold text-white">
                 {campaign ? 'Editar Campanha de Disparo' : 'Nova Campanha de Disparo'}
               </h3>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-[#93a0b5]">
                 Configure a conta de WhatsApp, grupos-alvo, filtros de produtos e ritmo de envios.
               </p>
             </div>
@@ -277,7 +286,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-[#151a26] text-stone-400 hover:text-white border border-[#1e2636]"
+            className="p-1.5 rounded-lg bg-[#151a26] text-[#93a0b5] hover:text-white border border-[#1e2636]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -309,7 +318,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                   .map((g) => g.groupId);
                 setTargetGroupIds(filtered);
               }}
-              className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-emerald-500"
             >
               <option value="">-- Selecione a Conta que fará os disparos --</option>
               {waSessions.map((s) => {
@@ -332,7 +341,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           {/* Nome e Toggle Ativo */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
             <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-bold text-stone-300">
+              <label className="text-xs font-bold text-[#eef2f9]">
                 Nome da Campanha <span className="text-red-400">*</span>
               </label>
               <input
@@ -340,18 +349,18 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Ofertas Quentes - Manhã (Gr. Vips)"
-                className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
+                className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] placeholder-[#64708a] text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
                 required
               />
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-3 bg-[#0e1119] border border-[#1e2636] px-4 py-2.5 rounded-xl">
-              <span className="text-xs font-bold text-stone-300">Status:</span>
+              <span className="text-xs font-bold text-[#eef2f9]">Status:</span>
               <button
                 type="button"
                 onClick={() => setEnabled(!enabled)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  enabled ? 'bg-emerald-600' : 'bg-stone-700'
+                  enabled ? 'bg-emerald-600' : 'bg-[#151a26]'
                 }`}
               >
                 <span
@@ -360,7 +369,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                   }`}
                 />
               </button>
-              <span className={`text-xs font-bold ${enabled ? 'text-emerald-400' : 'text-stone-400'}`}>
+              <span className={`text-xs font-bold ${enabled ? 'text-emerald-400' : 'text-[#93a0b5]'}`}>
                 {enabled ? 'Ativa' : 'Pausada'}
               </span>
             </div>
@@ -369,8 +378,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           {/* Template de Mensagem para Disparos */}
           <div className="space-y-1.5 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-stone-300 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-400" />
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-400" />
                 Template de Copy (Mensagem)
               </label>
               {templateId === defaultTemplateId && (
@@ -382,7 +391,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
-              className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-500"
+              className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500"
             >
               <optgroup label="Modelos Predefinidos">
                 {DEFAULT_TEMPLATES.map((t) => (
@@ -401,15 +410,69 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 </optgroup>
               )}
             </select>
-            <p className="text-[10px] text-stone-400">
+            <p className="text-[10px] text-[#93a0b5]">
               Escolha qual estrutura de mensagem este robô usará ao encontrar produtos em oferta.
             </p>
+          </div>
+
+          {/* Estilo do Link de Afiliado nos Disparos */}
+          <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-emerald-400" />
+                Estilo do Link Encurtado nos Disparos
+              </label>
+              <span className="text-[10px] text-blue-400 font-mono font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                lkrm.site
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {[
+                { id: 'default', label: '⚙️ Padrão do App', desc: 'Usa a regra salva nas Configurações' },
+                { id: 'random', label: '🎲 Código Aleatório', desc: 'lkrm.site/x7k9ab' },
+                { id: 'custom_random', label: '🏷️ Nome da Loja + Cód.', desc: 'lkrm.site/loja/x7k9ab' },
+                { id: 'custom_only', label: '✨ Slug Desta Campanha', desc: 'lkrm.site/nome-campanha' },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setShortStyle(st.id as any)}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    shortStyle === st.id
+                      ? 'bg-blue-600/20 border-blue-500 text-white shadow-md'
+                      : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5] hover:border-blue-500/30'
+                  }`}
+                >
+                  <div className="text-xs font-bold">{st.label}</div>
+                  <div className="text-[10px] text-[#93a0b5] mt-0.5">{st.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {shortStyle === 'custom_only' && (
+              <div className="pt-2 space-y-1 animate-fadeIn">
+                <label className="text-[11px] text-[#93a0b5]">Nome / Slug Exclusivo desta Campanha:</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-blue-400 bg-[#0e1119] px-3 py-2 rounded-xl border border-[#1e2636]">
+                    https://lkrm.site/
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Ex: ofertas-vip-manha"
+                    value={customShortSlug}
+                    onChange={(e) => setCustomShortSlug(e.target.value)}
+                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs font-mono rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Grupos-Alvo */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-stone-300 flex items-center gap-2">
+              <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-400" />
                 Grupos do WhatsApp Alvo ({targetGroupIds.length} selecionados)
               </label>
@@ -439,14 +502,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                       className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all ${
                         isChecked
                           ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
-                          : 'bg-[#0e1119] border-[#1e2636] text-stone-400 hover:border-stone-700'
+                          : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5] hover:border-blue-500/30'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <MessageSquare className="w-4 h-4 shrink-0 text-stone-500" />
+                        <MessageSquare className="w-4 h-4 shrink-0 text-[#93a0b5]" />
                         <span className="font-semibold truncate">{g.name}</span>
                       </div>
-                      <span className="text-[10px] text-stone-500 shrink-0">
+                      <span className="text-[10px] text-[#93a0b5] shrink-0">
                         {g.size || g.participantsCount || 0} membros
                       </span>
                     </div>
@@ -458,7 +521,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
           {/* Objetivo do Disparo */}
           <div className="space-y-3">
-            <label className="text-xs font-bold text-stone-300 flex items-center gap-2">
+            <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
               <Target className="w-4 h-4 text-blue-400" />
               Objetivo de Mineração / Seleção
             </label>
@@ -478,11 +541,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                     className={`p-3 rounded-xl border text-left transition-all ${
                       isSelected
                         ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-950/30'
-                        : 'bg-[#151a26]/50 border-[#1e2636] text-stone-400 hover:border-stone-700'
+                        : 'bg-[#151a26]/50 border-[#1e2636] text-[#93a0b5] hover:border-blue-500/30'
                     }`}
                   >
                     <div className="text-xs font-bold">{obj.label}</div>
-                    <div className="text-[10px] text-stone-400 mt-1">{obj.desc}</div>
+                    <div className="text-[10px] text-[#93a0b5] mt-1">{obj.desc}</div>
                   </button>
                 );
               })}
@@ -491,48 +554,48 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
           {/* Filtros de Produtos */}
           <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
-            <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
+            <h4 className="text-xs font-bold text-white flex items-center gap-2">
               <Filter className="w-4 h-4 text-amber-400" />
               Filtros Avançados de Produtos
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Vendas Mínimas</label>
+                <label className="text-[11px] text-[#93a0b5]">Vendas Mínimas</label>
                 <input
                   type="number"
                   placeholder="Ex: 50"
                   value={minSales}
                   onChange={(e) => setMinSales(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Desconto Mínimo (%)</label>
+                <label className="text-[11px] text-[#93a0b5]">Desconto Mínimo (%)</label>
                 <input
                   type="number"
                   placeholder="Ex: 20"
                   value={minDiscount}
                   onChange={(e) => setMinDiscount(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-stone-400">Preço Máximo (R$)</label>
+                <label className="text-[11px] text-[#93a0b5]">Preço Máximo (R$)</label>
                 <input
                   type="number"
                   placeholder="Ex: 250"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] text-stone-400">Plataformas Aceitas</label>
+              <label className="text-[11px] text-[#93a0b5]">Plataformas Aceitas</label>
               <div className="flex flex-wrap gap-2">
                 {ALL_PLATFORMS.map((plat) => {
                   const isSel = platforms.includes(plat.id);
@@ -544,7 +607,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                         isSel
                           ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                          : 'bg-[#0e1119] border-[#1e2636] text-stone-500'
+                          : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
                       }`}
                     >
                       {isSel ? '✓ ' : ''}{plat.label}
@@ -555,13 +618,13 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             </div>
 
             <div className="space-y-1 pt-1">
-              <label className="text-[11px] text-stone-400">Categorias (separadas por vírgula, opcional)</label>
+              <label className="text-[11px] text-[#93a0b5]">Categorias (separadas por vírgula, opcional)</label>
               <input
                 type="text"
                 placeholder="Ex: Eletrônicos, Celulares, Casa"
                 value={categoriesStr}
                 onChange={(e) => setCategoriesStr(e.target.value)}
-                className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -570,44 +633,44 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Quantidade & Janela */}
             <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
-              <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-emerald-400" />
                 Volume de Disparos
               </h4>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[11px] text-stone-400">Qtd. Produtos</label>
+                  <label className="text-[11px] text-[#93a0b5]">Qtd. Produtos</label>
                   <input
                     type="number"
                     min="1"
                     max="500"
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] text-stone-400">Janela (minutos)</label>
+                  <label className="text-[11px] text-[#93a0b5]">Janela (minutos)</label>
                   <input
                     type="number"
                     min="1"
                     max="1440"
                     value={windowMinutes}
                     onChange={(e) => setWindowMinutes(Number(e.target.value))}
-                    className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2"
+                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-stone-400">
+              <p className="text-[10px] text-[#93a0b5]">
                 A campanha tentará distribuir <strong>{quantity} ofertas</strong> ao longo de <strong>{windowMinutes} minutos</strong>.
               </p>
             </div>
 
             {/* Pacing (Ritmo) */}
             <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
-              <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-400" />
                 Ritmo (Pacing)
               </h4>
@@ -619,7 +682,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                   className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${
                     pacing === 'aleatorio'
                       ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                      : 'bg-[#0e1119] border-[#1e2636] text-stone-400'
+                      : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
                   }`}
                 >
                   🎲 Aleatório (Recomendado)
@@ -630,7 +693,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                   className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${
                     pacing === 'uniforme'
                       ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                      : 'bg-[#0e1119] border-[#1e2636] text-stone-400'
+                      : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
                   }`}
                 >
                   ⏱️ Uniforme
@@ -640,27 +703,27 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               {pacing === 'aleatorio' && (
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-stone-400">Gap Mín (seg)</label>
+                    <label className="text-[10px] text-[#93a0b5]">Gap Mín (seg)</label>
                     <input
                       type="number"
                       value={minGapSec}
                       onChange={(e) => setMinGapSec(Number(e.target.value))}
-                      className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-2.5 py-1.5"
+                      className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] text-stone-400">Gap Máx (seg)</label>
+                    <label className="text-[10px] text-[#93a0b5]">Gap Máx (seg)</label>
                     <input
                       type="number"
                       value={maxGapSec}
                       onChange={(e) => setMaxGapSec(Number(e.target.value))}
-                      className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-2.5 py-1.5"
+                      className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
               )}
 
-              <p className="text-[10px] text-stone-400">
+              <p className="text-[10px] text-[#93a0b5]">
                 {pacing === 'aleatorio'
                   ? `Intervalos sorteados entre ${minGapSec}s e ${maxGapSec}s em lotes irregulares para proteger sua conta contra banimentos.`
                   : 'Distribuição exatamente espaçada e uniforme.'}
@@ -671,7 +734,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           {/* Horários e Agendamento */}
           <div className="space-y-4 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-stone-200 flex items-center gap-2">
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-blue-400" />
                 Horário de Agendamento & Fuso Horário
               </h4>
@@ -687,33 +750,33 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-stone-400">Hora de Início *</label>
+                <label className="text-[11px] font-semibold text-[#93a0b5]">Hora de Início *</label>
                 <input
                   type="time"
                   value={startHour}
                   onChange={(e) => setStartHour(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 font-semibold"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 font-semibold focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-stone-400">Hora de Fim *</label>
+                <label className="text-[11px] font-semibold text-[#93a0b5]">Hora de Fim *</label>
                 <input
                   type="time"
                   value={endHour}
                   onChange={(e) => setEndHour(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 font-semibold"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 font-semibold focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-stone-400 flex items-center gap-1">
+                <label className="text-[11px] font-semibold text-[#93a0b5] flex items-center gap-1">
                   <Globe className="w-3 h-3 text-blue-400" /> Fuso Horário
                 </label>
                 <select
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
-                  className="w-full bg-[#0e1119] border border-[#1e2636] text-stone-100 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
                 >
                   {COMMON_TIMEZONES.map((tz) => (
                     <option key={tz.value} value={tz.value}>
@@ -728,7 +791,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-semibold text-stone-400">Dias da Semana Permitidos</label>
+              <label className="text-[11px] font-semibold text-[#93a0b5]">Dias da Semana Permitidos</label>
               <div className="flex flex-wrap gap-1.5">
                 {DAYS_OF_WEEK.map((d) => {
                   const isSel = days.includes(d.day);
@@ -740,7 +803,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                       className={`w-10 h-8 rounded-lg border text-xs font-bold transition-all ${
                         isSel
                           ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
-                          : 'bg-[#0e1119] border-[#1e2636] text-stone-500 hover:text-stone-300'
+                          : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5] hover:text-white'
                       }`}
                     >
                       {d.label}
@@ -762,9 +825,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                     <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-extrabold ${liveStatus.badgeColor}`}>
                       {liveStatus.badgeText}
                     </span>
-                    <span className="text-stone-300 truncate">{liveStatus.subtext}</span>
+                    <span className="text-[#eef2f9] truncate">{liveStatus.subtext}</span>
                   </div>
-                  <span className="text-[10px] text-stone-500 shrink-0 font-mono">
+                  <span className="text-[10px] text-[#93a0b5] shrink-0 font-mono">
                     Hora local fuso: {liveStatus.currentTimeInTz}
                   </span>
                 </div>
@@ -778,14 +841,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-5 py-2.5 bg-[#151a26] hover:bg-stone-800 text-stone-300 text-xs font-bold rounded-xl border border-[#1e2636]"
+              className="px-5 py-2.5 bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-white text-xs font-bold rounded-xl border border-[#1e2636]"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-950/50 disabled:opacity-50"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
             >
               {saving ? (
                 <>Salvando...</>
