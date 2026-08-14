@@ -6,6 +6,7 @@ import {
   getUserLocalTimezone,
   COMMON_TIMEZONES,
 } from '../../utils/scheduleUtils';
+import { slugify } from '../../utils/affiliateLink';
 import {
   X,
   Target,
@@ -427,12 +428,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {[
                 { id: 'default', label: '⚙️ Padrão do App', desc: 'Usa a regra salva nas Configurações' },
                 { id: 'random', label: '🎲 Código Aleatório', desc: 'lkrm.site/x7k9ab' },
-                { id: 'custom_random', label: '🏷️ Nome da Loja + Cód.', desc: 'lkrm.site/loja/x7k9ab' },
-                { id: 'custom_only', label: '✨ Slug Desta Campanha', desc: 'lkrm.site/nome-campanha' },
+                { id: 'custom_random', label: '🏷️ Nome + Cód. Aleatório', desc: 'lkrm.site/nome/x7k9ab' },
               ].map((st) => (
                 <button
                   key={st.id}
@@ -450,21 +450,29 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               ))}
             </div>
 
-            {shortStyle === 'custom_only' && (
-              <div className="pt-2 space-y-1 animate-fadeIn">
-                <label className="text-[11px] text-[#93a0b5]">Nome / Slug Exclusivo desta Campanha:</label>
+            {shortStyle === 'custom_random' && (
+              <div className="pt-2 space-y-2 animate-fadeIn bg-[#0e1119]/80 p-3.5 rounded-xl border border-[#1e2636]">
+                <label className="text-[11px] font-semibold text-[#eef2f9] block">
+                  Escolha o Nome / Prefixo da Loja para os Links desta Campanha:
+                </label>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-blue-400 bg-[#0e1119] px-3 py-2 rounded-xl border border-[#1e2636]">
+                  <span className="text-xs font-mono text-blue-400 bg-[#07090f] px-3 py-2 rounded-xl border border-[#1e2636] shrink-0">
                     https://lkrm.site/
                   </span>
                   <input
                     type="text"
-                    placeholder="Ex: ofertas-vip-manha"
+                    placeholder="Ex: minhaloja, ofertas, promo"
                     value={customShortSlug}
                     onChange={(e) => setCustomShortSlug(e.target.value)}
-                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs font-mono rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-[#07090f] border border-[#1e2636] text-[#eef2f9] text-xs font-mono rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 placeholder-[#526077]"
                   />
+                  <span className="text-xs font-mono text-[#93a0b5] bg-[#07090f] px-2.5 py-2 rounded-xl border border-[#1e2636] shrink-0">
+                    /x7k9ab
+                  </span>
                 </div>
+                <p className="text-[10px] text-[#93a0b5]">
+                  Exemplo de link encurtado que será gerado: <strong className="text-emerald-400 font-mono">https://lkrm.site/{slugify(customShortSlug) || 'minhaloja'}/x7k9ab</strong>
+                </p>
               </div>
             )}
           </div>
