@@ -39,6 +39,9 @@ jobs:
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+          if [ -f "assets/icon.png" ]; then
+            npx @capacitor/assets generate --android
+          fi
           npx cap sync android
           cd android && ./gradlew assembleDebug
 
