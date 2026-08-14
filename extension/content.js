@@ -358,42 +358,45 @@ function injectOverlayCSS() {
     }
 
     .am-highlight-border {
-      position: relative !important;
       outline: 2px solid #2563eb !important;
       outline-offset: -2px !important;
-      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.25) !important;
-      border-radius: 12px !important;
-      transition: all 0.25s ease-in-out !important;
+      border-radius: 8px !important;
+      transition: outline 0.2s ease !important;
       box-sizing: border-box !important;
     }
     .am-highlight-border:hover {
       outline: 3px solid #3b82f6 !important;
       outline-offset: -2px !important;
-      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45) !important;
     }
 
     .am-card-mine-btn {
       width: calc(100% - 12px) !important;
-      margin: 8px auto !important;
-      padding: 8px 12px !important;
+      max-width: 100% !important;
+      margin: 8px auto 6px auto !important;
+      padding: 5px 10px !important;
       background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
       color: #ffffff !important;
       border: none !important;
       border-radius: 8px !important;
-      font-size: 12px !important;
+      font-size: 11px !important;
       font-weight: 800 !important;
       cursor: pointer !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      gap: 6px !important;
+      gap: 5px !important;
       box-shadow: 0 3px 10px rgba(37, 99, 235, 0.4) !important;
       position: relative !important;
+      order: 999999 !important;
+      margin-top: auto !important;
       z-index: 9999 !important;
       transition: all 0.2s ease !important;
       flex-shrink: 0 !important;
-      min-height: 34px !important;
+      min-height: 28px !important;
+      height: 28px !important;
       clear: both !important;
+      box-sizing: border-box !important;
+      line-height: 1 !important;
     }
     .am-card-mine-btn:hover {
       transform: translateY(-1px) !important;
@@ -1060,52 +1063,57 @@ function getProductCardSelectors() {
   return [
     // Shopee (Search, Recommendations, Daily Discover, Shop Pages, Flash Sale, Mobile Grid)
     'li.shopee-search-item-result__item',
-    'div[data-sqe="item"]',
     'div.shopee-search-item-result__item',
-    'div.col-xs-2-4',
+    'div[data-sqe="item"]',
     'a[data-sqe="link"]',
     'a[href*="-i."]',
     'a[href*="/product/"]',
+    'div.col-xs-2-4',
     'div[class*="item-card" i]',
     'div[class*="ItemCard" i]',
+    'div[class*="item-card__wrap" i]',
     'div[class*="shopee-search-item" i]',
+    'div[class*="st-product-card" i]',
+    'div[class*="recommend" i] a',
+    'div[class*="recommendation" i] a',
+    'div[class*="recommendation" i]',
+    'div[class*="goods-item" i]',
     'div[class*="product-card" i]',
     'div[class*="ProductCard" i]',
-    'div[class*="item-card__wrap" i]',
-    'div[class*="recommend" i] a',
-    'div[class*="recommendation-item" i]',
-    'div[class*="st-product-card" i]',
-    'div[class*="goods-item" i]',
-    'div[class*="section-recommend-products" i] a',
+    'div[class*="shop-item" i]',
+    'div.shopee-item-card',
+    'a.shopee-item-card',
 
     // TikTok Shop (Search, Feed, Store Showcase, Tabs, Recommendations, Mobile View)
     'div[data-e2e="product-card"]',
     'div[data-e2e="search-product-item"]',
+    'div[data-e2e="feed-product-item"]',
     'div[data-e2e*="product" i]',
     'div[data-e2e*="goods" i]',
-    'div[data-e2e*="shop-item" i]',
-    'div[data-testid*="product" i]',
+    'div[data-e2e*="shop" i]',
+    'div[data-e2e*="item" i]',
     'div[data-p-id="product_card"]',
+    'div[data-testid*="product" i]',
     'div[class*="GoodsCard" i]',
     'div[class*="GoodsItem" i]',
+    'div[class*="goods-card" i]',
+    'div[class*="goods-item" i]',
     'div[class*="ProductCard" i]',
     'div[class*="product-card" i]',
-    'div[class*="product_card" i]',
-    'div[class*="product-item" i]',
     'div[class*="ProductItem" i]',
+    'div[class*="product-item" i]',
+    'div[class*="ShowcaseItem" i]',
     'div[class*="showcase-item" i]',
-    'div[class*="ItemCard" i]',
-    'div[class*="item-card" i]',
-    'div[class*="ShopCard" i]',
+    'div[class*="showcase" i]',
     'div[class*="FeedItem" i]',
-    'div[class*="goods-item" i]',
-    'div[class*="goods-card" i]',
+    'div[class*="FeedCard" i]',
+    'div[class*="ShopCard" i]',
     'div[class*="shop-item" i]',
-    'div[class*="CardContainer" i]',
-    'div[class*="ItemContainer" i]',
     'a[href*="/view/product/"]',
     'a[href*="tiktok.com/view/product"]',
-    'a[href*="shop.tiktok.com"]',
+    'a[href*="/commerce/pdp/"]',
+    'a[href*="/commerce/"]',
+    'a[href*="/pdp/"]',
     'a[href*="/product/"]',
 
     // Mercado Livre
@@ -1114,6 +1122,8 @@ function getProductCardSelectors() {
     '.poly-card',
     '.ui-search-result',
     'div[class*="ui-search-item" i]',
+    'a[href*="/p/MLB"]',
+    'a[href*="/MLB-"]',
 
     // Amazon
     'div[data-component-type="s-search-result"]',
@@ -1122,7 +1132,9 @@ function getProductCardSelectors() {
     // Shein & AliExpress & Others
     '.goods-item',
     '.product-list-v2__item',
-    'div[class*="search-result-item" i]'
+    'div[class*="search-result-item" i]',
+    'a[href*="/item/"]',
+    'a[href*="/goods/"]'
   ];
 }
 
@@ -1131,6 +1143,17 @@ function getProductCardContainer(el) {
 
   const tag = el.tagName;
   if (tag === 'BODY' || tag === 'HTML' || tag === 'MAIN' || tag === 'SECTION' || tag === 'NAV' || tag === 'FOOTER' || tag === 'HEADER') {
+    return null;
+  }
+
+  // Reject elements inside headers, navigation bars, profile bars, search input bars, category tab bars, overlays, banner carousels
+  if (el.closest(
+    'header, nav, #header, .header, [data-e2e*="header" i], [data-e2e*="nav" i], ' +
+    '[class*="Header" i], [class*="NavBar" i], [class*="nav-bar" i], [class*="navigation" i], ' +
+    '[class*="top-bar" i], [class*="CategoryList" i], [class*="category-nav" i], ' +
+    '[class*="banner" i], [class*="banner-container" i], [class*="swiper-slide-duplicate" i], ' +
+    '#am-overlay, #am-floating-trigger, #am-filter-modal-backdrop, .am-filter-modal-backdrop'
+  )) {
     return null;
   }
 
@@ -1153,13 +1176,17 @@ function getProductCardContainer(el) {
 
   // 1. Walk up to find known dedicated product card classes
   const parentCard = el.closest(
-    'li.shopee-search-item-result__item, div[data-sqe="item"], ' +
+    'li.shopee-search-item-result__item, div.shopee-search-item-result__item, div[data-sqe="item"], ' +
     '.ui-search-result__wrapper, li.ui-search-layout__item, .poly-card, .ui-search-result, ' +
     'div[data-component-type="s-search-result"], div[data-asin]:not([data-asin=""]), ' +
-    'div[data-e2e="product-card"], div[data-e2e="search-product-item"], ' +
+    'div[data-e2e="product-card"], div[data-e2e="search-product-item"], div[data-e2e="feed-product-item"], ' +
+    'div[data-e2e*="product" i], div[data-e2e*="goods" i], ' +
     'div[data-p-id="product_card"], div[class*="GoodsCard" i], div[class*="GoodsItem" i], ' +
-    'div[class*="ProductCard" i], div[class*="product-card" i], div[class*="product-item" i], ' +
-    'div[class*="ItemCard" i], div[class*="item-card" i], div[class*="ShopCard" i], ' +
+    'div[class*="goods-card" i], div[class*="goods-item" i], ' +
+    'div[class*="ProductCard" i], div[class*="product-card" i], div[class*="ProductItem" i], div[class*="product-item" i], ' +
+    'div[class*="item-card" i], div[class*="ItemCard" i], div.col-xs-2-4, div.shopee-item-card, ' +
+    'div[class*="ShowcaseItem" i], div[class*="showcase-item" i], div[class*="showcase" i], ' +
+    'div[class*="FeedItem" i], div[class*="FeedCard" i], ' +
     '.goods-item, .product-list-v2__item, article'
   );
 
@@ -1260,10 +1287,6 @@ function updatePageHighlighting() {
     card.classList.add('am-highlight-border');
 
     if (!card.querySelector('.am-card-mine-btn')) {
-      if (getComputedStyle(card).position === 'static') {
-        card.style.position = 'relative';
-      }
-
       const btn = document.createElement('button');
       btn.className = 'am-card-mine-btn';
       btn.setAttribute('type', 'button');
@@ -1281,6 +1304,8 @@ function updatePageHighlighting() {
           }, 2500);
         }
       };
+      
+      // Append button at the very end of the card
       card.appendChild(btn);
     }
   });
@@ -1292,20 +1317,41 @@ function updatePageHighlighting() {
 function isProductPage() {
   const url = window.location.href.toLowerCase();
   
-  // TikTok Shop Product Detail Page URLs
-  if (url.includes('tiktok.com/view/product') || url.includes('/view/product/') || 
-      (url.includes('tiktok') && url.includes('/product/')) || (url.includes('shop.tiktok.com') && (url.includes('/p/') || url.includes('/product/') || url.includes('/view/')))) {
+  // TikTok Shop Product Detail Page URLs & Patterns
+  if (
+    url.includes('tiktok.com/view/product') ||
+    url.includes('/view/product/') ||
+    url.includes('/commerce/pdp/') ||
+    url.includes('/pdp/') ||
+    url.includes('/product/') ||
+    (url.includes('tiktok') && (url.includes('/p/') || url.includes('/view/') || url.includes('/goods/')))
+  ) {
     return true;
   }
 
   // Shopee, Mercado Livre, Amazon, AliExpress, Shein PDP URLs
-  if (url.includes('/product/') || url.includes('-i.') || url.includes('/p/') || url.includes('/dp/') || 
-      url.includes('item.htm') || url.includes('/goods/') || url.includes('/detail/') || url.includes('/universal-link/')) {
+  if (
+    url.includes('/product/') ||
+    url.includes('-i.') ||
+    url.includes('/p/') ||
+    url.includes('/dp/') ||
+    url.includes('item.htm') ||
+    url.includes('/goods/') ||
+    url.includes('/detail/') ||
+    url.includes('/universal-link/') ||
+    url.includes('/item/')
+  ) {
     return true;
   }
 
   // DOM Checks for Product Detail Pages
-  if (document.querySelector('h1#productTitle, #productTitle, .ui-pdp-title, [data-testid*="product-title" i], div[class*="ProductTitle" i], div[data-e2e="pdp-title"], .product-briefing, .ui-pdp-container, div[class*="goods-detail" i], div[class*="PdpContainer" i], div[class*="product-detail" i], div[data-e2e="pdp-buy-button"]')) {
+  if (document.querySelector(
+    'h1#productTitle, #productTitle, .ui-pdp-title, [data-testid*="product-title" i], ' +
+    'div[class*="ProductTitle" i], div[data-e2e="pdp-title"], [data-e2e*="pdp" i], ' +
+    '.product-briefing, .ui-pdp-container, div[class*="goods-detail" i], ' +
+    'div[class*="PdpContainer" i], div[class*="product-detail" i], div[data-e2e="pdp-buy-button"], ' +
+    'div[class*="pdp" i] [class*="price" i], div[class*="sku-container" i]'
+  )) {
     return true;
   }
 
@@ -1409,12 +1455,12 @@ function injectPdpButton() {
       floatBar.id = 'am-pdp-float-bar';
       floatBar.style.cssText = `
         position: fixed !important;
-        bottom: 80px !important;
+        bottom: 85px !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
         width: calc(100% - 32px) !important;
         max-width: 480px !important;
-        z-index: 2147483645 !important;
+        z-index: 2147483647 !important;
         box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
       `;
       document.body.appendChild(floatBar);
@@ -1457,10 +1503,53 @@ function isInstallmentOrBadgeElement(el) {
   return false;
 }
 
+function extractAllPricesFromText(text) {
+  if (!text) return [];
+  // Strip out installment strings like "5x R$ 5,97", "12x de R$ 10,00", "sem juros", "off", "cupom"
+  let clean = String(text)
+    .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]{1,12},\d{2}/gi, '')
+    .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]+/gi, '')
+    .replace(/\b\d{1,2}\s*x\b/gi, '')
+    .replace(/-\s*\d+\s*%/g, '')
+    .replace(/\d+\s*%\s*OFF/gi, '')
+    .replace(/cupom[^\n,.]*/gi, '')
+    .replace(/frete[^\n,.]*/gi, '');
+
+  const prices = [];
+
+  // Match BRL explicit format: "R$ 189,94", "R$189,94", "R$ 11.06", "R$11.06", "R$17,00", "R$ 2.659,91"
+  const brlMatches = [...clean.matchAll(/R\$\s*([\d.,]+)/gi)];
+  for (const m of brlMatches) {
+    let s = m[1].trim();
+    if (s.includes(',') && s.includes('.')) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else if (s.includes(',')) {
+      s = s.replace(',', '.');
+    }
+    const val = parseFloat(s);
+    if (!isNaN(val) && val > 0 && val < 500000 && !prices.includes(val)) {
+      prices.push(val);
+    }
+  }
+
+  // Match standalone currency formats if none found yet
+  if (prices.length === 0) {
+    const commaMatches = [...clean.matchAll(/(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/g)];
+    for (const m of commaMatches) {
+      const val = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+      if (!isNaN(val) && val > 0 && val < 500000 && !prices.includes(val)) prices.push(val);
+    }
+  }
+
+  return prices;
+}
+
 function parseRawPriceString(str) {
   if (!str) return 0;
+  const prices = extractAllPricesFromText(str);
+  if (prices.length > 0) return prices[0];
 
-  // Clean out installment patterns (e.g. "Em até 5x R$5,97", "5x R$ 5,97", "10x de R$12,90", "ou 12x R$10")
+  // Clean out installment patterns
   let text = String(str)
     .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]{1,12},\d{2}/gi, '')
     .replace(/(?:em\s+at[ée]\s+|\dou\s+|\b)\d{1,2}\s*x\s*(?:de\s*)?R\$\s*[\d.]+/gi, '')
@@ -1470,41 +1559,14 @@ function parseRawPriceString(str) {
     .replace(/frete[^\n,.]*/gi, '')
     .trim();
 
-  // Match BRL format with R$ explicitly: "R$ 189,94", "R$189,94", "R$ 26,90", "R$ 2.659,91"
+  // Match BRL format with R$ explicitly
   const brlMatches = [...text.matchAll(/R\$\s*([\d.]{1,12},\d{2})/gi)];
   if (brlMatches.length > 0) {
-    const prices = brlMatches.map(m => {
+    const pList = brlMatches.map(m => {
       const numStr = m[1].replace(/\./g, '').replace(',', '.');
       return parseFloat(numStr) || 0;
     }).filter(p => p > 0);
-    if (prices.length > 0) return Math.min(...prices);
-  }
-
-  // Match comma decimal format: "189,94", "26,90", "7.050,00"
-  const commaMatches = [...text.matchAll(/(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/g)];
-  if (commaMatches.length > 0) {
-    const prices = commaMatches.map(m => {
-      const numStr = m[1].replace(/\./g, '').replace(',', '.');
-      return parseFloat(numStr) || 0;
-    }).filter(p => p > 0);
-    if (prices.length > 0) return Math.min(...prices);
-  }
-
-  // Match dot decimal format
-  const dotMatches = [...text.matchAll(/(\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})/g)];
-  if (dotMatches.length > 0) {
-    const prices = dotMatches.map(m => {
-      const numStr = m[1].replace(/,/g, '');
-      return parseFloat(numStr) || 0;
-    }).filter(p => p > 0);
-    if (prices.length > 0) return Math.min(...prices);
-  }
-
-  // Simple number match
-  const simpleMatch = text.match(/R\$\s*(\d+)/i) || text.match(/(\d+)/);
-  if (simpleMatch) {
-    const val = parseFloat(simpleMatch[1]);
-    if (!isNaN(val) && val > 0) return val;
+    if (pList.length > 0) return Math.min(...pList);
   }
 
   return 0;
@@ -1583,6 +1645,13 @@ function extractRealProductData(element) {
           if (dm) discountPercent = parseInt(dm[1], 10);
         }
 
+        // Multiple price scanner on card
+        const cardPrices = extractAllPricesFromText(cardText);
+        if (cardPrices.length >= 2) {
+          if (!pixPrice || pixPrice === 0) pixPrice = Math.min(...cardPrices);
+          if (!oldPrice || oldPrice === 0) oldPrice = Math.max(...cardPrices);
+        }
+
         // If discount badge exists but old price wasn't caught, compute original price
         if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
           oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
@@ -1590,10 +1659,15 @@ function extractRealProductData(element) {
 
         const shopeeSalesEl = element.querySelector('div[class*="sold" i], div[class*="vendas" i], div[class*="sold-count" i], [class*="sold" i]');
         if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
+        if (!sales) sales = parseSalesCount(cardText);
 
         const shopeeRatingEl = element.querySelector('.shopee-rating-stars, [class*="rating" i], [class*="star" i]');
         if (shopeeRatingEl) {
           const rm = shopeeRatingEl.textContent.match(/(\d[\.,]\d)/);
+          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+        }
+        if (!rating || rating === 0) {
+          const rm = cardText.match(/(\d[\.,]\d)\s*(?:★|estrelas|\/5|de 5)/i);
           if (rm) rating = parseFloat(rm[1].replace(',', '.'));
         }
 
@@ -1644,15 +1718,31 @@ function extractRealProductData(element) {
           if (dm) discountPercent = parseInt(dm[1], 10);
         }
 
+        // Multi price extraction on TikTok card
+        const cardPrices = extractAllPricesFromText(cardText);
+        if (cardPrices.length >= 2) {
+          if (!pixPrice || pixPrice === 0) pixPrice = Math.min(...cardPrices);
+          if (!oldPrice || oldPrice === 0) oldPrice = Math.max(...cardPrices);
+        }
+
         if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
           oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
         }
         
         const ttSalesEl = element.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
         if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
+        if (!sales) sales = parseSalesCount(cardText);
+
+        const ttRatingMatch = cardText.match(/(\d[\.,]\d)\s*★/i) || cardText.match(/(\d[\.,]\d)\s*\|\s*\d+/i);
+        if (ttRatingMatch) {
+          rating = parseFloat(ttRatingMatch[1].replace(',', '.'));
+        }
         
         const ttImg = element.querySelector('img');
         if (ttImg) image = ttImg.src || ttImg.dataset.src || '';
+
+        const ttLink = element.tagName === 'A' ? element : element.querySelector('a[href]');
+        if (ttLink) link = ttLink.href;
       }
 
       // 1. Title Extraction Fallback
@@ -2007,6 +2097,26 @@ function extractRealProductData(element) {
 
     if (image && !pictures.includes(image)) pictures.unshift(image);
 
+    // Final Normalization & Cross-Field Validations
+    if (oldPrice > 0 && pixPrice > 0 && oldPrice < pixPrice) {
+      const temp = oldPrice;
+      oldPrice = pixPrice;
+      pixPrice = temp;
+    }
+    if (oldPrice === pixPrice) {
+      oldPrice = 0;
+      discountPercent = 0;
+    }
+    if (oldPrice > pixPrice && pixPrice > 0 && discountPercent === 0) {
+      discountPercent = Math.round(((oldPrice - pixPrice) / oldPrice) * 100);
+    }
+    if (discountPercent > 99 || discountPercent < 0) {
+      discountPercent = 0;
+    }
+    if (rating < 1.0 || rating > 5.0) {
+      rating = 0;
+    }
+
     const resolvedPlatform = getPlatformKey(link || window.location.href);
     const resolvedMarketplace = getMarketplaceName(resolvedPlatform);
 
@@ -2082,12 +2192,12 @@ function parseSalesCount(text) {
     .replace(/\n/g, ' ');
 
   const reList = [
-    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought|vendas?)/i,
-    /(?:vendidos?|comprados?|sold|bought|compras?|vendas?)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
-    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|comprados?|compras?|vendido|sold|bought|vendas?)/i,
-    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+\s*(?:vendidos?|comprados?|sold|bought)?/i,
-    /(\d+)\+?\s*(?:vendido|comprado|sold|bought|vendas)/i,
-    /(\d+(?:[\.,]\d+)?)\s*(?:mil|k)?\+?\s*(?:vendidos?|comprados?|sold|bought|comprados no último mês|bought in past month)/i
+    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+?\s*(?:produtos?\s*)?(?:vendidos?|vendido\(s\)|comprados?|comprado\(s\)|compras?|vendido|sold|bought|vendas?)/i,
+    /(?:vendidos?|vendido\(s\)|comprados?|comprado\(s\)|sold|bought|compras?|vendas?)\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mil|k)?/i,
+    /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(mil|k)?\s*\+?\s*(?:produtos?\s*)?(?:vendidos?|vendido\(s\)|comprados?|comprado\(s\)|compras?|vendido|sold|bought|vendas?)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(mil|k)\+\s*(?:vendidos?|vendido\(s\)|comprados?|sold|bought)?/i,
+    /(\d+)\+?\s*(?:vendidos?|vendido\(s\)|comprado\(s\)|comprado|sold|bought|vendas)/i,
+    /(\d+(?:[\.,]\d+)?)\s*(?:mil|k)?\+?\s*(?:vendidos?|vendido\(s\)|comprados?|sold|bought|comprados no último mês|bought in past month)/i
   ];
 
   for (const re of reList) {
@@ -2116,13 +2226,24 @@ function parseSalesCount(text) {
 
 function extractInstallmentsText(scopeText) {
   if (!scopeText) return null;
-  const semJuros = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})\s*sem\s*juros/i)
-                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+,\d{2})\s*sem\s*juros/i);
-  if (semJuros) return `${semJuros[1]}x de R$ ${semJuros[2]} sem juros`;
+  const semJuros = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+[,\.]\d{2})\s*sem\s*juros/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+[,\.]\d{2})\s*sem\s*juros/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*sem\s*juros/i);
+  if (semJuros) {
+    if (semJuros[2]) {
+      return `${semJuros[1]}x de R$ ${semJuros[2].replace('.', ',')} sem juros`;
+    }
+    return `${semJuros[1]}x sem juros`;
+  }
 
-  const qualquer = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})/i)
-                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+,\d{2})/i);
-  if (qualquer) return `${qualquer[1]}x de R$ ${qualquer[2]}`;
+  const qualquer = scopeText.match(/(?:em\s*at[ée]\s*|ou\s*|)\s*(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+[,\.]\d{2})/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*R\$\s*([\d.]+[,\.]\d{2})/i)
+                || scopeText.match(/(\d{1,2})\s*x\s*de\s*([\d.]+[,\.]\d{2})/i);
+  if (qualquer) return `${qualquer[1]}x de R$ ${qualquer[2].replace('.', ',')}`;
+
+  const mes = scopeText.match(/R\$\s*([\d.]+[,\.]\d{2})\s*\/\s*m[êe]s/i);
+  if (mes) return `R$ ${mes[1].replace('.', ',')}/mês`;
+
   return null;
 }
 

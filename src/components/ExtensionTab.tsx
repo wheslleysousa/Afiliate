@@ -38,7 +38,7 @@ export const ExtensionTab: React.FC = () => {
     <div className="space-y-12 max-w-5xl mx-auto animate-fadeIn pb-20 text-[#eef2f9] font-sans">
 
       {/* ───────────────────────────────────────────────────────────────────────
-          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.0.6
+          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.0.8
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#0e1119] via-[#07090f] to-[#07090f] border border-[#1e2636] p-8 sm:p-12 shadow-2xl">
         {/* Subtle Background Glow Accent */}
@@ -50,7 +50,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>AFFILIATE MINER v1.0.6 • EXTENSÃO OFICIAL</span>
+              <span>AFFILIATE MINER v1.0.8 • EXTENSÃO OFICIAL</span>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -68,7 +68,7 @@ export const ExtensionTab: React.FC = () => {
 
           {/* Direct Sales Copy Subheadline */}
           <p className="text-sm sm:text-base text-[#93a0b5] leading-relaxed">
-            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.0.6</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
+            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.0.7</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
           </p>
 
           {/* Primary & Secondary Call to Action */}
