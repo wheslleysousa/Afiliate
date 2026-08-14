@@ -29,15 +29,16 @@ jobs:
           npm run build
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Build Android APK with Gradle
         run: |
-          npx cap init --force --name "Radar de Ofertas" --package-id "com.lkrm.app"
-          npx cap add android
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
           npx cap sync android
           cd android && ./gradlew assembleDebug
 
