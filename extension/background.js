@@ -288,8 +288,11 @@ async function syncProductToFirestore(product, uid, idToken) {
     shipping:      product.freeShipping ? 'Frete grátis' : (product.shipping || null),
     free_shipping: !!(product.freeShipping || product.free_shipping),
     stars:         product.stars || (product.rating > 0 ? String(product.rating) : null),
+    ratings_count: product.ratings_count || product.review_count || product.rating_count || null,
     sales_count:   product.sales_count || formatSalesCount(product.sales),
     discount_pct:  product.discount_pct || product.discountPercent || null,
+    attributes:    product.attributes || product.specs || null,
+    specs:         product.specs || null,
     commission_rate: estCommRate,
     commission_amount: estCommAmt,
     sales_trend_pct: estTrend,
@@ -323,12 +326,17 @@ async function syncProductToFirestore(product, uid, idToken) {
     // Enriquece campos opcionais só quando vierem preenchidos (não apaga o que já existe)
     if (doc.coupon)               patch.coupon = doc.coupon;
     if (doc.installments)         patch.installments = doc.installments;
+    if (doc.installments_interest_free) patch.installments_interest_free = doc.installments_interest_free;
     if (doc.pix_price)            patch.pix_price = doc.pix_price;
     if (doc.description)          patch.description = doc.description;
     if (doc.category)             patch.category = doc.category;
     if (doc.price_from)           patch.price_from = doc.price_from;
     if (doc.stars)                patch.stars = doc.stars;
+    if (doc.ratings_count)        patch.ratings_count = doc.ratings_count;
     if (doc.sales_count)          patch.sales_count = doc.sales_count;
+    if (doc.attributes)           patch.attributes = doc.attributes;
+    if (doc.specs)                patch.specs = doc.specs;
+    if (doc.pictures && doc.pictures.length > 0) patch.pictures = doc.pictures;
     if (doc.discount_pct != null) patch.discount_pct = doc.discount_pct;
     if (doc.free_shipping)        patch.free_shipping = doc.free_shipping;
     if (doc.commission_rate != null) patch.commission_rate = doc.commission_rate;

@@ -97,9 +97,12 @@ export interface ProductData {
   pix_price?: string | null;          // Preço específico no PIX (pode diferir do price_to)
   free_shipping?: boolean;            // true = frete grátis confirmado
   stars?: string | null;              // Avaliação média (ex: "4.8")
+  ratings_count?: string | number | null; // Quantidade de avaliações (ex: "1.005", "1k")
   sales_count?: string | null;        // Número de vendas (ex: "1.2k", "500")
   discount_pct?: number | null;       // % de desconto calculado
   category?: string | null;           // Categoria do produto
+  attributes?: Record<string, string> | Array<{ name: string; value: string }> | string[] | string | null; // Atributos/especificações
+  specs?: string[] | Record<string, string> | string | null; // Características técnicas
   commission_rate?: number | null;    // Taxa de comissão em % (ex: 15)
   commission_amount?: number | null;  // Valor estimado da comissão em R$
   sales_trend_pct?: number | null;    // Tendência de crescimento de vendas últimos 7 dias (+25, -10)
@@ -162,10 +165,13 @@ export interface GlobalProduct {
   pix_price?: string | null;
   free_shipping?: boolean;
   stars?: string | null;
+  ratings_count?: string | number | null;
   sales_count?: string | null;
   sales_7d?: number | null;
   discount_pct?: number | null;
   category?: string | null;
+  attributes?: Record<string, string> | Array<{ name: string; value: string }> | string[] | string | null;
+  specs?: string[] | Record<string, string> | string | null;
   commission_rate?: number | null;
   commission_amount?: number | null;
   sales_trend_pct?: number | null;

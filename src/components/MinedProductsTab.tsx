@@ -381,16 +381,21 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
 
                       {/* Stars & Sales Indicators */}
                       {(product.stars || product.sales_count) && (
-                        <div className="flex items-center gap-2 text-[10px] text-[#93a0b5]">
+                        <div className="flex items-center gap-2 text-[10px] text-[#93a0b5] flex-wrap">
                           {product.stars && (
-                            <div className="flex items-center gap-0.5 text-amber-400">
+                            <div className="flex items-center gap-1 text-amber-400">
                               <Star className="w-3 h-3 fill-amber-400" />
                               <span className="font-bold">{product.stars}</span>
+                              {product.ratings_count && (
+                                <span className="text-[#93a0b5] font-normal">({product.ratings_count})</span>
+                              )}
                             </div>
                           )}
                           {product.stars && product.sales_count && <span className="text-[#1e2636]">•</span>}
                           {product.sales_count && (
-                            <span className="truncate">{product.sales_count}</span>
+                            <span className="truncate text-stone-300 font-medium">
+                              {product.sales_count.includes('vend') ? product.sales_count : `${product.sales_count} vendidos`}
+                            </span>
                           )}
                         </div>
                       )}

@@ -30,6 +30,7 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
   installments: rawInstallments,
   installments_interest_free: rawSemJuros,
   coupon: rawCoupon,
+  freeShipping,
   className = '',
   size = 'md',
 }) => {
@@ -40,6 +41,11 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
   const installments = product?.installments || rawInstallments || null;
   const installments_interest_free = product?.installments_interest_free ?? rawSemJuros ?? false;
   const coupon = product?.coupon || rawCoupon || null;
+  const isFreeShipping = Boolean(
+    freeShipping ||
+      product?.free_shipping === true ||
+      (product?.shipping && /gr[áa]tis/i.test(product.shipping))
+  );
 
   const numTo = parsePriceNumber(rawTo);
   const numPix = parsePriceNumber(rawPix);
@@ -135,13 +141,22 @@ export const PriceBlock: React.FC<PriceBlockProps> = ({
         </div>
       )}
 
-      {/* 4) Cupom: se coupon existir, mostrar selo */}
-      {coupon && coupon.trim() !== '' && coupon !== '—' && (
-        <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md w-fit mt-1">
-          <span>🎟</span>
-          <span className="truncate">Cupom: {coupon}</span>
-        </div>
-      )}
+      {/* 4) Frete Grátis e Cupom: badges visuais */}
+      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+        {isFreeShipping && (
+          <span className="inline-flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md">
+            <span>🚚</span>
+            <span>Frete grátis</span>
+          </span>
+        )}
+
+        {coupon && coupon.trim() !== '' && coupon !== '—' && (
+          <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
+            <span>🎟</span>
+            <span className="truncate">Cupom: {coupon}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -28,6 +28,7 @@ import {
   Check,
   TrendingUp,
   Percent,
+  Star,
 } from 'lucide-react';
 
 const PLATFORMS = [
@@ -343,6 +344,27 @@ export const MarketplaceTab: React.FC<MarketplaceTabProps> = ({
                       <h3 className="text-xs font-bold text-white line-clamp-2 leading-snug">
                         {product.title}
                       </h3>
+
+                      {/* Stars & Sales Indicators */}
+                      {(product.stars || product.sales_count) && (
+                        <div className="flex items-center gap-2 text-[10px] text-[#93a0b5] flex-wrap">
+                          {product.stars && (
+                            <div className="flex items-center gap-1 text-amber-400">
+                              <Star className="w-3 h-3 fill-amber-400" />
+                              <span className="font-bold">{product.stars}</span>
+                              {product.ratings_count && (
+                                <span className="text-[#93a0b5] font-normal">({product.ratings_count})</span>
+                              )}
+                            </div>
+                          )}
+                          {product.stars && product.sales_count && <span className="text-[#1e2636]">•</span>}
+                          {product.sales_count && (
+                            <span className="truncate text-stone-300 font-medium">
+                              {product.sales_count.includes('vend') ? product.sales_count : `${product.sales_count} vendidos`}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2 border-t border-[#1e2636] space-y-1.5">

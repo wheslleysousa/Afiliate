@@ -378,7 +378,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <div className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl">
                   <span className="text-[#93a0b5] block text-[10px] font-semibold">Avaliação</span>
                   <span className="text-xs font-bold text-yellow-400">
-                    {currentProduct.stars ? `⭐ ${currentProduct.stars} / 5` : 'Sem avaliação'}
+                    {currentProduct.stars ? (
+                      <>
+                        ⭐ {currentProduct.stars} / 5
+                        {currentProduct.ratings_count && (
+                          <span className="text-[#93a0b5] font-normal text-[10px] block mt-0.5">
+                            ({currentProduct.ratings_count} avaliações)
+                          </span>
+                        )}
+                      </>
+                    ) : 'Sem avaliação'}
                   </span>
                 </div>
               </div>
@@ -465,11 +474,43 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </div>
               </div>
 
+              {/* Technical Specifications / Attributes */}
+              {currentProduct.attributes && (
+                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2">
+                  <span className="text-[11px] font-bold text-white block flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5 text-blue-400" /> Características do Produto
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                    {Array.isArray(currentProduct.attributes) ? (
+                      currentProduct.attributes.map((attr: any, idx: number) => {
+                        const name = typeof attr === 'object' ? (attr.name || attr.key || '') : '';
+                        const val = typeof attr === 'object' ? (attr.value || attr.val || '') : String(attr);
+                        return (
+                          <div key={idx} className="bg-[#0e1119] p-2 rounded-lg border border-[#1e2636]/60">
+                            {name ? <span className="text-[#93a0b5] text-[10px] block">{name}</span> : null}
+                            <span className="font-semibold text-[#eef2f9] text-[11px]">{val}</span>
+                          </div>
+                        );
+                      })
+                    ) : typeof currentProduct.attributes === 'object' ? (
+                      Object.entries(currentProduct.attributes).map(([k, v], idx) => (
+                        <div key={idx} className="bg-[#0e1119] p-2 rounded-lg border border-[#1e2636]/60">
+                          <span className="text-[#93a0b5] text-[10px] block">{k}</span>
+                          <span className="font-semibold text-[#eef2f9] text-[11px]">{String(v)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-[#93a0b5]">{String(currentProduct.attributes)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Description preview */}
               {currentProduct.description && (
                 <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-white block">Descrição do Produto</span>
-                  <p className="text-xs text-[#93a0b5] leading-relaxed line-clamp-3">
+                  <span className="text-[11px] font-bold text-white block">Descrição Completa</span>
+                  <p className="text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                     {currentProduct.description}
                   </p>
                 </div>
