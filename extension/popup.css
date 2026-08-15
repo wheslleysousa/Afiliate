@@ -318,6 +318,8 @@ body {
 .price-old { font-size: 10px; color: var(--am-muted-2); text-decoration: line-through; }
 .price-discount { font-size: 9px; font-weight: 900; color: var(--am-black); background: var(--am-yellow); padding: 1px 5px; border-radius: 5px; }
 .product-sub-info { display: flex; align-items: center; gap: 8px; font-size: 9.5px; color: var(--am-muted); }
+.product-installments { font-size: 10px; color: var(--am-muted); line-height: 1.2; margin-top: 1px; }
+.product-installments.interest-free { color: var(--am-green); font-weight: 700; }
 .badge-ship { color: var(--am-green); font-weight: 800; }
 .btn-delete-card {
   width: 28px; height: 28px; border-radius: 8px; cursor: pointer; flex-shrink: 0;

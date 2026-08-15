@@ -370,38 +370,30 @@ function injectOverlayCSS() {
     }
 
     .am-card-mine-btn {
-      width: calc(100% - 12px) !important;
+      display: block !important;
+      width: 100% !important;
       max-width: 100% !important;
-      margin: 8px auto 6px auto !important;
-      padding: 5px 10px !important;
+      box-sizing: border-box !important;
+      margin: 6px 0 10px 0 !important;
+      padding: 7px 10px !important;
       background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
       color: #ffffff !important;
       border: none !important;
       border-radius: 8px !important;
-      font-size: 11px !important;
+      font-size: 11.5px !important;
       font-weight: 800 !important;
       cursor: pointer !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 5px !important;
-      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.4) !important;
-      position: relative !important;
-      order: 999999 !important;
-      margin-top: auto !important;
-      z-index: 9999 !important;
+      text-align: center !important;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35) !important;
       transition: all 0.2s ease !important;
-      flex-shrink: 0 !important;
-      min-height: 28px !important;
-      height: 28px !important;
+      min-height: 34px !important;
       clear: both !important;
-      box-sizing: border-box !important;
-      line-height: 1 !important;
+      line-height: 1.2 !important;
     }
     .am-card-mine-btn:hover {
       transform: translateY(-1px) !important;
       background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
-      box-shadow: 0 5px 14px rgba(59, 130, 246, 0.5) !important;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.45) !important;
     }
     .am-card-mine-btn.mined-success {
       background: linear-gradient(135deg, #10b981, #059669) !important;
@@ -412,7 +404,7 @@ function injectOverlayCSS() {
       width: 100% !important;
       max-width: 100% !important;
       box-sizing: border-box !important;
-      margin: 14px 0 !important;
+      margin: 12px 0 16px 0 !important;
       clear: both !important;
       position: relative !important;
       padding: 13px 20px !important;
@@ -428,7 +420,8 @@ function injectOverlayCSS() {
       gap: 8px !important;
       box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
       transition: all 0.2s ease !important;
-      z-index: 999999 !important;
+      min-height: 44px !important;
+      z-index: 100 !important;
     }
     #btn-injected-mine-pdp:hover {
       transform: translateY(-2px) !important;
@@ -1268,12 +1261,24 @@ function updatePageHighlighting() {
     return;
   }
 
+  const onPdp = isProductPage();
   const rawElements = document.querySelectorAll(getProductCardSelectors().join(', '));
   const cardSet = new Set();
 
   rawElements.forEach((rawEl) => {
     const card = getProductCardContainer(rawEl);
     if (card) {
+      if (onPdp) {
+        // Exclude the main product container on PDP pages so we don't inject a second card button on the main PDP
+        if (
+          card.querySelector('h1#productTitle, .ui-pdp-title, [data-e2e="pdp-title"], .product-briefing, div[class*="page-product__detail" i]') ||
+          card.closest('.ui-pdp-container, .product-briefing, div[class*="page-product__detail" i], div[class*="goods-detail" i], div[class*="PdpContainer" i], div[class*="goods-info" i]') ||
+          card.id === 'btn-injected-mine-pdp' ||
+          card.contains(document.getElementById('btn-injected-mine-pdp'))
+        ) {
+          return;
+        }
+      }
       cardSet.add(card);
     }
   });
@@ -1405,9 +1410,13 @@ function injectPdpButton() {
 
   // Platform specific clean injection inside the document flow (avoids overlapping native bottom bar)
   if (platform === 'shopee') {
-    const shopeeBriefing = document.querySelector('.product-briefing, div[class*="product-briefing" i], div[class*="page-product__detail" i]');
-    if (shopeeBriefing) {
-      shopeeBriefing.appendChild(btn);
+    const shopeeActions = document.querySelector('div[class*="product-briefing" i] div[class*="flex" i] button, .product-briefing, div[class*="product-briefing" i], div[class*="page-product__detail" i]');
+    if (shopeeActions) {
+      if (shopeeActions.tagName === 'BUTTON' && shopeeActions.parentElement) {
+        shopeeActions.parentElement.parentNode.insertBefore(btn, shopeeActions.parentElement.nextSibling);
+        return;
+      }
+      shopeeActions.appendChild(btn);
       return;
     }
     const shopeePriceArea = document.querySelector('div[class*="ProductPrice" i], div.product-price, div[class*="price-box" i]');
@@ -1418,6 +1427,16 @@ function injectPdpButton() {
   }
 
   if (platform === 'tiktok' || platform === 'tiktokshop') {
+    const ttBuyButton = document.querySelector(
+      'button[data-e2e*="buy" i], div[data-e2e*="buy" i], button[class*="buy" i], ' +
+      'div[class*="BuyButton" i], div[class*="buy-button" i], div[data-e2e*="cart" i], ' +
+      'div[class*="ButtonContainer" i], div[class*="button-wrapper" i]'
+    );
+    if (ttBuyButton && ttBuyButton.parentNode) {
+      ttBuyButton.parentNode.insertBefore(btn, ttBuyButton.nextSibling);
+      return;
+    }
+
     const ttProductInfo = document.querySelector('div[class*="ProductInfo" i], div[class*="goods-info" i], div[class*="goods-detail" i], div[class*="pdp-container" i]');
     if (ttProductInfo) {
       ttProductInfo.appendChild(btn);
@@ -1594,11 +1613,34 @@ function extractAndesPrice(container) {
   return parseRawPriceString(container.textContent || '');
 }
 
-function isLikelyAvatar(url) {
+function isLikelyAvatar(url, imgEl = null) {
   if (!url || typeof url !== 'string') return true;
   const lower = url.toLowerCase();
-  if (lower.includes('avatar') || lower.includes('user-avatar') || lower.includes('aweme-avatar') || lower.includes('profile')) return true;
-  if (lower.includes('p16') && (lower.includes('shrink') || lower.includes('obj') || lower.includes('100x100') || lower.includes('80x80'))) return true;
+  if (
+    lower.includes('avatar') ||
+    lower.includes('user-avatar') ||
+    lower.includes('aweme-avatar') ||
+    lower.includes('profile') ||
+    lower.includes('author') ||
+    lower.includes('user/avatar') ||
+    lower.includes('/tos-maliva-avt/') ||
+    lower.includes('/tos-alisg-avt/') ||
+    lower.includes('/tos-useast2a-avt/') ||
+    lower.includes('musically-avatar')
+  ) {
+    return true;
+  }
+  if (lower.includes('1x1') || lower.includes('pixel') || lower.includes('badge') || lower.includes('logo') || lower.includes('favicon')) {
+    return true;
+  }
+  if (lower.includes('p16') && (lower.includes('shrink') || lower.includes('100x100') || lower.includes('80x80') || lower.includes('50x50') || lower.includes('avatar') || lower.includes('obj'))) {
+    return true;
+  }
+  if (imgEl && imgEl.nodeType === 1) {
+    if (imgEl.closest('header, nav, footer, [class*="review" i], [class*="comment" i], [class*="user" i], [class*="author" i], [class*="profile" i], [data-e2e*="user" i]')) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -1798,68 +1840,124 @@ async function extractRealProductData(element) {
 
       // Platform-specific listing card pre-parsing
       if (platform === 'shopee') {
-        const shopeeTitle = element.querySelector('.shopee-search-item-result__name, div[data-sqe="name"], div[class*="product-name"], div[class*="name" i], [class*="title" i], span[class*="name" i]');
-        if (shopeeTitle) title = shopeeTitle.textContent.trim();
-        
-        // Shopee Old Price / Original Strikethrough Price
-        const shopeeOldPriceEl = element.querySelector(
-          'div[class*="price-before-discount" i], .shopee-item-card__original-price, del, s, ' +
-          '[class*="original-price" i], [class*="before-discount" i], [class*="old-price" i], ' +
-          'div[class*="line-through" i], span[class*="line-through" i], div[class*="strike" i], ' +
-          'div._0Zddfv, div._21p0yE, div._2v0Hgx, span[class*="original" i], [class*="strikethrough" i]'
-        );
-        if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
-
-        // Shopee Current Sale Price
-        const shopeePriceEls = element.querySelectorAll(
-          'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], ' +
-          'div[class*="ProductPrice" i], [class*="price" i] span, [class*="price" i], [data-sqe="price"]'
-        );
-        for (const el of shopeePriceEls) {
-          if (isInstallmentOrBadgeElement(el)) continue;
-          if (el.closest('del, s, [class*="before-discount" i], [class*="original-price" i], [class*="line-through" i]')) continue;
-          const p = extractAndesPrice(el);
-          if (p > 0) { pixPrice = p; break; }
-        }
-
-        // Shopee discount badge check
-        const shopeeDiscountEl = element.querySelector('div[class*="discount" i], span[class*="percent" i], div[class*="badge" i], [class*="pct" i]');
-        if (shopeeDiscountEl) {
-          const dm = shopeeDiscountEl.textContent.match(/(\d{1,2})%/);
-          if (dm) discountPercent = parseInt(dm[1], 10);
-        }
-
-        // Multiple price scanner on card
-        const cardPrices = extractAllPricesFromText(cardText);
-        if (cardPrices.length >= 2) {
-          if (!pixPrice || pixPrice === 0) pixPrice = Math.min(...cardPrices);
-          if (!oldPrice || oldPrice === 0) oldPrice = Math.max(...cardPrices);
-        }
-
-        // If discount badge exists but old price wasn't caught, compute original price
-        if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
-          oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
-        }
-
-        const shopeeSalesEl = element.querySelector('div[class*="sold" i], div[class*="vendas" i], div[class*="sold-count" i], [class*="sold" i]');
-        if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
-        if (!sales) sales = parseSalesCount(cardText);
-
-        const shopeeRatingEl = element.querySelector('.shopee-rating-stars, [class*="rating" i], [class*="star" i]');
-        if (shopeeRatingEl) {
-          const rm = shopeeRatingEl.textContent.match(/(\d[\.,]\d)/);
-          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
-        }
-        if (!rating || rating === 0) {
-          const rm = cardText.match(/(\d[\.,]\d)\s*(?:★|estrelas|\/5|de 5)/i);
-          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
-        }
-
-        const shopeeImg = element.querySelector('img[src*="shopee"], img[src*="susercontent"], img');
-        if (shopeeImg) image = shopeeImg.src || shopeeImg.dataset.src || shopeeImg.getAttribute('srcset')?.split(' ')[0] || '';
-
         const shopeeLink = element.tagName === 'A' ? element : element.querySelector('a[href]');
         if (shopeeLink) link = shopeeLink.href;
+
+        // Try API extraction for Shopee Card if itemId & shopId are available in the link
+        let cardApiSuccess = false;
+        const shopeeMatch = (link || '').match(/-i\.(\d+)\.(\d+)/) || (link || '').match(/i\.(\d+)\.(\d+)/) || (link || '').match(/shopid=(\d+)&itemid=(\d+)/);
+        if (shopeeMatch) {
+          try {
+            const shopId = shopeeMatch[1];
+            const itemId = shopeeMatch[2];
+            const apiRes = await fetch(`/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`, {
+              credentials: 'include',
+              headers: {
+                'x-api-source': 'pc',
+                'x-shopee-language': 'pt-BR'
+              }
+            });
+            if (apiRes.ok) {
+              const apiJson = await apiRes.json();
+              const item = apiJson.data || apiJson.item;
+              if (item) {
+                title = item.title || item.name || '';
+                description = item.description || '';
+                
+                const rawPrice = item.price || item.price_min || item.price_max;
+                if (rawPrice) pixPrice = rawPrice / 100000;
+                
+                if (item.price_before_discount > 0) {
+                  oldPrice = item.price_before_discount / 100000;
+                }
+                
+                discountPercent = item.raw_discount || 0;
+                sales = item.historical_sold || item.sold || item.global_sold_count || 0;
+                rating = item.item_rating?.rating_star || 0;
+                ratings_count = item.item_rating?.rating_count ? (item.item_rating.rating_count[0] || 0) : 0;
+                
+                if (Array.isArray(item.attributes)) {
+                  attributes = item.attributes.map(attr => ({
+                    name: attr.name || attr.key || '',
+                    value: attr.value || attr.val || ''
+                  }));
+                }
+                
+                if (Array.isArray(item.images)) {
+                  pictures = item.images.map(hash => `https://down-br.img.susercontent.com/file/${hash}`);
+                  if (pictures.length > 0) {
+                    image = pictures[0];
+                  }
+                }
+                cardApiSuccess = true;
+              }
+            }
+          } catch (e) {
+            console.warn('Shopee card API fetch failed, using DOM parsing', e);
+          }
+        }
+
+        if (!cardApiSuccess) {
+          const shopeeTitle = element.querySelector('.shopee-search-item-result__name, div[data-sqe="name"], div[class*="product-name"], div[class*="name" i], [class*="title" i], span[class*="name" i]');
+          if (shopeeTitle) title = shopeeTitle.textContent.trim();
+          
+          // Shopee Old Price / Original Strikethrough Price
+          const shopeeOldPriceEl = element.querySelector(
+            'div[class*="price-before-discount" i], .shopee-item-card__original-price, del, s, ' +
+            '[class*="original-price" i], [class*="before-discount" i], [class*="old-price" i], ' +
+            'div[class*="line-through" i], span[class*="line-through" i], div[class*="strike" i], ' +
+            'div._0Zddfv, div._21p0yE, div._2v0Hgx, span[class*="original" i], [class*="strikethrough" i]'
+          );
+          if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
+
+          // Shopee Current Sale Price
+          const shopeePriceEls = element.querySelectorAll(
+            'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], ' +
+            'div[class*="ProductPrice" i], [class*="price" i] span, [class*="price" i], [data-sqe="price"]'
+          );
+          for (const el of shopeePriceEls) {
+            if (isInstallmentOrBadgeElement(el)) continue;
+            if (el.closest('del, s, [class*="before-discount" i], [class*="original-price" i], [class*="line-through" i]')) continue;
+            const p = extractAndesPrice(el);
+            if (p > 0) { pixPrice = p; break; }
+          }
+
+          // Shopee discount badge check
+          const shopeeDiscountEl = element.querySelector('div[class*="discount" i], span[class*="percent" i], div[class*="badge" i], [class*="pct" i]');
+          if (shopeeDiscountEl) {
+            const dm = shopeeDiscountEl.textContent.match(/(\d{1,2})%/);
+            if (dm) discountPercent = parseInt(dm[1], 10);
+          }
+
+          // Multiple price scanner on card
+          const cardPrices = extractAllPricesFromText(cardText);
+          if (cardPrices.length >= 2) {
+            if (!pixPrice || pixPrice === 0) pixPrice = Math.min(...cardPrices);
+            if (!oldPrice || oldPrice === 0) oldPrice = Math.max(...cardPrices);
+          }
+
+          // If discount badge exists but old price wasn't caught, compute original price
+          if (discountPercent > 0 && oldPrice === 0 && pixPrice > 0) {
+            oldPrice = Number((pixPrice / (1 - discountPercent / 100)).toFixed(2));
+          }
+
+          const shopeeSalesEl = element.querySelector('div[class*="sold" i], div[class*="vendas" i], div[class*="sold-count" i], [class*="sold" i]');
+          if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
+          if (!sales) sales = parseSalesCount(cardText);
+
+          const shopeeRatingEl = element.querySelector('.shopee-rating-stars, [class*="rating" i], [class*="star" i]');
+          if (shopeeRatingEl) {
+            const rm = shopeeRatingEl.textContent.match(/(\d[\.,]\d)/);
+            if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+          }
+          if (!rating || rating === 0) {
+            const rm = cardText.match(/(\d[\.,]\d)\s*(?:★|estrelas|\/5|de 5)/i);
+            if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+          }
+
+          const shopeeImg = element.querySelector('img[src*="shopee"], img[src*="susercontent"], img');
+          if (shopeeImg) image = shopeeImg.src || shopeeImg.dataset.src || shopeeImg.getAttribute('srcset')?.split(' ')[0] || '';
+        }
       } 
       else if (platform === 'amazon') {
         const amzTitle = element.querySelector('h2 a span, span.a-text-normal, [data-cy="title-recipe"] h2 span, h2 span, h3 span');
@@ -1876,6 +1974,9 @@ async function extractRealProductData(element) {
         
         const amzImg = element.querySelector('img.s-image, img');
         if (amzImg) image = amzImg.src || amzImg.dataset.src || '';
+
+        const amzLink = element.tagName === 'A' ? element : element.querySelector('a[href]');
+        if (amzLink) link = amzLink.href;
       }
       else if (platform === 'tiktok' || platform === 'tiktokshop') {
         const ttTitle = element.querySelector('div[class*="ProductTitle" i], p[class*="title" i], div[class*="product-title" i], [class*="title" i], span[class*="title" i]');
@@ -1922,8 +2023,14 @@ async function extractRealProductData(element) {
           rating = parseFloat(ttRatingMatch[1].replace(',', '.'));
         }
         
-        const ttImg = element.querySelector('img');
-        if (ttImg) image = ttImg.src || ttImg.dataset.src || '';
+        const ttImgs = element.querySelectorAll('img');
+        for (const imgNode of ttImgs) {
+          const src = imgNode.src || imgNode.dataset.src || '';
+          if (src && !isLikelyAvatar(src, imgNode)) {
+            image = src;
+            break;
+          }
+        }
 
         const ttLink = element.tagName === 'A' ? element : element.querySelector('a[href]');
         if (ttLink) link = ttLink.href;

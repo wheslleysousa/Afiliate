@@ -38,7 +38,7 @@ export const ExtensionTab: React.FC = () => {
     <div className="space-y-12 max-w-5xl mx-auto animate-fadeIn pb-20 text-[#eef2f9] font-sans">
 
       {/* ───────────────────────────────────────────────────────────────────────
-          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.0.9
+          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.1.0
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#0e1119] via-[#07090f] to-[#07090f] border border-[#1e2636] p-8 sm:p-12 shadow-2xl">
         {/* Subtle Background Glow Accent */}
@@ -50,7 +50,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>AFFILIATE MINER v1.0.9 • EXTENSÃO OFICIAL</span>
+              <span>AFFILIATE MINER v1.1.0 • EXTENSÃO OFICIAL</span>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -68,7 +68,7 @@ export const ExtensionTab: React.FC = () => {
 
           {/* Direct Sales Copy Subheadline */}
           <p className="text-sm sm:text-base text-[#93a0b5] leading-relaxed">
-            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.0.7</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
+            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.1.0</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
           </p>
 
           {/* Primary & Secondary Call to Action */}
@@ -78,7 +78,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30 hover:scale-[1.01] active:scale-[0.99] transition-all group cursor-pointer"
             >
               <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-              <span>Baixar Extensão Grátis (.zip) — v1.0.9</span>
+              <span>Baixar Extensão Grátis (.zip) — v1.1.0</span>
             </button>
 
             <a
@@ -118,7 +118,7 @@ export const ExtensionTab: React.FC = () => {
             Tecnologia de Alta Performance
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            O que torna o Affiliate Miner v1.0.9 imbatível?
+            O que torna o Affiliate Miner v1.1.0 imbatível?
           </h2>
           <p className="text-xs sm:text-sm text-[#93a0b5]">
             Projetado para eliminar gargalos operacionais e maximizar a taxa de conversão dos seus links.
@@ -501,7 +501,7 @@ export const ExtensionTab: React.FC = () => {
             <div className="text-[11px] text-[#93a0b5] mt-1 font-medium">Amazon, ML, Shopee, Ali, Shein</div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-400">v1.0.9</div>
+            <div className="text-2xl sm:text-3xl font-black text-amber-400">v1.1.0</div>
             <div className="text-[11px] text-[#93a0b5] mt-1 font-medium">Versão Mais Recente e Estável</div>
           </div>
         </div>
@@ -522,7 +522,7 @@ export const ExtensionTab: React.FC = () => {
               Pronto para Começar a Minerar?
             </h2>
             <p className="text-xs sm:text-sm text-[#93a0b5]">
-              Faça o download do pacote descompactado da extensão <strong>v1.0.9</strong> e instale em menos de 1 minuto no seu navegador.
+              Faça o download do pacote descompactado da extensão <strong>v1.1.0</strong> e instale em menos de 1 minuto no seu navegador.
             </p>
           </div>
 
@@ -532,7 +532,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-10 py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base flex items-center justify-center gap-3 shadow-2xl shadow-emerald-600/35 hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               <Download className="w-6 h-6" />
-              <span>Baixar Extensão (.zip) — v1.0.9</span>
+              <span>Baixar Extensão (.zip) — v1.1.0</span>
             </button>
           </div>
         </div>
@@ -556,7 +556,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Faça o Download do .ZIP:</span>
               </div>
               <p className="text-[#93a0b5] pl-8">
-                Clique no botão verde <strong className="text-emerald-400">"Baixar Extensão (.zip)"</strong> para salvar o pacote v1.0.9 no seu computador.
+                Clique no botão verde <strong className="text-emerald-400">"Baixar Extensão (.zip)"</strong> para salvar o pacote v1.1.0 no seu computador.
               </p>
             </li>
 
@@ -596,7 +596,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Carregue sem Compactar:</span>
               </div>
               <p className="text-[#93a0b5] pl-8">
-                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v1.0.9 estará ativo.
+                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v1.1.0 estará ativo.
               </p>
             </li>
           </ol>
@@ -625,7 +625,7 @@ export const ExtensionTab: React.FC = () => {
               },
               {
                 q: "Preciso pagar algo para usar a extensão?",
-                a: "Não. A extensão Affiliate Miner v1.0.9 é 100% gratuita para todos os usuários da plataforma."
+                a: "Não. A extensão Affiliate Miner v1.1.0 é 100% gratuita para todos os usuários da plataforma."
               }
             ].map((item, idx) => (
               <div key={idx} className="bg-[#151a26] border border-[#1e2636] rounded-xl overflow-hidden">

@@ -221,22 +221,57 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pixPriceStr && pixVal > 0) {
         pixPriceStr = `R$ ${parseFloat(pixVal).toFixed(2).replace('.', ',')}`;
       }
-      if (!pixPriceStr) pixPriceStr = 'R$ --';
 
       let oldPriceStr = prod.price_from;
       if (!oldPriceStr && oldVal && oldVal > pixVal) {
         oldPriceStr = `R$ ${parseFloat(oldVal).toFixed(2).replace('.', ',')}`;
       }
+
+      // Se não há price_to mas temos price_from / oldPrice, exibir "Consulte no link" em vez de "R$ --" ou "R$ 0,00"
+      if (!pixPriceStr || pixPriceStr === 'R$ 0,00' || pixPriceStr === '0,00') {
+        if (oldPriceStr) {
+          pixPriceStr = 'Consulte no link';
+        } else {
+          pixPriceStr = 'R$ --';
+        }
+      }
+
       const discountStr = prod.discount_pct || prod.discountPercent
         ? `-${prod.discount_pct || prod.discountPercent}%`
         : '';
       const imgFallback = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' rx='9' fill='%23151a26'/><path d='M14 30l6-7 5 6 4-5 5 6' stroke='%232563eb' stroke-width='2' fill='none'/><circle cx='19' cy='18' r='2.5' fill='%23facc15'/></svg>";
       const imgSrc  = prod.image_url || prod.image || imgFallback;
-      const ratingV = prod.stars     || prod.rating  || '0.0';
+      
+      const ratingRaw = prod.stars || prod.rating;
+      const ratingNum = parseFloat(ratingRaw) || 0;
+      const showRating = ratingNum > 0;
+      const ratingV = ratingNum.toFixed(1);
+
+      const ratingsCount = prod.ratings_count || prod.review_count || prod.reviews_count;
       const salesV  = prod.sales_count
         ? prod.sales_count
         : (prod.sales ? prod.sales : 0);
-      const freeShip= prod.free_shipping || prod.freeShipping;
+      const freeShip = prod.free_shipping || prod.freeShipping;
+
+      let ratingAndSalesHtml = '';
+      if (showRating && ratingsCount) {
+        ratingAndSalesHtml += `<span>★ ${ratingV} (${ratingsCount} avaliações)</span>`;
+      } else if (showRating) {
+        ratingAndSalesHtml += `<span>★ ${ratingV}</span>`;
+        if (salesV) ratingAndSalesHtml += `<span>(${salesV} vend.)</span>`;
+      } else if (salesV) {
+        ratingAndSalesHtml += `<span>(${salesV} vend.)</span>`;
+      }
+      if (freeShip) {
+        ratingAndSalesHtml += `<span class="badge-ship">Frete Grátis</span>`;
+      }
+
+      // Linha de parcelamento
+      const installmentsText = prod.installments || '';
+      const isInterestFree = prod.installments_interest_free || /sem\s*juros/i.test(installmentsText);
+      const installmentsHtml = installmentsText
+        ? `<div class="product-installments ${isInterestFree ? 'interest-free' : ''}">${installmentsText}</div>`
+        : '';
 
       card.innerHTML = `
         <img class="product-thumb" src="${imgSrc}" alt="${prod.title || 'Produto'}" onerror="this.onerror=null;this.src='${imgFallback}'" />
@@ -247,11 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ${oldPriceStr ? `<span class="price-old">${oldPriceStr}</span>` : ''}
             ${discountStr ? `<span class="price-discount">${discountStr}</span>` : ''}
           </div>
-          <div class="product-sub-info">
-            <span>★ ${ratingV}</span>
-            <span>(${salesV} vend.)</span>
-            ${freeShip ? '<span class="badge-ship">Frete Grátis</span>' : ''}
-          </div>
+          ${installmentsHtml}
+          ${ratingAndSalesHtml ? `<div class="product-sub-info">${ratingAndSalesHtml}</div>` : ''}
         </div>
         <button class="btn-delete-card" title="Excluir produto">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
