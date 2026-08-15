@@ -357,15 +357,25 @@ function injectOverlayCSS() {
       cursor: pointer !important; display: flex !important; align-items: center !important; gap: 6px !important;
     }
 
+    .am-card-wrap {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      position: relative !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
     .am-highlight-border {
-      outline: 2px solid #2563eb !important;
+      outline: 2.5px solid #2563eb !important;
       outline-offset: -2px !important;
       border-radius: 8px !important;
       transition: outline 0.2s ease !important;
       box-sizing: border-box !important;
     }
     .am-highlight-border:hover {
-      outline: 3px solid #3b82f6 !important;
+      outline: 3.5px solid #3b82f6 !important;
       outline-offset: -2px !important;
     }
 
@@ -375,12 +385,13 @@ function injectOverlayCSS() {
       max-width: 100% !important;
       box-sizing: border-box !important;
       margin: 6px 0 10px 0 !important;
-      padding: 7px 10px !important;
+      padding: 8px 12px !important;
       background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
       color: #ffffff !important;
       border: none !important;
       border-radius: 8px !important;
-      font-size: 11.5px !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 12px !important;
       font-weight: 800 !important;
       cursor: pointer !important;
       text-align: center !important;
@@ -388,15 +399,20 @@ function injectOverlayCSS() {
       transition: all 0.2s ease !important;
       min-height: 34px !important;
       clear: both !important;
-      line-height: 1.2 !important;
+      position: relative !important;
+      z-index: 10 !important;
     }
     .am-card-mine-btn:hover {
-      transform: translateY(-1px) !important;
       background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.45) !important;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.5) !important;
+      transform: translateY(-1px) !important;
+    }
+    .am-card-mine-btn:active {
+      transform: translateY(0) scale(0.98) !important;
     }
     .am-card-mine-btn.mined-success {
       background: linear-gradient(135deg, #10b981, #059669) !important;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4) !important;
     }
 
     #btn-injected-mine-pdp {
@@ -1251,12 +1267,73 @@ function getProductCardContainer(el) {
 /* ═══════════════════════════════════════
    5. HIGHLIGHTING & INJECTED CARD BUTTONS
    ═══════════════════════════════════════ */
+function findTikTokStructuralCards() {
+  const cards = [];
+  const candidates = document.querySelectorAll('div, li, article');
+  candidates.forEach(el => {
+    // Exclude headers, navbars, floating overlay, modal, PDP main containers
+    if (el.closest('header, nav, #header, .header, [data-e2e*="header" i], [data-e2e*="nav" i], [class*="Header" i], [class*="NavBar" i], #am-floating-trigger, #am-overlay, .am-filter-modal-backdrop, #btn-injected-mine-pdp, .am-card-wrap')) return;
+
+    // Check for product image (not avatar)
+    const imgs = el.querySelectorAll('img');
+    if (imgs.length === 0 || imgs.length > 5) return;
+    let hasProductImg = false;
+    for (const img of imgs) {
+      if (!isLikelyAvatar(img.src || img.dataset.src || '', img)) {
+        hasProductImg = true;
+        break;
+      }
+    }
+    if (!hasProductImg) return;
+
+    const txt = (el.textContent || '').trim();
+    // Must contain BRL price
+    if (!/R\$\s*[\d.,]+/i.test(txt)) return;
+
+    // Must contain sales, rating or discount indicator
+    if (!/vend|sold|comprad|★|\/5|de 5|off|%|economize/i.test(txt)) return;
+
+    if (txt.length > 600) return;
+
+    // Verify it doesn't contain multiple product prices (multiple products in grid)
+    const prices = extractAllPricesFromText(txt);
+    if (prices.length > 4) return;
+
+    // Check if any child already has the structural indicators (to ensure minimal container)
+    let isMinimal = true;
+    for (const child of el.children) {
+      if (/R\$\s*[\d.,]+/i.test(child.textContent || '') && child.querySelector('img')) {
+        isMinimal = false;
+        break;
+      }
+    }
+
+    if (isMinimal) {
+      cards.push(el);
+    }
+  });
+  return cards;
+}
+
 function updatePageHighlighting() {
   if (!extActive) {
     document.querySelectorAll('.am-highlight-border').forEach((card) => {
       card.classList.remove('am-highlight-border');
-      const b = card.querySelector('.am-card-mine-btn');
-      if (b) b.remove();
+      delete card.dataset.amMined;
+      if (card.nextElementSibling && card.nextElementSibling.classList.contains('am-card-mine-btn')) {
+        card.nextElementSibling.remove();
+      }
+    });
+    document.querySelectorAll('.am-card-mine-btn').forEach((btn) => btn.remove());
+    // Also remove any leftover wrappers if existed previously
+    document.querySelectorAll('.am-card-wrap').forEach((wrap) => {
+      const card = wrap.querySelector('.am-highlight-border') || wrap.firstElementChild;
+      if (card && wrap.parentNode) {
+        card.classList.remove('am-highlight-border');
+        delete card.dataset.amMined;
+        wrap.parentNode.insertBefore(card, wrap);
+        wrap.remove();
+      }
     });
     return;
   }
@@ -1269,10 +1346,10 @@ function updatePageHighlighting() {
     const card = getProductCardContainer(rawEl);
     if (card) {
       if (onPdp) {
-        // Exclude the main product container on PDP pages so we don't inject a second card button on the main PDP
+        // Exclude the main product container on PDP pages so we don't inject a card button on the main PDP
         if (
           card.querySelector('h1#productTitle, .ui-pdp-title, [data-e2e="pdp-title"], .product-briefing, div[class*="page-product__detail" i]') ||
-          card.closest('.ui-pdp-container, .product-briefing, div[class*="page-product__detail" i], div[class*="goods-detail" i], div[class*="PdpContainer" i], div[class*="goods-info" i]') ||
+          card.closest('.ui-pdp-container, .product-briefing, div[class*="page-product__detail" i], div[class*="goods-detail" i], div[class*="PdpContainer" i], div[class*="goods-info" i], div[class*="product-info" i]') ||
           card.id === 'btn-injected-mine-pdp' ||
           card.contains(document.getElementById('btn-injected-mine-pdp'))
         ) {
@@ -1283,6 +1360,16 @@ function updatePageHighlighting() {
     }
   });
 
+  // Structural scan for TikTok cards
+  const platform = getPlatformKey();
+  if (platform === 'tiktok' || platform === 'tiktokshop') {
+    findTikTokStructuralCards().forEach(card => {
+      if (!onPdp || !card.closest('.ui-pdp-container, .product-briefing, div[class*="page-product__detail" i], div[class*="goods-detail" i], div[class*="goods-info" i]')) {
+        cardSet.add(card);
+      }
+    });
+  }
+
   cardSet.forEach((card) => {
     // Evitar destacar containers internos se um pai já estiver destacado
     if (card.parentElement && card.parentElement.closest('.am-highlight-border')) {
@@ -1291,28 +1378,35 @@ function updatePageHighlighting() {
 
     card.classList.add('am-highlight-border');
 
-    if (!card.querySelector('.am-card-mine-btn')) {
-      const btn = document.createElement('button');
-      btn.className = 'am-card-mine-btn';
-      btn.setAttribute('type', 'button');
-      btn.innerHTML = `⚡ Minerar`;
-      btn.onclick = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const success = await mineCardProduct(card, true);
-        if (success !== false) {
-          btn.innerHTML = `✅ Minerado!`;
-          btn.classList.add('mined-success');
-          setTimeout(() => {
-            btn.innerHTML = `⚡ Minerar`;
-            btn.classList.remove('mined-success');
-          }, 2500);
-        }
-      };
-      
-      // Append button at the very end of the card
-      card.appendChild(btn);
+    // Dedupe por dataset.amMined e checagem do botão irmão
+    const hasNextBtn = card.nextElementSibling && card.nextElementSibling.classList.contains('am-card-mine-btn');
+    if (card.dataset.amMined === '1' && hasNextBtn) {
+      return;
     }
+
+    // Se o botão não existir ou foi removido por re-render do DOM, cria e insere logo após o card
+    card.dataset.amMined = '1';
+
+    const btn = document.createElement('button');
+    btn.className = 'am-card-mine-btn';
+    btn.setAttribute('type', 'button');
+    btn.innerHTML = `⚡ Minerar`;
+    btn.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const success = await mineCardProduct(card, true);
+      if (success !== false) {
+        btn.innerHTML = `✅ Minerado!`;
+        btn.classList.add('mined-success');
+        setTimeout(() => {
+          btn.innerHTML = `⚡ Minerar`;
+          btn.classList.remove('mined-success');
+        }, 2500);
+      }
+    };
+
+    // Inserir como irmão logo depois do card (fora do overflow:hidden e fora de <a>)
+    card.insertAdjacentElement('afterend', btn);
   });
 }
 
@@ -1408,33 +1502,48 @@ function injectPdpButton() {
 
   const platform = getPlatformKey();
 
-  // Platform specific clean injection inside the document flow (avoids overlapping native bottom bar)
+  // 1. Shopee PDP Anchor
   if (platform === 'shopee') {
-    const shopeeActions = document.querySelector('div[class*="product-briefing" i] div[class*="flex" i] button, .product-briefing, div[class*="product-briefing" i], div[class*="page-product__detail" i]');
-    if (shopeeActions) {
-      if (shopeeActions.tagName === 'BUTTON' && shopeeActions.parentElement) {
-        shopeeActions.parentElement.parentNode.insertBefore(btn, shopeeActions.parentElement.nextSibling);
-        return;
-      }
-      shopeeActions.appendChild(btn);
+    const shopeeGroup = document.querySelector(
+      'div.high-end-button-group, div.high-button-section, ' +
+      'div[class*="high-end-button" i], div[class*="high-button" i], ' +
+      'div.product-briefing div.flex:has(button), div.product-briefing div.btn-tinted'
+    );
+    if (shopeeGroup) {
+      shopeeGroup.insertAdjacentElement('afterend', btn);
       return;
     }
-    const shopeePriceArea = document.querySelector('div[class*="ProductPrice" i], div.product-price, div[class*="price-box" i]');
-    if (shopeePriceArea && shopeePriceArea.parentNode) {
-      shopeePriceArea.parentNode.insertBefore(btn, shopeePriceArea.nextSibling);
+    const shopeeBuyBtn = document.querySelector('button.btn-solid-primary, button[class*="btn-solid-primary" i], div.product-briefing button');
+    if (shopeeBuyBtn && shopeeBuyBtn.parentElement) {
+      shopeeBuyBtn.parentElement.insertAdjacentElement('afterend', btn);
+      return;
+    }
+    const shopeeBriefing = document.querySelector('.product-briefing, div[class*="product-briefing" i], div[class*="page-product__detail" i]');
+    if (shopeeBriefing) {
+      shopeeBriefing.appendChild(btn);
       return;
     }
   }
 
+  // 2. TikTok Shop PDP Anchor
   if (platform === 'tiktok' || platform === 'tiktokshop') {
-    const ttBuyButton = document.querySelector(
+    const allButtons = Array.from(document.querySelectorAll('button, div[role="button"], a[role="button"]'));
+    const ttBuyButton = allButtons.find(b => {
+      const txt = (b.textContent || '').trim().toLowerCase();
+      return (txt === 'comprar agora' || txt.includes('comprar agora') || txt === 'buy now' || txt.includes('buy now') || txt === 'comprar' || txt.includes('adicionar ao carrinho')) &&
+             !b.closest('#am-floating-trigger, #am-overlay, .am-card-wrap, #am-pdp-float-bar, .am-card-mine-btn');
+    }) || document.querySelector(
       'button[data-e2e*="buy" i], div[data-e2e*="buy" i], button[class*="buy" i], ' +
       'div[class*="BuyButton" i], div[class*="buy-button" i], div[data-e2e*="cart" i], ' +
       'div[class*="ButtonContainer" i], div[class*="button-wrapper" i]'
     );
-    if (ttBuyButton && ttBuyButton.parentNode) {
-      ttBuyButton.parentNode.insertBefore(btn, ttBuyButton.nextSibling);
-      return;
+
+    if (ttBuyButton) {
+      const ttContainer = ttBuyButton.closest('div.flex.flex-col.gap-12, div.flex.flex-col, div[class*="button-group" i], div[class*="ButtonContainer" i]') || ttBuyButton.parentElement;
+      if (ttContainer) {
+        ttContainer.insertAdjacentElement('afterend', btn);
+        return;
+      }
     }
 
     const ttProductInfo = document.querySelector('div[class*="ProductInfo" i], div[class*="goods-info" i], div[class*="goods-detail" i], div[class*="pdp-container" i]');
@@ -1442,14 +1551,28 @@ function injectPdpButton() {
       ttProductInfo.appendChild(btn);
       return;
     }
-    const ttPriceArea = document.querySelector('div[class*="Price" i], div[data-e2e="pdp-price"], div[class*="sku-container" i]');
-    if (ttPriceArea && ttPriceArea.parentNode) {
-      ttPriceArea.parentNode.insertBefore(btn, ttPriceArea.nextSibling);
+  }
+
+  // 3. Mercado Livre PDP Anchor
+  if (platform === 'mercadolivre') {
+    const mlActionsContainer = document.querySelector('div.ui-pdp-actions__container, div.ui-pdp-actions, form.ui-pdp-buybox__form, .ui-pdp-actions__button--buy');
+    if (mlActionsContainer) {
+      const targetWrap = mlActionsContainer.closest('div.ui-pdp-actions') || mlActionsContainer;
+      targetWrap.insertAdjacentElement('afterend', btn);
       return;
     }
   }
 
-  // General marketplace targets
+  // 4. Amazon PDP Anchor
+  if (platform === 'amazon') {
+    const amzContainer = document.querySelector('#buyNow_feature_div, #addToCart_feature_div, #buy-now-button, #buybox, #desktop_buybox');
+    if (amzContainer) {
+      amzContainer.insertAdjacentElement('afterend', btn);
+      return;
+    }
+  }
+
+  // 5. Fallback General PDP Anchors
   const optionBoxTarget = document.querySelector(
     'div[class*="Option" i], div[class*="Select" i], div[class*="Sku" i], ' +
     'div[class*="variant" i], div[class*="variation" i], .shopee-selector, ' +
@@ -1463,9 +1586,9 @@ function injectPdpButton() {
   );
 
   if (optionBoxTarget && optionBoxTarget.parentNode) {
-    optionBoxTarget.parentNode.insertBefore(btn, optionBoxTarget.nextSibling);
+    optionBoxTarget.insertAdjacentElement('afterend', btn);
   } else if (buyNowTarget && buyNowTarget.parentNode) {
-    buyNowTarget.parentNode.insertBefore(btn, buyNowTarget);
+    buyNowTarget.insertAdjacentElement('afterend', btn);
   } else {
     // Fixed floating fallback container for PDP positioned SAFELY ABOVE bottom bars
     let floatBar = document.getElementById('am-pdp-float-bar');
@@ -1622,22 +1745,31 @@ function isLikelyAvatar(url, imgEl = null) {
     lower.includes('aweme-avatar') ||
     lower.includes('profile') ||
     lower.includes('author') ||
+    lower.includes('seller') ||
     lower.includes('user/avatar') ||
-    lower.includes('/tos-maliva-avt/') ||
-    lower.includes('/tos-alisg-avt/') ||
-    lower.includes('/tos-useast2a-avt/') ||
-    lower.includes('musically-avatar')
+    lower.includes('/tos-maliva-avt') ||
+    lower.includes('/tos-alisg-avt') ||
+    lower.includes('/tos-useast2a-avt') ||
+    lower.includes('musically-avatar') ||
+    lower.includes('avt-') ||
+    lower.includes('-avt-') ||
+    lower.includes('/avt/')
   ) {
     return true;
   }
-  if (lower.includes('1x1') || lower.includes('pixel') || lower.includes('badge') || lower.includes('logo') || lower.includes('favicon')) {
+  if (lower.includes('1x1') || lower.includes('pixel') || lower.includes('badge') || lower.includes('logo') || lower.includes('favicon') || lower.includes('icon')) {
     return true;
   }
-  if (lower.includes('p16') && (lower.includes('shrink') || lower.includes('100x100') || lower.includes('80x80') || lower.includes('50x50') || lower.includes('avatar') || lower.includes('obj'))) {
+  if (lower.includes('p16') && (lower.includes('shrink') || lower.includes('100x100') || lower.includes('80x80') || lower.includes('50x50') || lower.includes('avatar') || lower.includes('obj/tos-maliva-avt') || lower.includes('obj/tos-alisg-avt'))) {
     return true;
   }
   if (imgEl && imgEl.nodeType === 1) {
-    if (imgEl.closest('header, nav, footer, [class*="review" i], [class*="comment" i], [class*="user" i], [class*="author" i], [class*="profile" i], [data-e2e*="user" i]')) {
+    if (imgEl.closest('header, nav, footer, [class*="review" i], [class*="comment" i], [class*="user" i], [class*="author" i], [class*="seller" i], [class*="profile" i], [data-e2e*="user" i], [class*="avatar" i]')) {
+      return true;
+    }
+    const w = imgEl.naturalWidth || imgEl.width || (imgEl.getBoundingClientRect ? imgEl.getBoundingClientRect().width : 0);
+    const h = imgEl.naturalHeight || imgEl.height || (imgEl.getBoundingClientRect ? imgEl.getBoundingClientRect().height : 0);
+    if ((w > 0 && w <= 80) || (h > 0 && h <= 80)) {
       return true;
     }
   }
@@ -1665,6 +1797,19 @@ function extractTikTokDataFromScripts() {
     return null;
   }
 
+  function parseNumericPrice(val) {
+    if (!val) return 0;
+    if (typeof val === 'number') {
+      if (val > 100000) return val / 100000;
+      if (val > 10000 && Number.isInteger(val)) return val / 100;
+      return val;
+    }
+    if (typeof val === 'string') {
+      return parseRawPriceString(val);
+    }
+    return 0;
+  }
+
   // 1. __UNIVERSAL_DATA_FOR_REHYDRATION__
   const rehydrationEl = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
   if (rehydrationEl) {
@@ -1683,12 +1828,12 @@ function extractTikTokDataFromScripts() {
           });
         }
 
-        const priceInfo = productInfo.price || findDeepValue(productInfo, 'price') || findDeepValue(priceInfo, 'price_info');
+        const priceInfo = productInfo.price || findDeepValue(productInfo, 'price') || findDeepValue(data, 'price_info');
         if (priceInfo) {
-          const rawPrice = priceInfo.sale_price || priceInfo.price_to || priceInfo.real_price || priceInfo.price || priceInfo.min_price;
-          const rawOldPrice = priceInfo.original_price || priceInfo.price_from || priceInfo.price_before_discount;
-          if (rawPrice) pixPrice = parseFloat(rawPrice) || pixPrice;
-          if (rawOldPrice) oldPrice = parseFloat(rawOldPrice) || oldPrice;
+          const rawPrice = priceInfo.sale_price || priceInfo.price_to || priceInfo.real_price || priceInfo.price || priceInfo.min_price || priceInfo.formatted_price;
+          const rawOldPrice = priceInfo.original_price || priceInfo.price_from || priceInfo.price_before_discount || priceInfo.strike_price;
+          if (rawPrice) pixPrice = parseNumericPrice(rawPrice) || pixPrice;
+          if (rawOldPrice) oldPrice = parseNumericPrice(rawOldPrice) || oldPrice;
         }
 
         const s = productInfo.sold_count || productInfo.sales || findDeepValue(productInfo, 'sold_count') || findDeepValue(productInfo, 'soldCount');
@@ -1732,7 +1877,7 @@ function extractTikTokDataFromScripts() {
         }
         if (!pixPrice) {
           const rawPrice = findDeepValue(productInfo, 'price') || findDeepValue(productInfo, 'salePrice');
-          if (rawPrice) pixPrice = parseFloat(rawPrice) || 0;
+          if (rawPrice) pixPrice = parseNumericPrice(rawPrice) || 0;
         }
       }
     } catch (_) {}
@@ -1760,7 +1905,7 @@ function extractTikTokDataFromScripts() {
         }
         if (!pixPrice) {
           const rawPrice = productInfo.price?.sale_price || productInfo.price?.price_to || findDeepValue(productInfo, 'price') || findDeepValue(productInfo, 'salePrice');
-          if (rawPrice) pixPrice = parseFloat(rawPrice) || 0;
+          if (rawPrice) pixPrice = parseNumericPrice(rawPrice) || 0;
         }
         if (!sales) {
           const s = productInfo.sold_count || findDeepValue(productInfo, 'sold_count');
@@ -2259,23 +2404,24 @@ async function extractRealProductData(element) {
           
           // Shopee PDP Old Price (Original strikethrough price)
           const shopeeOldPriceEl = document.querySelector(
-            'div[class*="price-before-discount" i], del, s, ' +
+            'div.AP_iE1 del, div.AP_iE1 s, div[class*="price-before-discount" i], del, s, ' +
             'div[class*="original-price" i], div[class*="before-discount" i], div[class*="old-price" i], ' +
             'span[class*="original" i], div[class*="line-through" i], span[class*="line-through" i], div[class*="strike" i], ' +
             'div._2v0Hgx del, div.product-price del, .shopee-product-detail del, ' +
             '.shopee-product-detail [class*="original" i], div[class*="ProductPrice" i] [class*="original" i], ' +
-            'div[class*="ProductPrice" i] del, div[class*="ProductPrice" i] s, div.flex.items-center del, div.flex.items-center s, ' +
-            'div[class*="flex" i] del, div[class*="flex" i] s, div[class*="flex" i] [class*="line-through" i]'
+            'div[class*="ProductPrice" i] del, div[class*="ProductPrice" i] s, div.flex.items-center del, div.flex.items-center s'
           );
           if (shopeeOldPriceEl) oldPrice = extractAndesPrice(shopeeOldPriceEl);
 
-          // Shopee PDP Sale / Current Price
+          // Shopee PDP Sale / Current Price (.pyzxvq / div.AP_iE1)
           const shopeePriceEls = document.querySelectorAll(
-            'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="ProductPrice" i], ' +
-            '.shopee-product-detail .price, [data-sqe="price"], div[class*="price" i], span[class*="price" i]'
+            'div.AP_iE1 .pyzxvq, .product-briefing .pyzxvq, div.AP_iE1, .pyzxvq, ' +
+            'div[class*="price-after-discount" i], div[class*="current-price" i], div[class*="Price__price" i], ' +
+            'div[class*="ProductPrice" i], div.product-price, .shopee-product-detail .price, [data-sqe="price"]'
           );
           for (const el of shopeePriceEls) {
-            if (el.closest('del, s, [class*="before-discount" i], [class*="original" i], [class*="old-price" i], [class*="line-through" i]')) continue;
+            if (isInstallmentOrBadgeElement(el)) continue;
+            if (el.closest('del, s, [class*="before-discount" i], [class*="original-price" i], [class*="line-through" i]')) continue;
             const p = extractAndesPrice(el);
             if (p > 0) { pixPrice = p; break; }
           }
@@ -2283,12 +2429,24 @@ async function extractRealProductData(element) {
 
           // Shopee PDP Discount percentage badge
           const shopeeDiscBadge = document.querySelector(
-            'div[class*="discount" i], span[class*="discount" i], span[class*="percent" i], ' +
+            'div.AP_iE1 [class*="discount" i], div[class*="discount" i], span[class*="discount" i], span[class*="percent" i], ' +
             'div[class*="badge" i], div._236e7Y, [class*="pct" i]'
           );
           if (shopeeDiscBadge) {
             const dm = shopeeDiscBadge.textContent.match(/(\d{1,2})%/);
             if (dm) discountPercent = parseInt(dm[1], 10);
+          }
+
+          // Shopee PDP Rating & Reviews count
+          const shopeeRatingEl = document.querySelector('div.FllsTu.JXtSdn, div[class*="rating-star" i], .shopee-rating-stars');
+          if (shopeeRatingEl) {
+            const rm = shopeeRatingEl.textContent.match(/(\d[\.,]\d)/);
+            if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+          }
+
+          const shopeeReviewsEl = document.querySelector('div.aEDmfN, div[class*="rating-count" i], div[class*="review-count" i]');
+          if (shopeeReviewsEl) {
+            ratings_count = parseSalesCount(shopeeReviewsEl.textContent);
           }
 
           // If discount badge exists but old price wasn't caught, compute original price
@@ -2298,6 +2456,16 @@ async function extractRealProductData(element) {
           
           const shopeeSalesEl = document.querySelector('div[class*="sold" i], span[class*="sold" i], div[class*="sales" i], .shopee-product-detail .sales-count');
           if (shopeeSalesEl) sales = parseSalesCount(shopeeSalesEl.textContent);
+
+          // Shopee PDP Gallery Images
+          const shopeeGalleryImgs = document.querySelectorAll('div.Wi_1Rq img, div.BvNoX2 img.P39yUt, div.BvNoX2 img, div.product-briefing img');
+          shopeeGalleryImgs.forEach(img => {
+            const src = img.src || img.dataset.src || '';
+            if (src && !isLikelyAvatar(src, img) && !pictures.includes(src)) {
+              pictures.push(src);
+            }
+          });
+          if (pictures.length > 0) image = pictures[0];
         }
       }
       else if (platform === 'amazon') {
@@ -2313,6 +2481,66 @@ async function extractRealProductData(element) {
         
         const amzSalesEl = document.querySelector('span.social-proofing-faceout-title-text span, #averageCustomerReviews_feature_div');
         if (amzSalesEl) sales = parseSalesCount(amzSalesEl.textContent);
+
+        const amzRatingEl = document.querySelector('span.a-icon-alt, i.a-icon-star span');
+        if (amzRatingEl) {
+          const rm = amzRatingEl.textContent.match(/(\d[\.,]\d)/);
+          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+        }
+
+        const amzCountEl = document.querySelector('#acrCustomerReviewText');
+        if (amzCountEl) ratings_count = parseSalesCount(amzCountEl.textContent);
+
+        const amzImgs = document.querySelectorAll('#landingImage, #imgTagWrapperId img, #altImages img, img.a-dynamic-image');
+        amzImgs.forEach(img => {
+          const src = img.src || img.dataset.src || '';
+          if (src && !isLikelyAvatar(src, img) && !pictures.includes(src)) {
+            pictures.push(src);
+          }
+        });
+        if (pictures.length > 0) image = pictures[0];
+      }
+      else if (platform === 'mercadolivre') {
+        const mlTitle = document.querySelector('h1.ui-pdp-title, .ui-pdp-title');
+        if (mlTitle) title = mlTitle.textContent.trim();
+
+        // ML PDP Original Price
+        const mlOldPriceEl = document.querySelector('s.ui-pdp-price__original-value, s.andes-money-amount--previous, .ui-pdp-price__part--original');
+        if (mlOldPriceEl) oldPrice = extractAndesPrice(mlOldPriceEl);
+
+        // ML PDP Current Price
+        const mlCurrentEl = document.querySelector('.ui-pdp-price__second-line .andes-money-amount, .ui-pdp-price__part--medium .andes-money-amount, div.ui-pdp-price');
+        if (mlCurrentEl) pixPrice = extractAndesPrice(mlCurrentEl);
+
+        // ML PDP Discount
+        const mlDiscEl = document.querySelector('.ui-pdp-price__second-line .andes-money-amount__discount, .andes-money-amount__discount');
+        if (mlDiscEl) {
+          const dm = mlDiscEl.textContent.match(/(\d{1,2})%/);
+          if (dm) discountPercent = parseInt(dm[1], 10);
+        }
+
+        // ML PDP Subtitle / Sales
+        const mlSubtitle = document.querySelector('p.ui-pdp-header__subtitle, .ui-pdp-subtitle, span.ui-pdp-subtitle');
+        if (mlSubtitle) sales = parseSalesCount(mlSubtitle.textContent);
+
+        // ML PDP Rating & Reviews count
+        const mlRatingEl = document.querySelector('.ui-pdp-review__rating');
+        if (mlRatingEl) {
+          const rm = mlRatingEl.textContent.match(/(\d[\.,]\d)/);
+          if (rm) rating = parseFloat(rm[1].replace(',', '.'));
+        }
+        const mlReviewsEl = document.querySelector('.ui-pdp-review__amount');
+        if (mlReviewsEl) ratings_count = parseSalesCount(mlReviewsEl.textContent);
+
+        // ML PDP Gallery Images (Strictly from gallery container)
+        const mlGalleryImgs = document.querySelectorAll('.ui-pdp-gallery-container img, .ui-pdp-gallery img, img.ui-pdp-gallery__figure__image');
+        mlGalleryImgs.forEach(img => {
+          const src = img.src || img.dataset.src || '';
+          if (src && !isLikelyAvatar(src, img) && !pictures.includes(src)) {
+            pictures.push(src);
+          }
+        });
+        if (pictures.length > 0) image = pictures[0];
       }
       else if (platform === 'tiktok' || platform === 'tiktokshop') {
         const scriptData = extractTikTokDataFromScripts();
@@ -2329,33 +2557,95 @@ async function extractRealProductData(element) {
           if (pictures.length > 0) image = pictures[0];
         }
 
-        // Fallbacks if script parsing missed some fields
+        // DOM Scraping with TikTok's real stable elements
         if (!title) {
           const ttTitle = document.querySelector('h1[class*="ProductTitle" i], h1, div[class*="Title" i], [data-testid*="product-title" i], div[data-e2e="pdp-title"]');
           if (ttTitle) title = ttTitle.textContent.trim();
         }
+
+        // TikTok PDP Current Price: span.Headline-Semibold (int) + next element (cents with '.' or ',')
+        if (!pixPrice) {
+          const headlineSemibold = document.querySelector('span.Headline-Semibold, span[class*="Headline-Semibold" i], span.H2-Semibold');
+          if (headlineSemibold) {
+            const intText = (headlineSemibold.textContent || '').replace(/\D/g, '');
+            if (intText) {
+              let centsText = '00';
+              const nextEl = headlineSemibold.nextElementSibling;
+              if (nextEl) {
+                const nextTxt = (nextEl.textContent || '').trim();
+                const centsMatch = nextTxt.match(/[\.,](\d{2})/);
+                if (centsMatch) {
+                  centsText = centsMatch[1];
+                }
+              }
+              const p = parseFloat(`${intText}.${centsText}`);
+              if (!isNaN(p) && p > 0) pixPrice = p;
+            }
+          }
+        }
+
         if (!oldPrice) {
           const ttOldPriceEl = document.querySelector(
-            'span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del, s, ' +
-            'span[class*="line-through" i], [data-testid*="original-price" i], div[class*="OriginalPrice" i]'
+            'span.line-through.text-color-UIText3, span.line-through, span[class*="line-through" i], ' +
+            'span[class*="PriceBefore" i], span[class*="OriginalPrice" i], del, s'
           );
           if (ttOldPriceEl) oldPrice = extractAndesPrice(ttOldPriceEl);
         }
-        if (!pixPrice) {
-          const ttPriceEl = document.querySelector('div[class*="Price" i], span[class*="price" i], [data-testid*="product-price" i]');
-          if (ttPriceEl) pixPrice = extractAndesPrice(ttPriceEl);
-          if (!pixPrice && metaPrice > 0) pixPrice = metaPrice;
+
+        if (!discountPercent) {
+          const ttDiscEl = document.querySelector('span[class*="discount" i], div[class*="discount" i], span[class*="percent" i]');
+          if (ttDiscEl) {
+            const dm = ttDiscEl.textContent.match(/-\s*(\d{1,2})%/);
+            if (dm) discountPercent = parseInt(dm[1], 10);
+          }
         }
-        if (!sales) {
-          const ttSalesEl = document.querySelector('div[class*="Sold" i], span[class*="sold" i], div[class*="sales" i]');
-          if (ttSalesEl) sales = parseSalesCount(ttSalesEl.textContent);
-        }
+
         if (!rating) {
-          const ratingEl = document.querySelector('div[class*="rating" i], span[class*="rating" i]');
+          const ratingEl = document.querySelector('span.H2-Semibold, span.P3-Semibold, div[class*="rating" i], span[class*="rating" i]');
           if (ratingEl) {
             const m = ratingEl.textContent.match(/(\d[\.,]\d)/);
-            if (m) rating = parseFloat(m[1].replace(',', '.'));
+            if (m) {
+              const val = parseFloat(m[1].replace(',', '.'));
+              if (val >= 1.0 && val <= 5.0) rating = val;
+            }
           }
+        }
+
+        if (!ratings_count) {
+          const rcEl = document.querySelector('span.H3-Regular.text-color-UIText2, span[class*="text-color-UIText2" i]');
+          if (rcEl) {
+            const rm = rcEl.textContent.match(/\((\d+)\)/);
+            if (rm) ratings_count = parseInt(rm[1], 10);
+          }
+        }
+
+        if (!sales) {
+          const allSpans = document.querySelectorAll('span, div');
+          for (const s of allSpans) {
+            const txt = (s.textContent || '').trim();
+            if (/vendido\(s\)|vendidos?|sold/i.test(txt) && txt.length < 40) {
+              sales = parseSalesCount(txt);
+              if (sales > 0) break;
+            }
+          }
+        }
+
+        // TikTok Gallery Images (Strictly from carousel / slick-slider, never whole page / avatar)
+        if (pictures.length === 0) {
+          const ttGalleryImgs = document.querySelectorAll(
+            '.slick-slider-container .slick-slide.slick-active img.object-contain, ' +
+            '.slick-slider-container img.object-contain, ' +
+            '.slick-slider-container img, ' +
+            'div[data-e2e="pdp-gallery"] img, ' +
+            'div[class*="gallery" i] img, div[class*="swiper" i] img'
+          );
+          ttGalleryImgs.forEach(img => {
+            const src = img.src || img.dataset.src || '';
+            if (src && !isLikelyAvatar(src, img) && !pictures.includes(src)) {
+              pictures.push(src);
+            }
+          });
+          if (pictures.length > 0) image = pictures[0];
         }
       }
 
@@ -2426,20 +2716,35 @@ async function extractRealProductData(element) {
   
       // Extract All Main & Gallery Pictures on PDP if none extracted from scripts/API
       if (pictures.length === 0) {
-        const imgNodes = document.querySelectorAll(
-          '.ui-pdp-gallery__figure img, .ui-pdp-gallery__thumbnail img, img.ui-pdp-image, span.ui-pdp-gallery__item img, ' +
-          '#gallery img, #landingImage, #imgTagWrapperId img, .a-dynamic-image, ' +
-          '.product-briefing img, #altImages img, .crop-image-container img, .main-swiper img, ' +
-          'div[class*="product-image" i] img, .picture-wrapper img, img[class*="Gallery" i], ' +
-          'div[class*="ImageContainer" i] img, img[src*="tiktokcdn" i], img[src*="shopee.com" i], ' +
-          'img[src*="susercontent" i], img[src*="shopeesz" i], div[class*="carousel" i] img, ' +
-          'div[class*="slider" i] img, div[class*="gallery" i] img, div[class*="media" i] img, ' +
-          'img[src*="alicdn" i], img[src*="shein.com" i]'
-        );
+        let imgNodes = [];
+        if (platform === 'tiktok' || platform === 'tiktokshop') {
+          // Strictly target product image galleries on TikTok
+          imgNodes = document.querySelectorAll(
+            'div[class*="gallery" i] img, div[class*="Gallery" i] img, div[class*="carousel" i] img, ' +
+            'div[class*="slider" i] img, div[class*="Media" i] img, div[class*="swiper" i] img, ' +
+            'div[class*="image-viewer" i] img, div[class*="ProductImage" i] img, div[class*="product-image" i] img, ' +
+            'div[class*="goods-image" i] img, div[data-e2e="pdp-gallery"] img, div[data-e2e*="image" i] img'
+          );
+          if (imgNodes.length === 0) {
+            imgNodes = document.querySelectorAll('div[class*="pdp" i] img, div[class*="goods" i] img');
+          }
+        } else {
+          imgNodes = document.querySelectorAll(
+            '.ui-pdp-gallery__figure img, .ui-pdp-gallery__thumbnail img, img.ui-pdp-image, span.ui-pdp-gallery__item img, ' +
+            '#gallery img, #landingImage, #imgTagWrapperId img, .a-dynamic-image, ' +
+            '.product-briefing img, #altImages img, .crop-image-container img, .main-swiper img, ' +
+            'div[class*="product-image" i] img, .picture-wrapper img, img[class*="Gallery" i], ' +
+            'div[class*="ImageContainer" i] img, img[src*="shopee.com" i], ' +
+            'img[src*="susercontent" i], img[src*="shopeesz" i], div[class*="carousel" i] img, ' +
+            'div[class*="slider" i] img, div[class*="gallery" i] img, div[class*="media" i] img, ' +
+            'img[src*="alicdn" i], img[src*="shein.com" i]'
+          );
+        }
+
         imgNodes.forEach(n => {
           const src = n.src || n.dataset.src || n.getAttribute('srcset')?.split(' ')[0];
-          if (src && !src.includes('data:image') && !src.includes('1x1') && !src.includes('pixel') && !src.includes('logo') && !isLikelyAvatar(src) && !pictures.includes(src)) {
-            if (!n.closest('header, nav, footer, [class*="review" i], [class*="comment" i], [class*="user" i]')) {
+          if (src && !src.includes('data:image') && !src.includes('1x1') && !src.includes('pixel') && !src.includes('logo') && !isLikelyAvatar(src, n) && !pictures.includes(src)) {
+            if (!n.closest('header, nav, footer, [class*="review" i], [class*="comment" i], [class*="user" i], [class*="seller" i], [class*="author" i], [class*="profile" i]')) {
               const cleanSrc = src.replace(/_100x100\./g, '.').replace(/_80x80\./g, '.').replace(/_tn\./g, '.');
               if (!pictures.includes(cleanSrc)) {
                 pictures.push(cleanSrc);
