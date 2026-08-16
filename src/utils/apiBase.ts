@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { reportError } from './errorReporter';
 
 /**
  * URL padrão pública do backend quando rodando como app nativo (Capacitor/APK)
@@ -10,6 +11,15 @@ export const DEFAULT_API_URL = 'https://afiliate.onrender.com';
  * Domínio padrão oficial do encurtador de links
  */
 export const DEFAULT_SHORT_DOMAIN = 'https://lkrm.site';
+
+/**
+ * Opções estendidas para apiFetch aceitando contexto de diagnóstico
+ */
+export interface ApiFetchOptions extends RequestInit {
+  action?: string;
+  platform?: string;
+  title?: string;
+}
 
 /**
  * Verifica se a aplicação está executando em ambiente nativo (Android/iOS via Capacitor)
@@ -76,10 +86,71 @@ export function getApiUrl(path: string): string {
 
 /**
  * Wrapper de fetch universal para o backend que anexa a URL base dinamicamente
+ * e captura erros automaticamente para o painel de diagnóstico do usuário.
  */
-export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
+export async function apiFetch(path: string, options?: ApiFetchOptions): Promise<Response> {
   const fullUrl = getApiUrl(path);
-  return fetch(fullUrl, options);
+
+  let fetchOptions: RequestInit | undefined = options;
+  let action = options?.action;
+  let platform = options?.platform;
+  let title = options?.title;
+
+  if (options) {
+    const { action: _a, platform: _p, title: _t, ...rest } = options;
+    fetchOptions = rest;
+  }
+
+  try {
+    const res = await fetch(fullUrl, fetchOptions);
+
+    if (!res.ok) {
+      let errorMsg = `Erro ${res.status}: ${res.statusText || 'Falha na requisição'}`;
+      let detailMsg = errorMsg;
+
+      try {
+        const cloned = res.clone();
+        const json = await cloned.json();
+        if (json) {
+          errorMsg = json.error || json.message || json.detail || errorMsg;
+          detailMsg = json.detail || json.stack || JSON.stringify(json);
+        }
+      } catch {
+        try {
+          const text = await res.clone().text();
+          if (text) {
+            errorMsg = text.length > 200 ? `${text.substring(0, 200)}...` : text;
+            detailMsg = text;
+          }
+        } catch {
+          // Ignora se leitura da resposta falhar
+        }
+      }
+
+      reportError({
+        title: title || `na chamada da API (${path})`,
+        action: action || `API (${path})`,
+        endpoint: fullUrl,
+        status: res.status,
+        message: errorMsg,
+        detail: detailMsg,
+        platform
+      });
+    }
+
+    return res;
+  } catch (err: any) {
+    reportError({
+      title: title || `ao conectar na API (${path})`,
+      action: action || `Conexão API (${path})`,
+      endpoint: fullUrl,
+      status: 0,
+      message: err?.message || 'Falha na conexão de rede com o servidor.',
+      detail: err?.stack || err?.message || String(err),
+      platform
+    });
+    throw err;
+  }
 }
 
 /**
@@ -92,3 +163,4 @@ export function getShortDomain(): string {
   }
   return DEFAULT_SHORT_DOMAIN;
 }
+

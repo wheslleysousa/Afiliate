@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Trash2, Copy, Check } from 'lucide-react';
+import { formatErrorForClipboard, APP_VERSION } from '../utils/errorReporter';
 
 export interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -13,6 +14,7 @@ export interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  copied: boolean;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -20,10 +22,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     hasError: false,
     error: null,
     errorInfo: null,
+    copied: false,
   };
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error, errorInfo: null };
+    return { hasError: true, error, errorInfo: null, copied: false };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
@@ -31,8 +34,28 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.setState({ error, errorInfo });
   }
 
+  private handleCopyError = async (): void => {
+    const err = this.state.error;
+    const info = this.state.errorInfo;
+    const formatted = formatErrorForClipboard({
+      action: 'Erro de Interface (ErrorBoundary)',
+      message: err?.message || 'Falha na renderização de componente',
+      detail: `${err?.name}: ${err?.message}\n${err?.stack || ''}\nComponent Stack:${info?.componentStack || ''}`,
+      title: 'na renderização da tela',
+      appVersion: APP_VERSION
+    });
+
+    try {
+      await navigator.clipboard.writeText(formatted);
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2500);
+    } catch (e) {
+      console.error('Falha ao copiar erro:', e);
+    }
+  };
+
   private handleReset = (): void => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState({ hasError: false, error: null, errorInfo: null, copied: false });
     if (this.props.onReset) {
       this.props.onReset();
     }
@@ -77,13 +100,25 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <button
                 onClick={this.handleReset}
                 className="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Tentar Novamente
+              </button>
+
+              <button
+                onClick={this.handleCopyError}
+                className={`py-2 px-4 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+                  this.state.copied
+                    ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636]'
+                }`}
+              >
+                {this.state.copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {this.state.copied ? 'Copiado!' : 'Copiar erro'}
               </button>
             </div>
           </div>
@@ -110,20 +145,32 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <button
                 onClick={this.handleReload}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 cursor-pointer"
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-600/20 cursor-pointer"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 Recarregar App
               </button>
 
               <button
-                onClick={this.handleClearCacheAndReload}
-                className="flex-1 bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] font-semibold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                onClick={this.handleCopyError}
+                className={`flex-1 font-semibold py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  this.state.copied
+                    ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9]'
+                }`}
               >
-                <Trash2 className="w-4 h-4 text-[#93a0b5]" />
+                {this.state.copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {this.state.copied ? 'Copiado!' : 'Copiar erro'}
+              </button>
+
+              <button
+                onClick={this.handleClearCacheAndReload}
+                className="flex-1 bg-[#0e1119] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] font-semibold py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-[#93a0b5]" />
                 Limpar Cache
               </button>
             </div>
@@ -137,3 +184,4 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 }
 
 export default ErrorBoundary;
+
