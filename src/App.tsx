@@ -11,6 +11,7 @@ import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
 import { TemplatesTab } from './components/TemplatesTab';
 import { ExtensionTab } from './components/ExtensionTab';
 import { UrlShortenerTab } from './components/UrlShortenerTab';
+import { ProjectsTab } from './components/ProjectsTab';
 import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { DisclosureAlarmModal } from './components/DisclosureAlarmModal';
@@ -110,6 +111,7 @@ export default function App() {
 
   // Sidebar navigation & responsive state
   const [activeTab, setActiveTab] = useState<AppTab>('new-product');
+  const [initialProductForProject, setInitialProductForProject] = useState<Partial<GlobalProduct> | null>(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -1034,6 +1036,7 @@ export default function App() {
                 {activeTab === 'new-product' && 'Novo Produto'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
                 {activeTab === 'my-products' && 'Meus Produtos'}
+                {activeTab === 'projects' && 'Estúdio de Criação & Projetos'}
                 {activeTab === 'whatsapp-auto' && 'Automação Zap'}
                 {activeTab === 'templates' && 'Templates de Copy'}
                 {activeTab === 'extension' && 'Extensão'}
@@ -1161,6 +1164,21 @@ export default function App() {
                 onAddCustomTemplate={handleAddCustomTemplate}
                 customTemplates={customTemplates}
                 defaultTemplateId={defaultTemplateId}
+                onNavigateToProjects={(product) => {
+                  setInitialProductForProject(product);
+                  setActiveTab('projects');
+                }}
+              />
+            </ErrorBoundary>
+          )}
+
+          {activeTab === 'projects' && currentUser && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar Estúdio de Criação & Projetos">
+              <ProjectsTab
+                uid={currentUser.id}
+                apiKeys={apiKeys}
+                initialProduct={initialProductForProject}
+                onClearInitialProduct={() => setInitialProductForProject(null)}
               />
             </ErrorBoundary>
           )}

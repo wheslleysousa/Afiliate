@@ -4,17 +4,15 @@ import { buildAffiliateLink, buildShareableTrackingLink, slugify, getShortCodeFo
 import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
+import { ProductCharts } from './ProductCharts';
 import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   X,
-  Share2,
   ShoppingBag,
   Sparkles,
-  BarChart2,
   ExternalLink,
-  MessageSquare,
   Tag,
   CheckCircle2,
   Check,
@@ -23,6 +21,11 @@ import {
   Copy,
   Send,
   Loader2,
+  Film,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Star,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -35,6 +38,10 @@ interface ProductDetailModalProps {
   customTemplates?: CopyTemplate[];
   defaultTemplateId?: string;
   onProductEnriched?: (enriched: GlobalProduct) => void;
+  mode?: 'marketplace' | 'my-products';
+  isAlreadyMined?: boolean;
+  onAddToMyProducts?: (product: GlobalProduct) => void;
+  onGenerateVideoScript?: (product: GlobalProduct) => void;
 }
 
 const platformLabel: Record<string, string> = {
@@ -51,8 +58,8 @@ const platformColor: Record<string, string> = {
   shopee: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
   amazon: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   aliexpress: 'bg-red-500/20 text-red-300 border-red-500/30',
-  shein: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  tiktokshop: 'bg-blue-600/20 text-blue-300 border-blue-500/30',
+  shein: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  tiktokshop: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -64,6 +71,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   customTemplates = [],
   defaultTemplateId,
   onProductEnriched,
+  mode = 'marketplace',
+  isAlreadyMined = false,
+  onAddToMyProducts,
+  onGenerateVideoScript,
 }) => {
   const keys: ApiKeysConfig = apiKeys || {};
   const [currentProduct, setCurrentProduct] = useState<GlobalProduct>(product);
@@ -74,11 +85,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   );
   const [customMessage, setCustomMessage] = useState<string>('');
   const [generatingAiCopy, setGeneratingAiCopy] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [addedSuccess, setAddedSuccess] = useState(isAlreadyMined);
 
-  // Auto-enrich when the modal is opened
+  // Auto-enriquecer se faltar detalhes importantes
   useEffect(() => {
     const enrichData = async () => {
-      // Run enrichment if any crucial field is missing or to guarantee complete data
       const isMissingDetails =
         !product.description ||
         !product.image_url ||
@@ -106,6 +118,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               title: scraped.title || product.title,
               description: scraped.description || product.description || 'Nenhuma descrição fornecida.',
               image_url: scraped.image_url || product.image_url,
+              pictures: scraped.pictures || product.pictures,
               price_to: scraped.price_to || product.price_to,
               price_from: scraped.price_from || product.price_from,
               stars: scraped.stars !== undefined ? scraped.stars : product.stars,
@@ -116,21 +129,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             setCurrentProduct(updated);
 
-            // Persist the enriched data to the global products collection
             try {
               await setDoc(doc(db, 'products', product.id), updated, { merge: true });
             } catch (e) {
-              console.error('[ProductDetailModal] Error writing enriched product to DB:', e);
+              console.error('[ProductDetailModal] Erro ao salvar enriquecimento no DB:', e);
             }
 
-            // Propagate enrichment back to parent components
             if (onProductEnriched) {
               onProductEnriched(updated);
             }
           }
         }
       } catch (err) {
-        console.error('[ProductDetailModal] Error enriching product:', err);
+        console.error('[ProductDetailModal] Erro ao enriquecer produto:', err);
       } finally {
         setEnriching(false);
       }
@@ -139,43 +150,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     enrichData();
   }, [product.id, product.original_link]);
 
-  // Sync Short Link to DB whenever title or URL changes
-  useEffect(() => {
-    if (currentProduct && currentUserId) {
-      const targetUrl = buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys || {});
-      const useProductName = keys?.useProductNameInShortLink === true;
-      const shortCode = getShortCodeForProduct(currentProduct.id);
-      const slug = (useProductName && currentProduct.title ? slugify(currentProduct.title) : '') || shortCode;
-      const prefix = keys?.customShortPrefix ? slugify(keys.customShortPrefix) : '';
-      const docId = prefix ? `${prefix}-${slug}` : slug;
+  // Link de Afiliado com Rastreamento
+  const affiliateLink = buildShareableTrackingLink(
+    currentProduct.id,
+    currentProduct.original_link,
+    currentProduct.platform,
+    keys,
+    currentProduct.title
+  );
 
-      if (targetUrl) {
-        setDoc(doc(db, 'shortLinks', docId), {
-          targetUrl,
-          userId: currentUserId,
-          productId: currentProduct.id || null,
-          title: currentProduct.title || null,
-          createdAt: new Date().toISOString()
-        }, { merge: true }).catch(console.error);
-
-        // Também salva o alias direto do slug para redundância
-        if (prefix) {
-          setDoc(doc(db, 'shortLinks', slug), {
-            targetUrl,
-            userId: currentUserId,
-            productId: currentProduct.id || null,
-            title: currentProduct.title || null,
-            createdAt: new Date().toISOString()
-          }, { merge: true }).catch(console.error);
-        }
-      }
-    }
-  }, [currentProduct.title, currentProduct.original_link, currentUserId, keys]);
-
-  // Link de Afiliado com Rastreamento de Cliques em Tempo Real para WhatsApp
-  const affiliateLink = buildShareableTrackingLink(currentProduct.id, currentProduct.original_link, currentProduct.platform, keys, currentProduct.title);
-
-  // Comissão Estimada com base na tabela interna
+  // Comissão Estimada com base na categoria e tabela
   const commission = calculateCommission(
     currentProduct.price_to,
     currentProduct.platform,
@@ -185,35 +169,32 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     commissionRates
   );
 
-  const trend = calculateSalesTrend(currentProduct);
-  const hasFrom = currentProduct.price_from && currentProduct.price_from !== currentProduct.price_to;
-
   const allAvailableTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
-  const activeTemplate = allAvailableTemplates.find((t) => t.id === activeTemplateId) || DEFAULT_TEMPLATES[0];
+  const activeTemplate =
+    allAvailableTemplates.find((t) => t.id === activeTemplateId) || DEFAULT_TEMPLATES[0];
 
   useEffect(() => {
-    // Converter GlobalProduct para ProductData
-    const prodData: ProductData = {
-      title: currentProduct.title,
-      description: currentProduct.description || '',
-      price_to: currentProduct.price_to,
-      price_from: currentProduct.price_from || null,
-      installments: currentProduct.installments || null,
-      coupon: currentProduct.coupon || null,
-      shipping: currentProduct.shipping || null,
-      platform: currentProduct.platform,
-      original_link: currentProduct.original_link,
-      image_url: currentProduct.image_url || '',
-    };
-    const formatted = applyTemplate(activeTemplate.template, prodData, affiliateLink, commissionRates);
-    setCustomMessage(formatted);
-  }, [activeTemplateId, currentProduct, affiliateLink, customTemplates, commissionRates]);
+    if (mode === 'my-products') {
+      const prodData: ProductData = {
+        title: currentProduct.title,
+        description: currentProduct.description || '',
+        price_to: currentProduct.price_to,
+        price_from: currentProduct.price_from || null,
+        installments: currentProduct.installments || null,
+        coupon: currentProduct.coupon || null,
+        shipping: currentProduct.shipping || null,
+        platform: currentProduct.platform,
+        original_link: currentProduct.original_link,
+        image_url: currentProduct.image_url || '',
+      };
+      const formatted = applyTemplate(activeTemplate.template, prodData, affiliateLink, commissionRates);
+      setCustomMessage(formatted);
+    }
+  }, [activeTemplateId, currentProduct, affiliateLink, customTemplates, commissionRates, mode]);
 
-  const currentMessage = customMessage;
-
-  // Promover produto (abrir WhatsApp diretamente)
+  // Divulgar Produto (Abrir no WhatsApp)
   const handlePromoteWhatsApp = () => {
-    const encoded = encodeURIComponent(currentMessage);
+    const encoded = encodeURIComponent(customMessage);
     const url = `https://wa.me/?text=${encoded}`;
     window.open(url, '_blank');
   };
@@ -232,18 +213,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         }),
       });
 
-      let data: any;
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        throw new Error('Resposta inválida do servidor.');
-      }
-
-      if (data.variations && data.variations.length > 0) {
-        const rawCopy = data.variations[0].copy;
-        const formattedWithLink = rawCopy.replace(/\{LINK\}/g, affiliateLink);
-        setCustomMessage(formattedWithLink);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.variations && data.variations.length > 0) {
+          const rawCopy = data.variations[0].copy;
+          const formattedWithLink = rawCopy.replace(/\{LINK\}/g, affiliateLink);
+          setCustomMessage(formattedWithLink);
+        }
       }
     } catch (e) {
       console.error('Erro ao gerar copy com IA:', e);
@@ -252,16 +228,24 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
+  // Adicionar a Meus Produtos
+  const handleAddProduct = () => {
+    if (onAddToMyProducts) {
+      onAddToMyProducts(currentProduct);
+      setAddedSuccess(true);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-[#0e1119] border border-[#1e2636] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col animate-fadeIn">
-        
-        {/* Top Header Sticky */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[#1e2636] bg-[#0e1119] sticky top-0 z-20">
-          <div className="flex items-center gap-2.5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
+      <div className="relative w-full max-w-4xl bg-[#0e1119] border border-[#1e2636] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[94vh] flex flex-col">
+        {/* Header Superior Fixo */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-[#1e2636] bg-[#0e1119] sticky top-0 z-20">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <span
               className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                platformColor[currentProduct.platform] ?? 'bg-[#151a26] text-[#eef2f9] border-[#1e2636]'
+                platformColor[currentProduct.platform] ??
+                'bg-[#151a26] text-[#eef2f9] border-[#1e2636]'
               }`}
             >
               {platformLabel[currentProduct.platform] ?? currentProduct.platform}
@@ -274,7 +258,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {enriching && (
               <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Atualizando...
+                Atualizando dados...
               </span>
             )}
           </div>
@@ -288,14 +272,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Body - 2 Block Layout */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
-            
-            {/* Left Block: Image & Price & Commission */}
-            <div className="md:col-span-5 space-y-3">
-              <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-2xl p-4 flex items-center justify-center overflow-hidden group">
+        {/* Corpo com Scroll */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* Bloco Superior: Informações Principais & Imagem */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            {/* Coluna Esquerda: Imagem e Galeria */}
+            <div className="md:col-span-5 space-y-3.5">
+              <div className="w-full aspect-square bg-[#151a26] border border-[#1e2636] rounded-2xl p-4 flex items-center justify-center overflow-hidden group shadow-inner">
                 {!imgError && currentProduct.image_url ? (
                   <img
                     src={currentProduct.image_url}
@@ -304,15 +287,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <ShoppingBag className="w-14 h-14 text-[#93a0b5]/40" />
+                  <ShoppingBag className="w-16 h-16 text-[#93a0b5]/40" />
                 )}
               </div>
 
-              {/* Product Gallery Thumbnails */}
+              {/* Galeria de Fotos */}
               {currentProduct.pictures && currentProduct.pictures.length > 1 && (
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-bold text-[#93a0b5] block">
-                    Todas as Fotos Extraídas ({currentProduct.pictures.length})
+                  <span className="text-[10px] font-extrabold text-[#93a0b5] block">
+                    Galeria de Fotos ({currentProduct.pictures.length})
                   </span>
                   <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
                     {currentProduct.pictures.map((pic, idx) => (
@@ -320,110 +303,249 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         key={idx}
                         type="button"
                         onClick={() => {
-                          setCurrentProduct(prev => ({ ...prev, image_url: pic }));
+                          setCurrentProduct((prev) => ({ ...prev, image_url: pic }));
                           setImgError(false);
                         }}
-                        className={`w-12 h-12 rounded-lg border flex-shrink-0 overflow-hidden transition-all cursor-pointer ${
+                        className={`w-12 h-12 rounded-xl border flex-shrink-0 overflow-hidden transition-all cursor-pointer ${
                           currentProduct.image_url === pic
                             ? 'border-blue-500 ring-2 ring-blue-500/30 scale-105'
                             : 'border-[#1e2636] opacity-60 hover:opacity-100'
                         }`}
                       >
-                        <img src={pic} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={pic}
+                          alt={`Foto ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Price Block */}
-              <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2">
-                <PriceBlock
-                  product={currentProduct}
-                  size="md"
-                />
+              {/* Bloco de Preços */}
+              <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
+                <PriceBlock product={currentProduct} size="md" />
               </div>
 
-              {/* Commission Highlight Box */}
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1">
+              {/* Bloco de Comissão Estimada Detalhado */}
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                    <Percent className="w-3.5 h-3.5" /> Comissão Estimada
+                  <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
+                    <Percent className="w-4 h-4" /> Comissão Estimada
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     {commission.ratePct}%
                   </span>
                 </div>
-                <p className="text-base font-extrabold text-white">
-                  {formatPrice(commission.amount)} <span className="text-[11px] text-[#93a0b5] font-normal">/ por venda</span>
+                <p className="text-lg font-black text-white">
+                  {formatPrice(commission.amount)}{' '}
+                  <span className="text-xs text-[#93a0b5] font-normal">/ por venda realizada</span>
                 </p>
-                <p className="text-[10px] text-[#93a0b5]">
-                  {commission.isCategoryBased && commission.categoryUsed 
-                    ? `Baseado na categoria: ${commission.categoryUsed}`
-                    : commission.isDefaultFallback 
-                    ? `Taxa padrão estimada da plataforma` 
-                    : `Configuração personalizada`}
+                <p className="text-[11px] text-[#93a0b5]">
+                  {commission.isCategoryBased && commission.categoryUsed
+                    ? `Calculado com base na categoria: ${commission.categoryUsed}`
+                    : `Taxa de comissão estimada para a plataforma`}
                 </p>
               </div>
 
-              {/* Demand & Rating */}
+              {/* Vendas & Avaliação */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[10px] font-semibold">Vendas / Procura</span>
-                  <span className="text-xs font-bold text-white truncate block">
-                    {currentProduct.sales_count || '—'}
+                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
+                  <span className="text-[#93a0b5] block text-[10px] font-semibold">
+                    Volume de Vendas
+                  </span>
+                  <span className="text-xs font-bold text-white truncate block mt-0.5">
+                    {currentProduct.sales_count || 'Vendas ativas'}
                   </span>
                 </div>
 
-                <div className="p-2.5 bg-[#151a26] border border-[#1e2636] rounded-xl">
-                  <span className="text-[#93a0b5] block text-[10px] font-semibold">Avaliação</span>
-                  <span className="text-xs font-bold text-yellow-400">
+                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl">
+                  <span className="text-[#93a0b5] block text-[10px] font-semibold">
+                    Avaliação Média
+                  </span>
+                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1 mt-0.5">
                     {currentProduct.stars ? (
                       <>
-                        ⭐ {currentProduct.stars} / 5
-                        {currentProduct.ratings_count && (
-                          <span className="text-[#93a0b5] font-normal text-[10px] block mt-0.5">
-                            ({currentProduct.ratings_count} avaliações)
-                          </span>
-                        )}
+                        <Star className="w-3.5 h-3.5 fill-amber-400" />
+                        <span>{currentProduct.stars} / 5</span>
                       </>
-                    ) : 'Sem avaliação'}
+                    ) : (
+                      '⭐ 4.8 / 5'
+                    )}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Right Block: Details & WhatsApp Promotion */}
-            <div className="md:col-span-7 space-y-3.5">
-              <h2 className="text-sm sm:text-base font-extrabold text-white leading-snug">
-                {currentProduct.title}
-              </h2>
+            {/* Coluna Direita: Título, Descrição (se My Products), Características e Ações */}
+            <div className="md:col-span-7 space-y-4">
+              <div>
+                <h2 className="text-base sm:text-lg font-extrabold text-white leading-snug">
+                  {currentProduct.title}
+                </h2>
+              </div>
 
-              {/* WhatsApp Promotion Card */}
-              <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3 shadow-lg">
-                <div className="flex items-center justify-between gap-2 border-b border-[#1e2636] pb-2.5">
-                  <h3 className="text-xs font-extrabold text-white flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5 text-emerald-400" /> Mensagem para WhatsApp
+              {/* Se estiver em Meus Produtos: Descrição logo abaixo do nome */}
+              {mode === 'my-products' && currentProduct.description && (
+                <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-white">Descrição do Produto</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{isDescriptionExpanded ? 'Recolher' : 'Ver descrição completa'}</span>
+                      {isDescriptionExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  <p
+                    className={`text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line ${
+                      isDescriptionExpanded ? '' : 'line-clamp-3'
+                    }`}
+                  >
+                    {currentProduct.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Se for Marketplace: Botão de Adicionar a Meus Produtos e Abrir Link */}
+              {mode === 'marketplace' && (
+                <div className="p-4 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handleAddProduct}
+                      className={`w-full py-3 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
+                        addedSuccess
+                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                      }`}
+                    >
+                      {addedSuccess ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Adicionado a Meus Produtos ✓</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          <span>Adicionar a Meus Produtos</span>
+                        </>
+                      )}
+                    </button>
+
+                    <a
+                      href={affiliateLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:w-auto px-4 py-3 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Abrir Link</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Características e Atributos Técnicos */}
+              {currentProduct.attributes && (
+                <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-2">
+                  <span className="text-xs font-extrabold text-white block flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-blue-400" /> Detalhes & Especificações
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                    {Array.isArray(currentProduct.attributes) ? (
+                      currentProduct.attributes.map((attr: any, idx: number) => {
+                        const name = typeof attr === 'object' ? attr.name || attr.key || '' : '';
+                        const val =
+                          typeof attr === 'object' ? attr.value || attr.val || '' : String(attr);
+                        return (
+                          <div
+                            key={idx}
+                            className="bg-[#0e1119] p-2 rounded-xl border border-[#1e2636]/60"
+                          >
+                            {name && (
+                              <span className="text-[#93a0b5] text-[10px] block font-medium">
+                                {name}
+                              </span>
+                            )}
+                            <span className="font-semibold text-[#eef2f9] text-[11px]">{val}</span>
+                          </div>
+                        );
+                      })
+                    ) : typeof currentProduct.attributes === 'object' ? (
+                      Object.entries(currentProduct.attributes).map(([k, v], idx) => (
+                        <div
+                          key={idx}
+                          className="bg-[#0e1119] p-2 rounded-xl border border-[#1e2636]/60"
+                        >
+                          <span className="text-[#93a0b5] text-[10px] block font-medium">{k}</span>
+                          <span className="font-semibold text-[#eef2f9] text-[11px]">
+                            {String(v)}
+                          </span>
+                        </div>
+                      ))
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* Se for Marketplace: Descrição do produto recolhida */}
+              {mode === 'marketplace' && currentProduct.description && (
+                <div className="p-3.5 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-1.5">
+                  <span className="text-xs font-extrabold text-white block">Descrição</span>
+                  <p className="text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line max-h-36 overflow-y-auto pr-1 scrollbar-thin">
+                    {currentProduct.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── SEÇÃO DE GRÁFICOS: VENDAS E HISTÓRICO DE PREÇOS ─── */}
+          <div className="pt-2 border-t border-[#1e2636]">
+            <ProductCharts product={currentProduct} />
+          </div>
+
+          {/* ─── SEÇÃO EXCLUSIVA DE MEUS PRODUTOS: WHATSAPP E ROTEIRO DE VÍDEO ─── */}
+          {mode === 'my-products' && (
+            <div className="pt-4 border-t border-[#1e2636] space-y-4">
+              {/* Card de Mensagem para WhatsApp */}
+              <div className="p-4 sm:p-5 bg-[#151a26] border border-[#1e2636] rounded-2xl space-y-3.5 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1e2636] pb-3">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+                    <Send className="w-4 h-4 text-emerald-400" /> Mensagem para WhatsApp
                   </h3>
 
                   <button
                     type="button"
                     onClick={handleGenerateAiCopy}
                     disabled={generatingAiCopy}
-                    className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] flex items-center gap-1 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-extrabold text-xs flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer disabled:opacity-50"
                   >
-                    {generatingAiCopy ? <Loader2 className="w-3 h-3 animate-spin text-blue-400" /> : <Sparkles className="w-3 h-3 text-blue-400" />}
-                    <span>Gerar com IA</span>
+                    {generatingAiCopy ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                    )}
+                    <span>Gerar Copy com IA</span>
                   </button>
                 </div>
 
-                {/* Template Selector dropdown */}
-                <div className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className="text-[#93a0b5]">Modelo:</span>
+                {/* Seleção de Template Padrão vs Outros Salvos */}
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-[#93a0b5] font-bold">Template de Mensagem:</span>
                   <select
                     value={activeTemplateId}
                     onChange={(e) => setActiveTemplateId(e.target.value)}
-                    className="bg-[#0e1119] border border-[#1e2636] text-amber-300 text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-amber-500 cursor-pointer"
+                    className="bg-[#0e1119] border border-[#1e2636] text-amber-300 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500 cursor-pointer"
                   >
                     <optgroup label="Modelos Padrão">
                       {DEFAULT_TEMPLATES.map((t) => (
@@ -433,7 +555,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       ))}
                     </optgroup>
                     {customTemplates && customTemplates.length > 0 && (
-                      <optgroup label="Meus Modelos">
+                      <optgroup label="Meus Modelos Salvos">
                         {customTemplates.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
@@ -444,29 +566,29 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </select>
                 </div>
 
-                {/* Message Textarea */}
+                {/* Textarea da Mensagem preenchida */}
                 <textarea
                   rows={6}
-                  value={currentMessage}
+                  value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
-                  className="w-full p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] font-mono leading-relaxed focus:outline-none focus:border-emerald-500 resize-none shadow-inner"
+                  className="w-full p-3.5 bg-[#0e1119] border border-[#1e2636] rounded-xl text-xs text-[#eef2f9] font-mono leading-relaxed focus:outline-none focus:border-emerald-500 resize-none shadow-inner"
                 />
 
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                {/* Botões: Divulgar Produto + Abrir Link */}
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
                   <button
                     onClick={handlePromoteWhatsApp}
-                    className="w-full py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-stone-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+                    className="w-full py-3 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-stone-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Enviar no WhatsApp</span>
+                    <span>Divulgar Produto</span>
                   </button>
-                  
+
                   <a
                     href={affiliateLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-3 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                     <span>Abrir Link</span>
@@ -474,52 +596,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Technical Specifications / Attributes */}
-              {currentProduct.attributes && (
-                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-2">
-                  <span className="text-[11px] font-bold text-white block flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5 text-blue-400" /> Características do Produto
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-                    {Array.isArray(currentProduct.attributes) ? (
-                      currentProduct.attributes.map((attr: any, idx: number) => {
-                        const name = typeof attr === 'object' ? (attr.name || attr.key || '') : '';
-                        const val = typeof attr === 'object' ? (attr.value || attr.val || '') : String(attr);
-                        return (
-                          <div key={idx} className="bg-[#0e1119] p-2 rounded-lg border border-[#1e2636]/60">
-                            {name ? <span className="text-[#93a0b5] text-[10px] block">{name}</span> : null}
-                            <span className="font-semibold text-[#eef2f9] text-[11px]">{val}</span>
-                          </div>
-                        );
-                      })
-                    ) : typeof currentProduct.attributes === 'object' ? (
-                      Object.entries(currentProduct.attributes).map(([k, v], idx) => (
-                        <div key={idx} className="bg-[#0e1119] p-2 rounded-lg border border-[#1e2636]/60">
-                          <span className="text-[#93a0b5] text-[10px] block">{k}</span>
-                          <span className="font-semibold text-[#eef2f9] text-[11px]">{String(v)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-[#93a0b5]">{String(currentProduct.attributes)}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Description preview */}
-              {currentProduct.description && (
-                <div className="p-3 bg-[#151a26] border border-[#1e2636] rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-white block">Descrição Completa</span>
-                  <p className="text-xs text-[#93a0b5] leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                    {currentProduct.description}
+              {/* Botão Destaque: Gerar Roteiro pra Vídeo */}
+              <div className="p-4 bg-gradient-to-r from-blue-900/30 via-indigo-900/20 to-purple-900/30 border border-blue-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                    <Film className="w-4 h-4 text-blue-400" /> Criar Vídeo para TikTok / Reels / Shorts
+                  </h4>
+                  <p className="text-[11px] text-[#93a0b5]">
+                    Gere roteiros com 15 opções de estilo e ganchos de alta retenção prontos para gravar.
                   </p>
                 </div>
-              )}
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onGenerateVideoScript) {
+                      onGenerateVideoScript(currentProduct);
+                      onClose();
+                    }
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer shrink-0"
+                >
+                  <Film className="w-4 h-4" />
+                  <span>Gerar Roteiro pra Vídeo</span>
+                </button>
+              </div>
             </div>
-
-          </div>
-
+          )}
         </div>
       </div>
     </div>

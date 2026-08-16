@@ -3858,6 +3858,426 @@ Responda EXATAMENTE em formato JSON.`;
   });
 });
 
+// ─── POST /api/gemini/generate-hooks ───────────────────────────────────────────
+app.post("/api/gemini/generate-hooks", async (req, res) => {
+  const { product, targetPlatform, selectedStyle, duration, extraProducts, styleContext, geminiApiKey, geminiApiKeys } = req.body;
+
+  if (!product || !product.title) {
+    return res.status(400).json({ error: "Dados do produto são obrigatórios." });
+  }
+
+  const candidateKeys: string[] = [];
+  if (geminiApiKey && typeof geminiApiKey === 'string' && geminiApiKey.trim()) {
+    candidateKeys.push(geminiApiKey.trim());
+  }
+  if (Array.isArray(geminiApiKeys)) {
+    for (const k of geminiApiKeys) {
+      if (typeof k === 'string' && k.trim() && !candidateKeys.includes(k.trim())) {
+        candidateKeys.push(k.trim());
+      }
+    }
+  }
+  if (process.env.GEMINI_API_KEY && !candidateKeys.includes(process.env.GEMINI_API_KEY.trim())) {
+    candidateKeys.push(process.env.GEMINI_API_KEY.trim());
+  }
+
+  const platformName =
+    targetPlatform === 'tiktok'
+      ? 'TikTok'
+      : targetPlatform === 'instagram'
+      ? 'Instagram Reels'
+      : 'Criativo de Alta Conversão / Tráfego Pago';
+
+  const styleTitle = selectedStyle?.name || 'Estilo de Alta Conversão';
+  const styleDesc = selectedStyle?.desc || '';
+
+  // Montagem do contexto adaptativo extra
+  const extraContextLines: string[] = [];
+  if (Array.isArray(extraProducts) && extraProducts.length > 0) {
+    extraContextLines.push(`PRODUTOS ADICIONAIS NA LISTA:`);
+    extraProducts.forEach((ep: any, idx: number) => {
+      extraContextLines.push(`- Produto ${idx + 2}: ${ep.title} (${ep.price_to ? 'R$ ' + ep.price_to : 'Preço promocional'})${ep.highlight ? ' - ' + ep.highlight : ''}`);
+    });
+  }
+  if (styleContext?.testType) {
+    extraContextLines.push(`- Teste/Desafio Específico: ${styleContext.testType}${styleContext.testResult ? ' (Resultado: ' + styleContext.testResult + ')' : ''}`);
+  }
+  if (styleContext?.reactKeyMoment || styleContext?.reactVideoUrl) {
+    extraContextLines.push(`- React/Reação ao Vídeo: ${styleContext.reactKeyMoment || 'Vídeo viral em análise'}${styleContext.reactResponseAngle ? ' - Ângulo de resposta: ' + styleContext.reactResponseAngle : ''}`);
+  }
+  if (styleContext?.beforeDescription || styleContext?.afterDescription) {
+    extraContextLines.push(`- Antes: ${styleContext.beforeDescription || 'Problema/Caos'} vs Depois: ${styleContext.afterDescription || 'Transformação'}${styleContext.transformationTime ? ' em ' + styleContext.transformationTime : ''}`);
+  }
+  if (styleContext?.competitorName) {
+    extraContextLines.push(`- Comparativo com Concorrente/Alternativa: ${styleContext.competitorName} (${styleContext.competitorPrice ? 'R$ ' + styleContext.competitorPrice : 'Mais caro'}) - Defeito: ${styleContext.competitorFlaw || 'Ineficiente'}`);
+  }
+  if (styleContext?.testimonialUsageTime || styleContext?.testimonialMainResult) {
+    extraContextLines.push(`- Depoimento/UGC: Usado por ${styleContext.testimonialUsageTime || 'semanas'}, resultado: ${styleContext.testimonialMainResult || 'satisfação comprovada'}`);
+  }
+  if (styleContext?.commonMistake) {
+    extraContextLines.push(`- Erro Comum: ${styleContext.commonMistake} vs Jeito Certo: ${styleContext.correctWay || 'com o produto'}`);
+  }
+  if (styleContext?.unboxingItems) {
+    extraContextLines.push(`- Itens da Caixa / Unboxing: ${styleContext.unboxingItems}`);
+  }
+
+  const prompt = `Você é o maior especialista em copywriting e retenção de vídeos curtos no formato 9:16 (TikTok, Reels e Anúncios de Tráfego Pago).
+Gere EXATAMENTE 15 GANCHOS (HOOKS) de altíssima conversão e retenção nos primeiros 3 segundos para o produto abaixo.
+
+DADOS DO PRODUTO:
+- Nome/Título: ${product.title}
+- Preço Atual: ${product.price_to ? 'R$ ' + product.price_to : 'Promoção'}
+- Preço Anterior: ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
+- Categoria: ${product.category || 'Geral'}
+- Benefícios/Descrição: ${product.description || 'Produto de alta qualidade e utilidade diária'}
+
+PLATAFORMA ALVO: ${platformName}
+ESTILO SELECIONADO: ${styleTitle} - ${styleDesc}
+${extraContextLines.length > 0 ? '\nINFORMAÇÕES EXTRAS E ESPECÍFICAS DO ESTILO:\n' + extraContextLines.join('\n') : ''}
+
+DIRETRIZES ESSENCIAIS:
+1. Gere 15 ganchos variados, diretos e persuasivos (curiosidade, dor latente, quebra de padrão, números/preço, contraste, prova social, escassez).
+2. Se o estilo for de teste/comparativo/top 3/react/antes e depois, incorpore essas informações específicas nos ganchos.
+3. Não use emojis em excesso nos textos dos ganchos para manter o visual limpo, moderno e profissional.
+4. Cada gancho deve soar natural para um criador falar nos primeiros 3 segundos do vídeo.
+5. Responda em formato JSON com um array chamado "hooks" contendo 15 strings.`;
+
+  try {
+    const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              hooks: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
+            },
+            required: ["hooks"]
+          },
+          temperature: 0.6
+        }
+      });
+    });
+
+    if (response.text) {
+      try {
+        const parsed = JSON.parse(response.text.trim());
+        if (Array.isArray(parsed.hooks) && parsed.hooks.length > 0) {
+          return res.json({ hooks: parsed.hooks.slice(0, 15), source: 'gemini' });
+        }
+      } catch (e) {
+        console.error("Erro ao parsear JSON dos hooks:", e);
+      }
+    }
+  } catch (err: any) {
+    console.error("Erro ao gerar hooks com Gemini:", err);
+  }
+
+  // Fallback Inteligente e Contextualizado por Plataforma e Estilo
+  const pTitle = product.title.trim();
+  const pPrice = product.price_to ? `R$ ${product.price_to}` : 'esse valor promocional';
+  const pCat = product.category || 'isso';
+  const shortTitle = pTitle.length > 32 ? pTitle.slice(0, 29) + '...' : pTitle;
+
+  const fallbackHooks: string[] = [
+    `Eu quase não acreditei quando vi quanto custa o ${shortTitle} por apenas ${pPrice}.`,
+    `Se você sofre com ${pCat}, você precisa ver o que esse produto faz em segundos.`,
+    `Pare de gastar dinheiro com coisas caras: esse ${shortTitle} custa só ${pPrice} e resolve tudo.`,
+    `O segredo que quase ninguém te conta sobre como resolver ${pCat} gastando apenas ${pPrice}.`,
+    `Por que todo mundo na internet está comprando esse ${shortTitle} escondido?`,
+    `Testei esse produto que custa ${pPrice} para ver se ele cumpre o que promete na prática.`,
+    `Atenção: esse ${shortTitle} baixou para ${pPrice} e o estoque vai encerrar hoje.`,
+    `Você provavelmente está usando a forma errada para lidar com ${pCat} todos os dias.`,
+    `Comprei esse item de ${pPrice} e o resultado nos primeiros 2 minutos me chocou.`,
+    `Se eu pudesse te dar apenas uma dica de compra este mês, seria esse ${shortTitle}.`,
+    `Duvido você adivinhar quanto custa isso antes de ver funcionando na prática.`,
+    `Mais de 5 mil pessoas compraram esse ${shortTitle} e agora eu entendi o motivo.`,
+    `Isso custa só ${pPrice} e entrega a mesma qualidade de produtos que custam 5 vezes mais.`,
+    `O maior erro que você comete ao comprar itens para ${pCat} é não conhecer esse achadinho.`,
+    `Antes de comprar qualquer outra coisa, veja a transformação que isso aqui faz por apenas ${pPrice}.`,
+  ];
+
+  return res.json({ hooks: fallbackHooks, source: 'fallback' });
+});
+
+// ─── POST /api/gemini/generate-full-script ──────────────────────────────────
+app.post("/api/gemini/generate-full-script", async (req, res) => {
+  const {
+    product,
+    targetPlatform,
+    selectedStyle,
+    duration,
+    selectedHook,
+    customCta,
+    extraProducts,
+    styleContext,
+    geminiApiKey,
+    geminiApiKeys
+  } = req.body;
+
+  if (!product || !product.title) {
+    return res.status(400).json({ error: "Dados do produto são obrigatórios." });
+  }
+
+  const candidateKeys: string[] = [];
+  if (geminiApiKey && typeof geminiApiKey === 'string' && geminiApiKey.trim()) {
+    candidateKeys.push(geminiApiKey.trim());
+  }
+  if (Array.isArray(geminiApiKeys)) {
+    for (const k of geminiApiKeys) {
+      if (typeof k === 'string' && k.trim() && !candidateKeys.includes(k.trim())) {
+        candidateKeys.push(k.trim());
+      }
+    }
+  }
+  if (process.env.GEMINI_API_KEY && !candidateKeys.includes(process.env.GEMINI_API_KEY.trim())) {
+    candidateKeys.push(process.env.GEMINI_API_KEY.trim());
+  }
+
+  const durationSeconds = duration === '15s' ? 15 : duration === '30s' ? 30 : duration === '60s' ? 60 : 90;
+  const platformLabel =
+    targetPlatform === 'tiktok'
+      ? 'TikTok'
+      : targetPlatform === 'instagram'
+      ? 'Instagram Reels'
+      : 'Criativo de Alta Conversão / Tráfego Pago';
+
+  const styleTitle = selectedStyle?.name || 'Estilo de Alta Conversão';
+  const styleDesc = selectedStyle?.desc || '';
+
+  // Contexto adicional do estilo
+  const extraContextLines: string[] = [];
+  if (Array.isArray(extraProducts) && extraProducts.length > 0) {
+    extraContextLines.push(`PRODUTOS ADICIONAIS NA LISTA:`);
+    extraProducts.forEach((ep: any, idx: number) => {
+      extraContextLines.push(`- Produto ${idx + 2}: ${ep.title} (${ep.price_to ? 'R$ ' + ep.price_to : 'Preço promocional'})${ep.highlight ? ' - ' + ep.highlight : ''}`);
+    });
+  }
+  if (styleContext?.testType) {
+    extraContextLines.push(`- Teste/Desafio Específico: ${styleContext.testType}${styleContext.testResult ? ' (Resultado: ' + styleContext.testResult + ')' : ''}`);
+  }
+  if (styleContext?.reactKeyMoment || styleContext?.reactVideoUrl) {
+    extraContextLines.push(`- React/Reação ao Vídeo: ${styleContext.reactKeyMoment || 'Vídeo viral em análise'}${styleContext.reactResponseAngle ? ' - Ângulo de resposta: ' + styleContext.reactResponseAngle : ''}`);
+  }
+  if (styleContext?.beforeDescription || styleContext?.afterDescription) {
+    extraContextLines.push(`- Situação Antes: ${styleContext.beforeDescription || 'Problema/Caos'} vs Situação Depois: ${styleContext.afterDescription || 'Transformação'}${styleContext.transformationTime ? ' em ' + styleContext.transformationTime : ''}`);
+  }
+  if (styleContext?.competitorName) {
+    extraContextLines.push(`- Comparativo com Concorrente/Alternativa: ${styleContext.competitorName} (${styleContext.competitorPrice ? 'R$ ' + styleContext.competitorPrice : 'Mais caro'}) - Defeito: ${styleContext.competitorFlaw || 'Ineficiente'}`);
+  }
+  if (styleContext?.testimonialUsageTime || styleContext?.testimonialMainResult) {
+    extraContextLines.push(`- Depoimento/UGC: Usado por ${styleContext.testimonialUsageTime || 'semanas'}, resultado: ${styleContext.testimonialMainResult || 'satisfação comprovada'}`);
+  }
+  if (styleContext?.commonMistake) {
+    extraContextLines.push(`- Erro Comum: ${styleContext.commonMistake} vs Jeito Certo: ${styleContext.correctWay || 'com o produto'}`);
+  }
+  if (styleContext?.unboxingItems) {
+    extraContextLines.push(`- Itens da Caixa / Unboxing: ${styleContext.unboxingItems}`);
+  }
+  if (styleContext?.extraNotes) {
+    extraContextLines.push(`- Notas adicionais de gravação: ${styleContext.extraNotes}`);
+  }
+
+  const prompt = `Você é um diretor de gravação e roteirista profissional especialista em vídeos virais no formato vertical 9:16 para TikTok, Instagram Reels e Anúncios de Tráfego Pago.
+Crie um ROTEIRO COMPLETO, DINÂMICO E PRONTO PARA GRAVAÇÃO.
+
+DADOS PRINCIPAIS DO PRODUTO:
+- Título: ${product.title}
+- Preço Atual: R$ ${product.price_to}
+- Preço Anterior: ${product.price_from ? 'R$ ' + product.price_from : 'N/A'}
+- Categoria: ${product.category || 'Geral'}
+- Benefícios: ${product.description || 'Produto prático e eficiente'}
+
+CONFIGURAÇÕES DO VÍDEO:
+- Plataforma: ${platformLabel}
+- Duração Alvo: ${duration} (${durationSeconds} segundos)
+- Estilo Escolhido: ${styleTitle} — ${styleDesc}
+- Gancho Inicial Selecionado (Primeiros 3s): "${selectedHook || ''}"
+- Chamada para Ação (CTA Final): "${customCta || ''}"
+${extraContextLines.length > 0 ? '\nINFORMAÇÕES E MÍDIAS ESPECÍFICAS DO ESTILO:\n' + extraContextLines.join('\n') : ''}
+
+REGRAS DE CONSTRUÇÃO DO ROTEIRO:
+1. Divida em cenas com tempos proporcionais à duração (${durationSeconds}s).
+2. O gancho inicial DEVE ser respeitado na Cena 1.
+3. Para cada cena forneça:
+   - sceneNumber (número inteiro 1, 2, 3...)
+   - timeRange (ex: "00:00 - 00:03")
+   - visual (descrição exata do que o criador deve mostrar na câmera, enquadramento e ação visual)
+   - audio (fala exata do narrador/criador, natural, sem enrolação)
+   - onScreenText (texto chamativo curto para colocar na tela com emojis ou destaques)
+   - actingTip (dica de atuação, tom de voz, energia ou expressão facial)
+4. Inclua um campo 'cleanText' contendo APENAS as falas de todas as cenas unidas (para uso no teleprompter).
+5. Inclua 'suggestedTitles' (5 ideias de títulos chamativos para a legenda/post) e 'hashtags' (8 a 10 hashtags virais relevantes).
+
+Responda em formato JSON válido.`;
+
+  try {
+    const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              hook: { type: Type.STRING },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    sceneNumber: { type: Type.INTEGER },
+                    timeRange: { type: Type.STRING },
+                    visual: { type: Type.STRING },
+                    audio: { type: Type.STRING },
+                    onScreenText: { type: Type.STRING },
+                    actingTip: { type: Type.STRING }
+                  },
+                  required: ["sceneNumber", "timeRange", "visual", "audio"]
+                }
+              },
+              cta: { type: Type.STRING },
+              cleanText: { type: Type.STRING },
+              suggestedTitles: { type: Type.ARRAY, items: { type: Type.STRING } },
+              hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["title", "hook", "scenes", "cta", "cleanText"]
+          },
+          temperature: 0.5
+        }
+      });
+    });
+
+    if (response.text) {
+      try {
+        const parsed = JSON.parse(response.text.trim());
+        if (parsed.scenes && Array.isArray(parsed.scenes)) {
+          const fullText = [
+            `ROTEIRO COMPLETO (${platformLabel}) — ${styleTitle}`,
+            `Duração: ${duration} | Formato: Vertical 9:16`,
+            `Produto: ${product.title}`,
+            `Preço: R$ ${product.price_to}`,
+            ``,
+            `GANCHO INICIAL (Primeiros 3 segundos):`,
+            `"${parsed.hook || selectedHook}"`,
+            ``,
+            `ESTRUTURA CENA A CENA:`,
+            ...parsed.scenes.map((s: any) =>
+              `[Cena ${s.sceneNumber} - ${s.timeRange}]\nVisual: ${s.visual}\nFala: "${s.audio}"\nTexto na Tela: ${s.onScreenText || '—'}\nDica: ${s.actingTip || '—'}\n`
+            ),
+            `CHAMADA PARA AÇÃO (CTA FINAL):`,
+            `"${parsed.cta || customCta}"`,
+          ].join('\n');
+
+          return res.json({
+            title: parsed.title || `Roteiro: ${product.title.slice(0, 35)} (${duration})`,
+            hook: parsed.hook || selectedHook,
+            scenes: parsed.scenes,
+            cta: parsed.cta || customCta,
+            cleanText: parsed.cleanText || parsed.scenes.map((s: any) => s.audio).join('\n\n'),
+            suggestedTitles: parsed.suggestedTitles || [],
+            hashtags: parsed.hashtags || [],
+            fullText,
+            source: 'gemini'
+          });
+        }
+      } catch (e) {
+        console.error("Erro no parse do roteiro completo:", e);
+      }
+    }
+  } catch (err: any) {
+    console.error("Erro ao gerar roteiro completo com Gemini:", err);
+  }
+
+  // Fallback estruturado local
+  const sceneCount = durationSeconds <= 15 ? 3 : durationSeconds <= 30 ? 4 : 6;
+  const timeSlice = Math.round(durationSeconds / sceneCount);
+  const hookToUse = selectedHook || `Você não vai acreditar no que esse produto faz por apenas R$ ${product.price_to}!`;
+  const ctaToUse = customCta || 'Comente "EU QUERO" ou clique no link da bio!';
+
+  const fallbackScenes = [
+    {
+      sceneNumber: 1,
+      timeRange: `00:00 - 00:0${Math.min(3, timeSlice)}`,
+      visual: 'Segurando o produto na mão com ângulo dinâmico e corte seco nos primeiros 2 segundos para prender a atenção.',
+      audio: hookToUse,
+      onScreenText: hookToUse.slice(0, 40) + '...',
+      actingTip: 'Olhe fixo para a lente da câmera com tom confiante e enérgico.',
+    },
+    {
+      sceneNumber: 2,
+      timeRange: `00:0${Math.min(3, timeSlice)} - 00:${String(timeSlice * 2).padStart(2, '0')}`,
+      visual: 'Close-up no produto sendo utilizado ou demonstrado, evidenciando acabamento e funcionalidade.',
+      audio: `Dá uma olhada nisso aqui. ${product.price_from ? `Custava R$ ${product.price_from} e agora baixou para só R$ ${product.price_to}!` : `Custa apenas R$ ${product.price_to}!`} É muito mais prático do que parece.`,
+      onScreenText: `R$ ${product.price_to} 🔥`,
+      actingTip: 'Aproxime bem da lente para evidenciar os detalhes e o benefício real.',
+    },
+    {
+      sceneNumber: 3,
+      timeRange: `00:${String(timeSlice * 2).padStart(2, '0')} - 00:${String(timeSlice * 3).padStart(2, '0')}`,
+      visual: 'Demonstração prática do produto resolvendo o problema e gerando o resultado perfeito.',
+      audio: `Ele entrega exatamente ${product.category ? `o que você precisa para ${product.category}` : 'o que promete'} sem complicação nenhuma.`,
+      onScreenText: 'Prático e Rápido ✅',
+      actingTip: 'Sorriso de aprovação genuína mostrando que o resultado foi alcançado.',
+    },
+  ];
+
+  if (sceneCount >= 4) {
+    fallbackScenes.push({
+      sceneNumber: 4,
+      timeRange: `00:${String(timeSlice * 3).padStart(2, '0')} - 00:${String(durationSeconds).padStart(2, '0')}`,
+      visual: 'Segurando o produto e apontando para a chamada de ação indicada na tela.',
+      audio: ctaToUse,
+      onScreenText: ctaToUse.slice(0, 35) + '...',
+      actingTip: 'Encerre com entusiasmo e convide a audiência para a ação imediata.',
+    });
+  }
+
+  const cleanText = fallbackScenes.map((s) => s.audio).join('\n\n');
+  const catClean = (product.category || 'achadinhos').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const fullText = [
+    `ROTEIRO COMPLETO (${platformLabel}) — ${styleTitle}`,
+    `Duração: ${duration} | Formato: Vertical 9:16`,
+    `Produto: ${product.title}`,
+    `Preço: R$ ${product.price_to}`,
+    ``,
+    `GANCHO INICIAL:`,
+    `"${hookToUse}"`,
+    ``,
+    `ESTRUTURA CENA A CENA:`,
+    ...fallbackScenes.map(
+      (s) =>
+        `[Cena ${s.sceneNumber} - ${s.timeRange}]\nVisual: ${s.visual}\nFala: "${s.audio}"\nTexto na Tela: ${s.onScreenText}\nDica: ${s.actingTip}\n`
+    ),
+    `CHAMADA PARA AÇÃO:`,
+    `"${ctaToUse}"`,
+  ].join('\n');
+
+  return res.json({
+    title: `Roteiro: ${product.title.slice(0, 35)} (${duration})`,
+    hook: hookToUse,
+    scenes: fallbackScenes,
+    cta: ctaToUse,
+    cleanText,
+    suggestedTitles: [
+      `Você não vai acreditar no que esse produto faz por R$ ${product.price_to}!`,
+      `ACHADINHO SECRETO: O melhor que comprei este mês!`,
+      `Pare de gastar dinheiro com coisa cara! Isso custa só R$ ${product.price_to}.`,
+      `Unboxing & Teste sincero: Vale a pena comprar por R$ ${product.price_to}?`,
+      `O segredo que ninguém te conta sobre ${product.category || 'esse achadinho'}!`,
+    ],
+    hashtags: ['#achadinhos', '#achados', '#mercadolivre', '#shopee', '#tiktokmademebuyit', `#${catClean}`, '#promocao'],
+    fullText,
+    source: 'fallback'
+  });
+});
+
 // ─── POST /api/gemini/video-script ───────────────────────────────────────────
 app.post("/api/gemini/video-script", async (req, res) => {
   const { product, videoType, duration, geminiApiKey, geminiApiKeys } = req.body;

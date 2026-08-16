@@ -331,9 +331,110 @@ export type AppTab =
   | "saved-products"
   | "marketplace"
   | "my-products"
+  | "projects"
   | "whatsapp-auto"
   | "templates"
   | "extension"
   | "url-shortener"
   | "settings"
   | "api-docs";
+
+// ─── Projetos & Roteiros de Vídeo ──────────────────────────────────────────
+
+export interface VideoScriptScene {
+  sceneNumber: number;
+  timeRange: string;
+  visual: string;
+  audio: string;
+  onScreenText?: string;
+  actingTip?: string;
+}
+
+export interface VideoHookItem {
+  id: string;
+  type: string;
+  hookText: string;
+  visualIdea?: string;
+  retentionAngle?: string;
+}
+
+export interface VideoProjectExtraProduct {
+  title: string;
+  price_to: string;
+  image_url?: string;
+  video_url?: string;
+  highlight?: string;
+}
+
+export interface VideoProjectStyleContext {
+  productCountMode?: 'single' | 'multiple';
+  testType?: string;
+  testResult?: string;
+  testMediaUrl?: string;
+  reactVideoUrl?: string;
+  reactVideoName?: string;
+  reactKeyMoment?: string;
+  reactResponseAngle?: string;
+  beforeDescription?: string;
+  afterDescription?: string;
+  transformationTime?: string;
+  beforeMediaUrl?: string;
+  afterMediaUrl?: string;
+  competitorName?: string;
+  competitorPrice?: string;
+  competitorFlaw?: string;
+  testimonialUsageTime?: string;
+  testimonialMainResult?: string;
+  unboxingItems?: string;
+  commonMistake?: string;
+  correctWay?: string;
+  extraNotes?: string;
+  uploadedVideos?: Array<{ name: string; url: string; size?: string; type?: string }>;
+}
+
+export interface VideoProject {
+  id: string;
+  userId: string;
+  status: 'draft' | 'ready'; // 'draft' = em produção, 'ready' = pronto
+  step: number;
+  createdAt: string;
+  updatedAt: string;
+  product: {
+    id?: string;
+    title: string;
+    price_to: string;
+    price_from?: string | null;
+    installments?: string | null;
+    image_url?: string | null;
+    pictures?: string[];
+    category?: string | null;
+    description?: string | null;
+    platform?: string;
+    original_link?: string;
+    affiliate_link?: string;
+  };
+  targetPlatform?: 'tiktok' | 'instagram' | 'creative';
+  creativeType?: 'ugc' | 'react' | 'depoimento' | 'review_demonstracao' | 'outro';
+  reactSourceUrl?: string;
+  extraProducts?: VideoProjectExtraProduct[];
+  styleContext?: VideoProjectStyleContext;
+  settings: {
+    duration: '15s' | '30s' | '60s' | '90s';
+    videoStyleId: string;
+    videoStyleName: string;
+    selectedHook?: string;
+    selectedHookType?: string;
+    customCta?: string;
+  };
+  generatedHooks?: VideoHookItem[];
+  script?: {
+    title: string;
+    hook: string;
+    scenes: VideoScriptScene[];
+    cta: string;
+    fullText: string;
+    cleanText?: string;
+    suggestedTitles?: string[];
+    hashtags?: string[];
+  };
+}

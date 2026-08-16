@@ -42,6 +42,7 @@ interface MinedProductsTabProps {
   onAddCustomTemplate?: (template: CopyTemplate) => void;
   customTemplates?: CopyTemplate[];
   defaultTemplateId?: string;
+  onNavigateToProjects?: (product: GlobalProduct) => void;
 }
 
 interface EnrichedMinedProduct extends MinedProductRef {
@@ -93,6 +94,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   onAddCustomTemplate,
   customTemplates = [],
   defaultTemplateId,
+  onNavigateToProjects,
 }) => {
   const [items, setItems] = useState<EnrichedMinedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,6 +491,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       {selectedProductForModal && (
         <ProductDetailModal
           product={selectedProductForModal}
+          mode="my-products"
+          isAlreadyMined={true}
           currentUserId={uid}
           apiKeys={apiKeys}
           commissionRates={commissionRates}
@@ -496,6 +500,7 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           onAddCustomTemplate={onAddCustomTemplate}
           customTemplates={customTemplates}
           defaultTemplateId={defaultTemplateId}
+          onGenerateVideoScript={onNavigateToProjects}
         />
       )}
     </div>
