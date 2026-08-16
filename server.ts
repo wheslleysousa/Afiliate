@@ -571,33 +571,26 @@ async function fetchShopeeGraphQLWithSignatureFallback(
   payloadStr: string
 ): Promise<Response> {
   const timestamp = Math.floor(Date.now() / 1000);
-  const message = appId + timestamp + payloadStr;
-
-  const hmacSig = crypto.createHmac("sha256", secret).update(message).digest("hex");
-  const plainSig = crypto.createHash("sha256").update(message + secret).digest("hex");
+  
+  // Official signature spec: SHA256 of concatenated appId + timestamp + payload + secret (no spaces)
+  const factor = appId + timestamp + payloadStr + secret;
+  const signature = crypto.createHash("sha256").update(factor).digest("hex");
 
   const secretLen = secret ? secret.length : 0;
   const secretLast4 = secretLen >= 4 ? secret.slice(-4) : (secret || "none");
 
   console.log(`[SHOPEE DIAG] Executando GraphQL em ${endpoint} | AppID: ${appId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Timestamp: ${timestamp}`);
-  console.log(`[SHOPEE DIAG] Base string da assinatura (len=${message.length}): ${message.length > 300 ? message.substring(0, 300) + '...' : message}`);
+  console.log(`[SHOPEE DIAG] Base string da assinatura (len=${factor.length}): ${factor.length > 300 ? factor.substring(0, 300) + '...' : factor}`);
+  console.log(`[SHOPEE DIAG] Assinatura SHA256 puro gerada: ${signature}`);
 
   const attempts = [
     {
-      name: "HMAC-SHA256 (Standard, no spaces, TS first)",
-      header: `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${hmacSig}`
+      name: "Plain SHA256 (With spaces - Official Spec)",
+      header: `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`
     },
     {
-      name: "HMAC-SHA256 (Legacy, with spaces, Sig first)",
-      header: `SHA256 Credential=${appId}, Signature=${hmacSig}, Timestamp=${timestamp}`
-    },
-    {
-      name: "Plain SHA256 (Standard, no spaces, TS first)",
-      header: `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${plainSig}`
-    },
-    {
-      name: "Plain SHA256 (Legacy, with spaces, Sig first)",
-      header: `SHA256 Credential=${appId}, Signature=${plainSig}, Timestamp=${timestamp}`
+      name: "Plain SHA256 (No spaces)",
+      header: `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`
     }
   ];
 
@@ -2158,7 +2151,7 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
 }`;
 
         const { result: searchResponse } = await callGeminiWithRotation(geminiCandidateKeys, async (ai) => {
-          return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+          return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
             contents: searchPrompt,
             config: {
               tools: [{ googleSearch: {} }],
@@ -3578,11 +3571,9 @@ function getCandidateGeminiKeys(apiKeys: any): string[] {
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: string, params: any) {
   const modelsToTry = [
     primaryModel,
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-2.5-pro",
-    "gemini-1.5-pro",
+    "gemini-3.7-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-pro-preview",
   ];
   const triedModels = new Set<string>();
 
@@ -3682,7 +3673,7 @@ app.post("/api/gemini/validate-key", async (req, res) => {
       }
     });
 
-    const testResponse = await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+    const testResponse = await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
       contents: "Responda 'OK' se a chave está funcionando.",
     });
 
@@ -3813,7 +3804,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
           
           const { result: descResponse } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-            return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+            return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
               contents: descPrompt,
             });
           });
@@ -3926,7 +3917,7 @@ DADOS DO PRODUTO:
 - Link de Compra: {LINK}`;
 
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -4082,7 +4073,7 @@ REGRAS RÍGIDAS DE CONSTRUÇÃO DO TEMPLATE:
 Responda EXATAMENTE em formato JSON.`;
 
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -4222,7 +4213,7 @@ DIRETRIZES ESSENCIAIS:
 
   try {
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -4395,7 +4386,7 @@ Responda em formato JSON válido.`;
 
   try {
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -4623,7 +4614,7 @@ Responda em formato JSON válido e bem estruturado.`;
 
   try {
     const { result: response } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-      return await generateGeminiContentWithFallback(ai, "gemini-3.6-flash", {
+      return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
         contents: prompt,
         config: {
           responseMimeType: "application/json",
