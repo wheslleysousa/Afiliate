@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
 import { extractCleanTrackingId } from '../utils/affiliateLink';
+import { getApiUrl } from '../utils/apiBase';
 import { 
   AlarmSettings, 
   getAlarmSettings, 
@@ -261,7 +262,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleDownloadExtension = () => {
-    window.open('/api/extension/download', '_blank');
+    window.open(getApiUrl('/api/extension/download'), '_blank');
   };
 
   return (
@@ -503,7 +504,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 colorBorder: 'border-yellow-500/30 focus:border-yellow-500',
                 colorBadge: 'bg-yellow-400/10 text-yellow-300 border-yellow-400/20',
                 colorTitle: 'text-yellow-400',
-                oauthUrl: '/api/auth/mercadolivre/connect',
+                oauthUrl: getApiUrl('/api/auth/mercadolivre/connect'),
                 connectButtonText: 'Conectar Conta Oficial Mercado Livre'
               },
               {

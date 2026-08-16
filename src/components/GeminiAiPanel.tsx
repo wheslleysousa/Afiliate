@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Sparkles, Loader2, ArrowRight, Wand2, RefreshCw } from 'lucide-react';
 import { ScrapedProduct, GeminiCopyVariation, ApiKeysConfig } from '../types';
+import { apiFetch } from '../utils/apiBase';
 
 interface GeminiAiPanelProps {
   product: ScrapedProduct;
@@ -21,7 +22,7 @@ export const GeminiAiPanel: React.FC<GeminiAiPanelProps> = ({ product, onSelectV
     setIsGenerating(true);
     setError(null);
     try {
-      const response = await fetch('/api/gemini/copy', {
+      const response = await apiFetch('/api/gemini/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

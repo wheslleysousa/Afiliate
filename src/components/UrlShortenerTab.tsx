@@ -240,6 +240,8 @@ export const UrlShortenerTab: React.FC<UrlShortenerTabProps> = ({ apiKeys, onSav
         platform: detectedPlatform,
         fullUrl: fullUrl,
         docId: docId,
+        ownerUid: uid || 'anonymous',
+        userId: uid || 'anonymous',
         createdBy: uid || 'anonymous',
         createdAt: new Date().toISOString()
       });

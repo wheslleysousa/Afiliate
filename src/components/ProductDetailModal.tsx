@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate, ProductData } from '../types';
 import { buildAffiliateLink, buildShareableTrackingLink, slugify, getShortCodeForProduct } from '../utils/affiliateLink';
+import { apiFetch } from '../utils/apiBase';
 import { calculateCommission, calculateSalesTrend } from '../utils/marketplaceUtils';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
@@ -103,7 +104,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
       setEnriching(true);
       try {
-        const response = await fetch('/api/scrape', {
+        const response = await apiFetch('/api/scrape', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: product.original_link, apiKeys: keys }),
@@ -203,7 +204,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleGenerateAiCopy = async () => {
     setGeneratingAiCopy(true);
     try {
-      const res = await fetch('/api/gemini/copy', {
+      const res = await apiFetch('/api/gemini/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CopyTemplate, UserApiKeys } from '../types';
+import { apiFetch } from '../utils/apiBase';
 import {
   LayoutTemplate,
   Plus,
@@ -209,7 +210,7 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
     setIsGeneratingAi(true);
     setAiError(null);
     try {
-      const response = await fetch('/api/gemini/generate-template', {
+      const response = await apiFetch('/api/gemini/generate-template', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

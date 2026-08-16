@@ -9,6 +9,7 @@ import { GeminiAiPanel } from './GeminiAiPanel';
 import { DEFAULT_TEMPLATES, applyTemplate } from '../data/defaultTemplates';
 import { TemplateSelector } from './TemplateSelector';
 import { buildAffiliateLink, buildShareableTrackingLink, slugify, getShortCodeForProduct } from '../utils/affiliateLink';
+import { apiFetch } from '../utils/apiBase';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -102,7 +103,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       setIsLoading(true);
       setErrorMsg(null);
       try {
-        const response = await fetch('/api/scrape', {
+        const response = await apiFetch('/api/scrape', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: selectedProductForCopy.original_link, apiKeys }),
@@ -175,6 +176,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       if (targetUrl) {
         setDoc(doc(db, 'shortLinks', docId), {
           targetUrl,
+          ownerUid: uid,
           userId: uid,
           productId: extractedProduct.id || null,
           title: extractedProduct.title || null,
@@ -185,6 +187,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
         if (prefix) {
           setDoc(doc(db, 'shortLinks', slug), {
             targetUrl,
+            ownerUid: uid,
             userId: uid,
             productId: extractedProduct.id || null,
             title: extractedProduct.title || null,
@@ -262,7 +265,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     setIsAiGenerating(true);
     setErrorMsg(null);
     try {
-      const aiResponse = await fetch('/api/gemini/copy', {
+      const aiResponse = await apiFetch('/api/gemini/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -331,7 +334,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
     setIsSaved(false);
 
     try {
-      const response = await fetch('/api/scrape', {
+      const response = await apiFetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: urlInput.trim(), apiKeys }),
@@ -410,7 +413,7 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
       // Attempt background Gemini AI enhancement automatically
       setIsAiGenerating(true);
       try {
-        const aiResponse = await fetch('/api/gemini/copy', {
+        const aiResponse = await apiFetch('/api/gemini/copy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

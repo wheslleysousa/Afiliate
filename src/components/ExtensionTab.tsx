@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiUrl } from '../utils/apiBase';
 import {
   Download,
   Zap,
@@ -27,7 +28,7 @@ export const ExtensionTab: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const handleDownload = () => {
-    window.open('/api/extension/download', '_blank');
+    window.open(getApiUrl('/api/extension/download'), '_blank');
   };
 
   const toggleFaq = (index: number) => {

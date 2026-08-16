@@ -19,13 +19,231 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
-// Configuração de CORS — aceita frontend React + extensão Chrome + Cloud Run + Render
+// ==========================================
+// SECURITY & SSRF / REDIRECT / CORS HELPERS
+// ==========================================
+
+// Helper to validate and block SSRF attacks against loopback/private/metadata ranges
+function isPrivateOrLoopbackIp(ip: string): boolean {
+  const cleanIp = ip.replace(/^::ffff:/, '').trim().toLowerCase();
+  
+  if (cleanIp === '::1' || cleanIp === '0:0:0:0:0:0:0:1' || cleanIp === '::') return true;
+
+  const parts = cleanIp.split('.').map(p => parseInt(p, 10));
+  if (parts.length === 4 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+    const [a, b, c, d] = parts;
+    if (a === 0) return true; // 0.0.0.0/8
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 127) return true; // 127.0.0.0/8 (loopback)
+    if (a === 169 && b === 254) return true; // 169.254.0.0/16 (link-local / cloud metadata)
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 (carrier-grade NAT)
+    if (a >= 224) return true; // 224.0.0.0/4 (multicast/reserved)
+  }
+
+  // IPv6 private & link-local ranges
+  if (cleanIp.startsWith('fc') || cleanIp.startsWith('fd') || cleanIp.startsWith('fe8') || cleanIp.startsWith('fe9') || cleanIp.startsWith('fea') || cleanIp.startsWith('feb')) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isSafePublicUrl(urlString: string): boolean {
+  if (!urlString || typeof urlString !== 'string') return false;
+  try {
+    const parsed = new URL(urlString.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname) return false;
+
+    // Block localhost, local domains, cloud metadata domains
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname === 'metadata.google.internal' ||
+      hostname === 'instance-data'
+    ) {
+      return false;
+    }
+
+    // Direct IP checks (handles ipv4, or bracketed ipv6)
+    const normalizedHost = hostname.replace(/^\[|\]$/g, '');
+    if (isPrivateOrLoopbackIp(normalizedHost)) {
+      return false;
+    }
+
+    // Must have a domain dot or be a valid public hostname
+    if (!hostname.includes('.') && !hostname.includes(':')) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isAllowedMediaDownloadUrl(urlString: string): boolean {
+  if (!isSafePublicUrl(urlString)) return false;
+  try {
+    const parsed = new URL(urlString.trim());
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Known media & marketplace CDN domains allowlist
+    const allowedSuffixes = [
+      'mlstatic.com',
+      'mercadolivre.com',
+      'mercadolivre.com.br',
+      'mercadolibre.com',
+      'mercadolibre.com.br',
+      'susercontent.com',
+      'shopee.com.br',
+      'shopee.com',
+      'media-amazon.com',
+      'ssl-images-amazon.com',
+      'amazon.com',
+      'amazon.com.br',
+      'alicdn.com',
+      'aliexpress.com',
+      'ltwebstatic.com',
+      'shein.com',
+      'tiktokcdn.com',
+      'tiktokcdn-us.com',
+      'byteoversea.com',
+      'ibytedtos.com',
+      'tiktok.com',
+      'unsplash.com',
+      'cloudinary.com',
+      'imgur.com',
+      'ytimg.com',
+      'ggpht.com',
+      'googleusercontent.com'
+    ];
+
+    return allowedSuffixes.some(suffix => hostname === suffix || hostname.endsWith(`.${suffix}`));
+  } catch {
+    return false;
+  }
+}
+
+export function isAllowedRedirectUrl(urlString: string, reqHost?: string): boolean {
+  if (!isSafePublicUrl(urlString)) return false;
+  try {
+    const parsed = new URL(urlString.trim());
+    const hostname = parsed.hostname.toLowerCase();
+
+    const allowedRedirectSuffixes = [
+      'mercadolivre.com.br',
+      'mercadolivre.com',
+      'mercadolibre.com',
+      'mercadolibre.com.br',
+      'meli.la',
+      'mlb.link',
+      'shopee.com.br',
+      'shopee.com',
+      'shope.ee',
+      'shp.ee',
+      'amazon.com.br',
+      'amazon.com',
+      'amzn.to',
+      'amzn.eu',
+      'a.co',
+      'aliexpress.com',
+      'aliexpress.ru',
+      's.click.aliexpress.com',
+      'alix.click',
+      'shein.com',
+      'shein.top',
+      'm.shein.com',
+      'tiktok.com',
+      'tiktokshop.com',
+      'vt.tiktok.com',
+      'vm.tiktok.com',
+      'lkrm.site',
+      'tinyurl.com',
+      'bit.ly',
+      'onrender.com',
+      'run.app'
+    ];
+
+    if (allowedRedirectSuffixes.some(suffix => hostname === suffix || hostname.endsWith(`.${suffix}`))) {
+      return true;
+    }
+
+    if (reqHost) {
+      const cleanReqHost = reqHost.split(':')[0].toLowerCase();
+      if (hostname === cleanReqHost || hostname.endsWith(`.${cleanReqHost}`)) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedCorsOrigin(origin: string): boolean {
+  if (!origin) return true;
+  if (origin.startsWith('chrome-extension://')) return true;
+
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Localhost and loopbacks
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname.endsWith('.localhost')) {
+      return true;
+    }
+
+    // Cloud Run and AI Studio
+    if (hostname.endsWith('.run.app') || hostname.endsWith('.aistudio.google.com') || hostname.endsWith('.googleusercontent.com')) {
+      return true;
+    }
+
+    // Render domains (production & preview)
+    if (hostname === 'onrender.com' || hostname.endsWith('.onrender.com') || hostname === 'render.com' || hostname.endsWith('.render.com')) {
+      return true;
+    }
+
+    // Custom domain from env
+    if (process.env.APP_URL) {
+      try {
+        const envHost = new URL(process.env.APP_URL).hostname.toLowerCase();
+        if (hostname === envHost || hostname.endsWith(`.${envHost}`)) return true;
+      } catch {}
+    }
+    if (process.env.FRONTEND_URL) {
+      try {
+        const envHost = new URL(process.env.FRONTEND_URL).hostname.toLowerCase();
+        if (hostname === envHost || hostname.endsWith(`.${envHost}`)) return true;
+      } catch {}
+    }
+    if (process.env.CUSTOM_DOMAIN) {
+      const customDomain = process.env.CUSTOM_DOMAIN.toLowerCase().trim();
+      if (hostname === customDomain || hostname.endsWith(`.${customDomain}`)) return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+// Configuração de CORS com Allowlist estrita (Extensão Chrome + Localhost + Render + Cloud Run)
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin.startsWith('chrome-extension://') || origin.includes('localhost') || origin.includes('run.app') || origin.includes('onrender.com') || origin.includes('render.com')) {
+    if (!origin || isAllowedCorsOrigin(origin)) {
       return callback(null, true);
     }
-    callback(null, true); // Fallback permissivo para garantir funcionamento no Render
+    // Origens fora da lista não recebem cabeçalhos de CORS
+    return callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Affiliate-UID'],
@@ -587,6 +805,11 @@ async function resolveFinalUrlAndHtml(initialUrl: string): Promise<{ finalUrl: s
   
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
+      if (!isSafePublicUrl(currentUrl)) {
+        console.warn(`[URL Resolver] URL bloqueada por segurança (SSRF): ${currentUrl}`);
+        break;
+      }
+
       const res = await fetch(currentUrl, { 
         headers: {
           ...DEFAULT_HEADERS,
@@ -679,8 +902,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     let bearerToken = typeof mlConfig === 'string' ? mlConfig : (mlConfig?.mercadoLivreKey || process.env.MERCADOLIVRE_KEY);
     let refreshToken = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreRefreshToken : undefined;
     let expiresAt = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreExpiresAt : undefined;
-    const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-    const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+    const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
+    const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
 
     // Preemptive Auto-Renew using Refresh Token if expired (or close to expiry)
     if (refreshToken && appId && clientSecret) {
@@ -2775,9 +2998,18 @@ app.get(["/r/:productId", "/r"], (req, res, next) => {
 
     try {
       const decoded = decodeURIComponent(targetUrl);
-      return res.redirect(302, decoded);
+      if (isAllowedRedirectUrl(decoded, req.get("host"))) {
+        return res.redirect(302, decoded);
+      } else {
+        console.warn(`[Redirect Security] Bloqueado redirecionamento para destino não seguro: ${decoded}`);
+        return res.status(400).send("Destino do redirecionamento inválido ou não autorizado.");
+      }
     } catch {
-      return res.redirect(302, targetUrl);
+      if (isAllowedRedirectUrl(targetUrl, req.get("host"))) {
+        return res.redirect(302, targetUrl);
+      } else {
+        return res.status(400).send("Destino do redirecionamento inválido.");
+      }
     }
   }
 
@@ -2798,6 +3030,10 @@ app.post("/api/shorten-link", async (req, res) => {
   const { url, slug, provider } = req.body || {};
   if (!url) {
     return res.status(400).json({ success: false, error: "URL é obrigatória." });
+  }
+
+  if (!isSafePublicUrl(url)) {
+    return res.status(400).json({ success: false, error: "URL inválida ou insegura." });
   }
 
   try {
@@ -2833,6 +3069,12 @@ app.get("/api/download", async (req, res) => {
 
   try {
     const cleanUrl = fileUrl.trim().startsWith("//") ? "https:" + fileUrl.trim() : fileUrl.trim();
+    
+    // SSRF & Domain Validation: only allow trusted media CDNs
+    if (!isAllowedMediaDownloadUrl(cleanUrl)) {
+      return res.status(400).send("Domínio da mídia não autorizado para download.");
+    }
+
     const response = await fetch(cleanUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
@@ -2867,7 +3109,11 @@ app.get("/api/download", async (req, res) => {
 
 // Mercado Livre OAuth Initiate Connect Endpoint
 app.get("/api/auth/mercadolivre/connect", (req, res) => {
-  const appId = process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
+  const appId = (req.query.appId as string)?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
+  if (!appId) {
+    return res.status(400).send("Credenciais do Mercado Livre não configuradas no servidor.");
+  }
+
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers["x-forwarded-host"] || req.get("host");
   const currentOrigin = `${protocol}://${host}`;
@@ -2877,8 +3123,8 @@ app.get("/api/auth/mercadolivre/connect", (req, res) => {
     redirectUri = "https://ais-dev-5teru3rok43774mjkuxp2x-165140757857.us-east1.run.app/settings";
   }
 
-  const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-  console.log(`[ML OAuth] Redirecionando usuário para: ${authUrl}`);
+  const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  console.log(`[ML OAuth] Redirecionando usuário para autenticação do Mercado Livre`);
   res.redirect(authUrl);
 });
 
@@ -2897,7 +3143,7 @@ app.get("/api/auth/shopee/connect", (req, res) => {
   const authUrl = appId 
     ? `https://open.shopee.com/apps/auth?app_id=${appId}&redirect=${encodeURIComponent(redirectUri)}`
     : `https://affiliate.shopee.com.br/`;
-  console.log(`[Shopee Connect] Redirecionando usuário para: ${authUrl}`);
+  console.log(`[Shopee Connect] Redirecionando usuário para autenticação da Shopee`);
   res.redirect(authUrl);
 });
 
@@ -2909,10 +3155,14 @@ app.post("/api/ml-exchange-code", async (req, res) => {
       return res.status(400).json({ error: "O código de autorização é obrigatório." });
     }
 
-    const mAppId = appId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-    const mClientSecret = clientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+    const mAppId = appId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
+    const mClientSecret = clientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
 
-    console.log(`[ML OAuth Exchange] Trocando code pelo access_token com App ID: ${mAppId} e Redirect URI: ${redirectUri}`);
+    if (!mAppId || !mClientSecret) {
+      return res.status(400).json({ error: "Credenciais do Mercado Livre não configuradas no servidor." });
+    }
+
+    console.log(`[ML OAuth Exchange] Trocando code pelo access_token com Redirect URI: ${redirectUri}`);
 
     const response = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
@@ -2929,7 +3179,6 @@ app.post("/api/ml-exchange-code", async (req, res) => {
     const data = await response.json();
     if (response.ok && data.access_token) {
       const expiresAt = Date.now() + (data.expires_in || 21600) * 1000;
-      console.log("[ML OAuth Exchange] Chaves geradas com sucesso via OAuth oficial!");
 
       // Tenta buscar informações do usuário conectado (/users/me)
       let userProfile: any = null;
@@ -2939,7 +3188,6 @@ app.post("/api/ml-exchange-code", async (req, res) => {
         });
         if (uRes.ok) {
           userProfile = await uRes.json();
-          console.log(`[ML OAuth Profile] Usuário autenticado: @${userProfile.nickname} (ID: ${userProfile.id})`);
         }
       } catch (uErr) {
         console.error("[ML OAuth Profile Fetch Error]", uErr);
@@ -2988,8 +3236,8 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
     };
 
     let mlAccessToken = keys.mercadoLivreKey;
-    const mlAppId = keys.mercadoLivreAppId || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-    const mlClientSecret = keys.mercadoLivreClientSecret || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+    const mlAppId = keys.mercadoLivreAppId || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
+    const mlClientSecret = keys.mercadoLivreClientSecret || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
     const mlRefreshToken = keys.mercadoLivreRefreshToken;
 
     // Renovar token do Mercado Livre se necessário
@@ -3175,7 +3423,7 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
 
 // TikTok Shop OAuth Initiate Connect Endpoint
 app.get("/api/auth/tiktok/connect", (req, res) => {
-  const appKey = (req.query.appKey as string) || process.env.TIKTOK_APP_KEY || process.env.TIKTOKSHOP_APP_KEY || "6kumo29osatlb";
+  const appKey = (req.query.appKey as string)?.trim() || process.env.TIKTOK_APP_KEY || process.env.TIKTOKSHOP_APP_KEY;
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers["x-forwarded-host"] || req.get("host");
   const currentOrigin = `${protocol}://${host}`;
@@ -3191,7 +3439,7 @@ app.get("/api/auth/tiktok/connect", (req, res) => {
 
   const state = "tiktok_auth_" + Date.now();
   const authUrl = `https://auth.tiktok-shops.com/oauth/authorize?app_key=${encodeURIComponent(appKey)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-  console.log(`[TikTok Shop OAuth] Redirecionando usuário para: ${authUrl}`);
+  console.log(`[TikTok Shop OAuth] Redirecionando usuário para autenticação do TikTok Shop`);
   res.redirect(authUrl);
 });
 
@@ -3203,14 +3451,14 @@ app.post("/api/tiktok-exchange-code", async (req, res) => {
       return res.status(400).json({ error: "O código de autorização é obrigatório." });
     }
 
-    const tAppKey = appKey?.trim() || process.env.TIKTOK_APP_KEY || process.env.TIKTOKSHOP_APP_KEY || "6kumo29osatlb";
-    const tAppSecret = appSecret?.trim() || process.env.TIKTOK_APP_SECRET || process.env.TIKTOKSHOP_APP_SECRET || "50743aed3fdcba8bbb80cf13b6975f34ceca155d";
+    const tAppKey = appKey?.trim() || process.env.TIKTOK_APP_KEY || process.env.TIKTOKSHOP_APP_KEY;
+    const tAppSecret = appSecret?.trim() || process.env.TIKTOK_APP_SECRET || process.env.TIKTOKSHOP_APP_SECRET;
 
     if (!tAppKey || !tAppSecret) {
-      return res.status(400).json({ error: "É necessário fornecer App Key e App Secret do TikTok Shop nas configurações." });
+      return res.status(400).json({ error: "Credenciais do TikTok Shop não configuradas no servidor." });
     }
 
-    console.log(`[TikTok OAuth Exchange] Trocando code pelo access_token com App Key: ${tAppKey}`);
+    console.log(`[TikTok OAuth Exchange] Trocando code pelo access_token`);
 
     const tokenUrl = `https://auth.tiktok-shops.com/api/v2/token/get?app_key=${tAppKey}&app_secret=${tAppSecret}&auth_code=${code}&grant_type=authorized_code`;
     
@@ -3447,6 +3695,13 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
     url = url.trim();
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
       url = "https://" + url;
+    }
+
+    if (!isSafePublicUrl(url)) {
+      return res.status(400).json({
+        error: "URL inválida ou não permitida por motivos de segurança.",
+        detail: "A URL fornecida não é um endereço público seguro."
+      });
     }
 
     let platform: string;
@@ -4445,8 +4700,8 @@ app.post("/api/test-key", async (req, res) => {
     }
 
     if (provider === "mercadolivre") {
-      const appId = keys?.mercadoLivreAppId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID || "1096973158666349";
-      const clientSecret = keys?.mercadoLivreClientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || "5YoWCSRNr90KiVumj0tf35NGkpOAbops";
+      const appId = keys?.mercadoLivreAppId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
+      const clientSecret = keys?.mercadoLivreClientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
       const accessToken = keys?.mercadoLivreKey?.trim();
 
       if (appId && clientSecret) {

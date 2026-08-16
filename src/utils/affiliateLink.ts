@@ -1,4 +1,5 @@
 import type { ApiKeysConfig } from '../types';
+import { getShortDomain } from './apiBase';
 
 /**
  * Extrai o ID ou Tag de rastreamento limpo de qualquer string ou URL fornecida pelo usuário.
@@ -257,7 +258,7 @@ export function buildShareableTrackingLink(
   const directAffiliateUrl = buildAffiliateLink(originalLink, platform, apiKeys);
   if (!directAffiliateUrl) return '';
 
-  const domain = apiKeys.customShortDomain ? apiKeys.customShortDomain.replace(/\/+$/, '') : 'https://lkrm.site';
+  const domain = apiKeys.customShortDomain ? apiKeys.customShortDomain.replace(/\/+$/, '') : getShortDomain();
   const rawPrefix = apiKeys.customShortPrefix ? apiKeys.customShortPrefix.trim() : '';
   const prefix = slugify(rawPrefix);
   const shortStyle = apiKeys.shortStyle || 'custom_random';

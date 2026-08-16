@@ -9,6 +9,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { apiFetch } from '../utils/apiBase';
 import type {
   VideoProject,
   VideoScriptScene,
@@ -778,7 +779,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       const styleObj = stylesList.find((s) => s.id === selectedStyleId) || stylesList[0];
 
       try {
-        const res = await fetch('/api/gemini/generate-hooks', {
+        const res = await apiFetch('/api/gemini/generate-hooks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1035,7 +1036,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
         : 'Criativo de Alta Conversão';
 
     try {
-      const res = await fetch('/api/gemini/generate-full-script', {
+      const res = await apiFetch('/api/gemini/generate-full-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

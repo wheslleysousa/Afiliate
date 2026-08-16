@@ -2,6 +2,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { slugify, buildAffiliateLink } from './affiliateLink';
 import { ApiKeysConfig, ProductData } from '../types';
+import { getShortDomain } from './apiBase';
 
 export type ShortStyleType = 'random' | 'custom_random' | 'custom_only' | 'custom_custom';
 
@@ -9,14 +10,14 @@ export interface ShortenerPreferences {
   shortStyle: ShortStyleType;
   defaultCustomPrefix: string;
   useProductNameAsSlug: boolean;
-  customDomain: string; // Sempre 'https://lkrm.site' como base
+  customDomain: string; // Base oficial do encurtador
 }
 
 export const DEFAULT_SHORT_PREFERENCES: ShortenerPreferences = {
   shortStyle: 'custom_random',
   defaultCustomPrefix: 'oferta',
   useProductNameAsSlug: false,
-  customDomain: 'https://lkrm.site',
+  customDomain: getShortDomain(),
 };
 
 /**
@@ -30,7 +31,7 @@ export async function getUserShortenerPreferences(uid?: string): Promise<Shorten
       return { 
         ...DEFAULT_SHORT_PREFERENCES, 
         ...snap.data(),
-        customDomain: 'https://lkrm.site' // Garante sempre o domínio oficial lkrm.site
+        customDomain: getShortDomain() // Garante o domínio oficial configurado
       } as ShortenerPreferences;
     }
   } catch (err) {
@@ -46,7 +47,7 @@ export async function saveUserShortenerPreferences(uid: string, prefs: Shortener
   if (!uid) return;
   const cleanPrefs: ShortenerPreferences = {
     ...prefs,
-    customDomain: 'https://lkrm.site',
+    customDomain: getShortDomain(),
     defaultCustomPrefix: prefs.defaultCustomPrefix ? slugify(prefs.defaultCustomPrefix) : 'oferta'
   };
   await setDoc(doc(db, 'users', uid, 'settings', 'shortener'), cleanPrefs, { merge: true });
@@ -91,7 +92,7 @@ export async function createShortLinkForProduct(
 ): Promise<{ shortUrl: string; docId: string }> {
   const prefs = await getUserShortenerPreferences(uid);
   const targetUrl = product.affiliate_link || product.original_link;
-  const domain = 'https://lkrm.site';
+  const domain = getShortDomain();
 
   const effectiveStyle: ShortStyleType = campaignShortStyle || prefs.shortStyle || 'custom_random';
 
@@ -147,6 +148,8 @@ export async function createShortLinkForProduct(
     platform: product.platform || 'shopee',
     fullUrl: shortUrl,
     docId: finalDocId,
+    ownerUid: uid || 'anonymous',
+    userId: uid || 'anonymous',
     createdBy: uid || 'anonymous',
     createdAt: new Date().toISOString()
   });

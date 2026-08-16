@@ -5,6 +5,7 @@ import { getPlatformLabel } from '../utils/platformLabel';
 import { calculateDiscountPercent } from '../utils/copyHelper';
 import { formatPrice } from '../utils/formatPrice';
 import { PriceBlock } from './PriceBlock';
+import { getApiUrl } from '../utils/apiBase';
 
 interface SavedProductsTabProps {
   items: SavedHistoryItem[];
@@ -221,7 +222,7 @@ export const SavedProductsTab: React.FC<SavedProductsTabProps> = ({
                   </p>
                   <div className="flex gap-2">
                     <a
-                      href={`/api/download?url=${encodeURIComponent(currentItem.product.selectedMediaUrl || currentItem.product.image_url!)}`}
+                      href={getApiUrl(`/api/download?url=${encodeURIComponent(currentItem.product.selectedMediaUrl || currentItem.product.image_url!)}`)}
                       className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-md flex items-center gap-1 transition-all"
                       download
                     >

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link2, Search, Loader2, Sparkles, AlertCircle, ShoppingBag } from 'lucide-react';
 import { ScrapedProduct } from '../types';
 import { getPlatformInfo } from '../utils/copyHelper';
+import { apiFetch } from '../utils/apiBase';
 
 interface ScraperCardProps {
   onScrapeSuccess: (product: ScrapedProduct) => void;
@@ -80,7 +81,7 @@ export const ScraperCard: React.FC<ScraperCardProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await fetch('/scrape', {
+      const response = await apiFetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: finalUrl })

@@ -29,6 +29,7 @@ import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, onSnapshot, query, orderBy, deleteField } from 'firebase/firestore';
 import { buildAffiliateLink } from './utils/affiliateLink';
+import { apiFetch } from './utils/apiBase';
 import {
   upsertToMarketplace,
   incrementDailyMineCount,
@@ -288,11 +289,11 @@ export default function App() {
         try {
           if (params.has('state') && params.get('state')?.startsWith('tiktok_auth_')) {
             // TikTok Shop Exchange
-            const appKey = apiKeys.tiktokshopAppKey || '6kumo29osatlb';
-            const appSecret = apiKeys.tiktokshopSecret || '50743aed3fdcba8bbb80cf13b6975f34ceca155d';
+            const appKey = apiKeys.tiktokshopAppKey;
+            const appSecret = apiKeys.tiktokshopSecret;
             const redirectUri = getMlRedirectUri();
 
-            const res = await fetch('/api/tiktok-exchange-code', {
+            const res = await apiFetch('/api/tiktok-exchange-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -327,11 +328,11 @@ export default function App() {
             }
           } else {
             // Mercado Livre Exchange
-            const appId = apiKeys.mercadoLivreAppId || '1096973158666349';
-            const clientSecret = apiKeys.mercadoLivreClientSecret || '5YoWCSRNr90KiVumj0tf35NGkpOAbops';
+            const appId = apiKeys.mercadoLivreAppId;
+            const clientSecret = apiKeys.mercadoLivreClientSecret;
             const redirectUri = getMlRedirectUri();
 
-            const res = await fetch('/api/ml-exchange-code', {
+            const res = await apiFetch('/api/ml-exchange-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -498,12 +499,7 @@ export default function App() {
         }
 
         // 3. Set up real-time listener for user API Keys config from Firestore
-        const defaultKeys = {
-          mercadoLivreAppId: '1096973158666349',
-          mercadoLivreClientSecret: '5YoWCSRNr90KiVumj0tf35NGkpOAbops',
-          tiktokshopAppKey: '6kumo29osatlb',
-          tiktokshopSecret: '50743aed3fdcba8bbb80cf13b6975f34ceca155d',
-        };
+        const defaultKeys: ApiKeysConfig = {};
 
         unsubscribeKeys = onSnapshot(
           doc(db, 'users', fbUser.uid, 'userConfig', 'apiKeys'),
@@ -610,7 +606,7 @@ export default function App() {
   // Auto-fetch Mercado Livre user profile if connected but nickname is missing
   useEffect(() => {
     if (apiKeys?.mercadoLivreKey && !apiKeys?.mercadoLivreNickname && currentUser?.id) {
-      fetch('/api/auth/mercadolivre/user-info', {
+      apiFetch('/api/auth/mercadolivre/user-info', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: apiKeys.mercadoLivreKey })
