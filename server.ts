@@ -202,6 +202,10 @@ function isAllowedCorsOrigin(origin: string): boolean {
       return true;
     }
 
+    // Vercel deployment domains and short link domain
+    if (hostname === 'vercel.app' || hostname.endsWith('.vercel.app')) return true;
+    if (hostname === 'lkrm.site' || hostname.endsWith('.lkrm.site')) return true;
+
     // Cloud Run and AI Studio
     if (hostname.endsWith('.run.app') || hostname.endsWith('.aistudio.google.com') || hostname.endsWith('.googleusercontent.com')) {
       return true;

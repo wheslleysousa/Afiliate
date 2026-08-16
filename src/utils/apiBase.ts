@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
  * URL padrão pública do backend quando rodando como app nativo (Capacitor/APK)
  * e nenhuma VITE_API_URL foi injetada no build.
  */
-export const DEFAULT_API_URL = 'https://afiliate-backend.onrender.com';
+export const DEFAULT_API_URL = 'https://afiliate.onrender.com';
 
 /**
  * Domínio padrão oficial do encurtador de links
@@ -42,7 +42,7 @@ export function isNativeApp(): boolean {
 
 /**
  * Resolve a URL base para chamadas ao backend Express (server.ts):
- * 1. VITE_API_URL definida no build (ex: https://afiliate-backend.onrender.com)
+ * 1. VITE_API_URL definida no build (ex: https://afiliate.onrender.com)
  * 2. Em APK Nativo (Capacitor), fallback para DEFAULT_API_URL
  * 3. Na Web (Vercel / Render / Dev local com same-origin), retorna '' (string vazia para caminhos relativos)
  */

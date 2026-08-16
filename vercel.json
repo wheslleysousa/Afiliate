@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://afiliate.onrender.com/api/$1" },
+    { "source": "/l/(.*)", "destination": "https://afiliate.onrender.com/l/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
