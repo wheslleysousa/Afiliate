@@ -14,7 +14,7 @@ export interface ReportedErrorInfo {
   rawError?: any;
 }
 
-export const APP_VERSION = '0.0.39';
+export const APP_VERSION = '0.0.40';
 
 /**
  * Mascara quaisquer tokens, chaves de API, autorizações ou senhas antes de exibir/copiar.
@@ -128,6 +128,10 @@ export function reportError(input: ReportedErrorInfo | Error | string): void {
   info.screen = info.screen || (typeof window !== 'undefined' ? (window.location.hash || window.location.pathname || 'app') : 'app');
   info.appVersion = info.appVersion || APP_VERSION;
   info.userAgent = info.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A');
+
+  if (info.message === 'invalid_client' || (typeof info.message === 'string' && info.message.includes('invalid_client'))) {
+    info.message = 'Credenciais de API/OAuth inválidas (invalid_client). Verifique se o App ID e Client Secret estão corretos em Configurações > Afiliados.';
+  }
 
   if (info.message) {
     info.message = sanitizeErrorText(info.message);

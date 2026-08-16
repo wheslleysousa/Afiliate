@@ -576,6 +576,12 @@ async function fetchShopeeGraphQLWithSignatureFallback(
   const hmacSig = crypto.createHmac("sha256", secret).update(message).digest("hex");
   const plainSig = crypto.createHash("sha256").update(message + secret).digest("hex");
 
+  const secretLen = secret ? secret.length : 0;
+  const secretLast4 = secretLen >= 4 ? secret.slice(-4) : (secret || "none");
+
+  console.log(`[SHOPEE DIAG] Executando GraphQL em ${endpoint} | AppID: ${appId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Timestamp: ${timestamp}`);
+  console.log(`[SHOPEE DIAG] Base string da assinatura (len=${message.length}): ${message.length > 300 ? message.substring(0, 300) + '...' : message}`);
+
   const attempts = [
     {
       name: "HMAC-SHA256 (Standard, no spaces, TS first)",
@@ -611,10 +617,13 @@ async function fetchShopeeGraphQLWithSignatureFallback(
         signal: AbortSignal.timeout(8000)
       });
 
+      const responseClone = response.clone();
+      const rawText = await responseClone.text();
+      console.log(`[SHOPEE DIAG] Tentativa '${attempt.name}' | Status HTTP: ${response.status} | Resposta crua: ${rawText}`);
+
       if (response.ok) {
-        const responseClone = response.clone();
         try {
-          const result = await responseClone.json();
+          const result = JSON.parse(rawText);
           if (result?.errors && JSON.stringify(result.errors).includes("Invalid Signature")) {
             lastResponse = response;
             continue; // try next signature
@@ -625,13 +634,11 @@ async function fetchShopeeGraphQLWithSignatureFallback(
         }
       } else {
         // If it's a 403, 404, 500, etc, it's likely a WAF block or endpoint issue, not a signature issue.
-        // Don't retry other signatures.
         lastResponse = response;
         break;
       }
     } catch (fetchErr: any) {
-      // Network error (ENOTFOUND, Timeout). Don't retry other signatures for the same endpoint if the endpoint is unreachable.
-      console.warn(`[Shopee Affiliate API] Conexão falhou para ${endpoint} (${fetchErr?.message || "fetch failed"}).`);
+      console.error(`[SHOPEE DIAG] Tentativa '${attempt.name}' exceção de rede/fetch | Message: ${fetchErr?.message || fetchErr} | Cause: ${fetchErr?.cause || 'N/A'}`);
       break;
     }
   }
@@ -645,8 +652,14 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
     const finalAppId = (appId || process.env.SHOPEE_APP_ID || "").trim();
     const finalSecret = (secret || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET || "").trim();
 
+    const secretLen = finalSecret.length;
+    const secretLast4 = secretLen >= 4 ? finalSecret.slice(-4) : (finalSecret || "none");
+    const source = (appId || secret) ? "config do usuário" : "env do servidor";
+
+    console.log(`[SHOPEE DIAG] generateShopeePromotionLink | URL: ${originalUrl} | AppID: ${finalAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
+
     if (!finalAppId || !finalSecret) {
-      console.log("[Shopee Affiliate API] Credenciais da API de Afiliados da Shopee não configuradas. Pulando conversão de link de afiliado.");
+      console.log("[SHOPEE DIAG] Credenciais da API de Afiliados da Shopee não configuradas. Pulando conversão.");
       return null;
     }
 
@@ -670,8 +683,6 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
     };
 
     const bodyStr = JSON.stringify(mutation);
-    
-    console.log(`[Shopee Affiliate API] Requesting link conversion for: ${originalUrl} with AppID: ${finalAppId}`);
 
     let response;
     try {
@@ -682,12 +693,11 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
         bodyStr
       );
     } catch (e: any) {
-      console.warn(`[Shopee Affiliate API] Erro de conexão: ${e?.message || e}`);
+      console.warn(`[SHOPEE DIAG] generateShopeePromotionLink erro de conexão: ${e?.message || e}`);
     }
 
     if (response && response.ok) {
       const result: any = await response.json();
-      console.log("[Shopee Affiliate API] API Response:", JSON.stringify(result));
       const responseData = result?.data?.generatePromotionLink;
       
       if (responseData?.errCode === 0 || responseData?.errCode === "0") {
@@ -696,13 +706,13 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
           return promoList[0].promotionLink;
         }
       } else {
-        console.warn(`[Shopee Affiliate API] Erro retornado pela API. Código: ${responseData?.errCode}, Mensagem: ${responseData?.errMsg}`);
+        console.warn(`[SHOPEE DIAG] Erro retornado pela API Shopee. Código: ${responseData?.errCode}, Mensagem: ${responseData?.errMsg}`);
       }
     } else {
-      console.error(`[Shopee Affiliate API] Erro HTTP ou resposta nula.`);
+      console.error(`[SHOPEE DIAG] generateShopeePromotionLink resposta HTTP nula ou não ok.`);
     }
   } catch (err) {
-    console.error("[Shopee Affiliate API] Erro de execução:", err);
+    console.error("[SHOPEE DIAG] Erro de execução em generateShopeePromotionLink:", err);
   }
   return null;
 }
@@ -769,9 +779,12 @@ const TIKTOK_MOBILE_HEADERS = {
 };
 
 // Helper to refresh ML token
-async function refreshMercadoLivreToken(appId: string, clientSecret: string, refreshToken: string) {
+async function refreshMercadoLivreToken(appId: string, clientSecret: string, refreshToken: string, source?: string) {
   try {
-    console.log("[ML Token Refresh] Tentando renovar access_token usando o refresh_token...");
+    const sLen = clientSecret ? clientSecret.length : 0;
+    const sLast4 = sLen >= 4 ? clientSecret.slice(-4) : (clientSecret || "none");
+    console.log(`[ML DIAG] refreshMercadoLivreToken | appId: ${appId} | secretLen: ${sLen} | secretLast4: ${sLast4} | Origem: ${source || "desconhecido"}`);
+
     const res = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -783,21 +796,25 @@ async function refreshMercadoLivreToken(appId: string, clientSecret: string, ref
       }),
     });
 
-    const data = await res.json();
+    const status = res.status;
+    const rawText = await res.text();
+    let data: any = {};
+    try { data = JSON.parse(rawText); } catch { data = { text: rawText }; }
+
     if (res.ok && data.access_token) {
       const expiresAt = Date.now() + (data.expires_in || 21600) * 1000;
-      console.log("[ML Token Refresh] Token renovado com sucesso!");
+      console.log(`[ML DIAG] refreshMercadoLivreToken SUCESSO | status: ${status}`);
       return {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: expiresAt,
       };
     } else {
-      console.error("[ML Token Refresh] Erro de resposta do Mercado Livre:", data);
+      console.error(`[ML DIAG] refreshMercadoLivreToken ERRO | status: ${status} | Resposta crua: ${rawText}`);
       return null;
     }
   } catch (err) {
-    console.error("[ML Token Refresh] Exceção ao renovar token:", err);
+    console.error("[ML DIAG] refreshMercadoLivreToken EXCEÇÃO:", err);
     return null;
   }
 }
@@ -913,7 +930,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     if (refreshToken && appId && clientSecret) {
       const isExpired = !bearerToken || !expiresAt || Date.now() >= Number(expiresAt) - 300000;
       if (isExpired) {
-        const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken);
+        const source = mlConfig?.mercadoLivreClientSecret ? "config do usuário" : "env do servidor";
+        const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken, source);
         if (renewed) {
           bearerToken = renewed.access_token;
           refreshToken = renewed.refresh_token;
@@ -975,7 +993,8 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
         // 2. If 401/403 and we have refresh token, attempt token auto-renew
         if ((apiRes.status === 401 || apiRes.status === 403) && refreshToken && appId && clientSecret && !updated_ml_keys) {
           console.warn("[ML API] Token falhou com status 401/403. Tentando renovar com refresh_token...");
-          const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken);
+          const source = mlConfig?.mercadoLivreClientSecret ? "config do usuário" : "env do servidor";
+          const renewed = await refreshMercadoLivreToken(appId, clientSecret, refreshToken, source);
           if (renewed) {
             bearerToken = renewed.access_token;
             refreshToken = renewed.refresh_token;
@@ -991,7 +1010,10 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
 
         // 3. If still 401/403 and we have App ID + Secret, obtain client_credentials token as fallback
         if ((apiRes.status === 401 || apiRes.status === 403) && appId && clientSecret) {
-          console.warn("[ML API] Token do usuário expirado ou inválido. Obtendo token de client_credentials...");
+          const source = mlConfig?.mercadoLivreClientSecret ? "config do usuário" : "env do servidor";
+          const ccLen = clientSecret ? clientSecret.length : 0;
+          const ccLast4 = ccLen >= 4 ? clientSecret.slice(-4) : (clientSecret || "none");
+          console.log(`[ML DIAG] Scraper client_credentials | appId: ${appId} | secretLen: ${ccLen} | secretLast4: ${ccLast4} | Origem: ${source}`);
           try {
             const ccRes = await fetch("https://api.mercadolibre.com/oauth/token", {
               method: "POST",
@@ -1002,16 +1024,20 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
                 client_secret: String(clientSecret).trim(),
               }),
             });
-            if (ccRes.ok) {
-              const ccData = await ccRes.json();
-              if (ccData.access_token) {
-                bearerToken = ccData.access_token;
-                console.log("[ML API] Token client_credentials obtido! Reexecutando chamada da API...");
-                apiRes = await makeApiFetch(bearerToken);
-              }
+            const ccStatus = ccRes.status;
+            const ccRaw = await ccRes.text();
+            let ccData: any = {};
+            try { ccData = JSON.parse(ccRaw); } catch { ccData = { text: ccRaw }; }
+
+            if (ccRes.ok && ccData.access_token) {
+              bearerToken = ccData.access_token;
+              console.log("[ML DIAG] Scraper client_credentials SUCESSO!");
+              apiRes = await makeApiFetch(bearerToken);
+            } else {
+              console.error(`[ML DIAG] Scraper client_credentials ERRO | Status: ${ccStatus} | Resposta crua: ${ccRaw}`);
             }
           } catch (ccErr) {
-            console.warn("[ML API] Erro ao obter client_credentials:", ccErr);
+            console.error("[ML DIAG] Scraper client_credentials EXCEÇÃO:", ccErr);
           }
         }
 
@@ -1850,27 +1876,31 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
     const finalSecret = (shopeeSecret || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET || "").trim();
     if (finalAppId && finalSecret) {
       try {
-        if (finalAppId && finalSecret) {
-          const query = {
-            query: `query {
-              getProductInfoList(productUrlList: ["${finalUrl}"]) {
-                errCode
-                errMsg
-                data {
-                  productList {
-                    productName
-                    imageUrl
-                    price
-                    priceMin
-                    priceMax
-                    productLink
-                    priceBeforeDiscount
-                    discount
-                  }
+        const secretLen = finalSecret.length;
+        const secretLast4 = secretLen >= 4 ? finalSecret.slice(-4) : (finalSecret || "none");
+        const source = (shopeeAppId || shopeeSecret) ? "config do usuário" : "env do servidor";
+        console.log(`[SHOPEE DIAG] getProductInfoList | URL: ${finalUrl} | AppID: ${finalAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
+
+        const query = {
+          query: `query {
+            getProductInfoList(productUrlList: ["${finalUrl}"]) {
+              errCode
+              errMsg
+              data {
+                productList {
+                  productName
+                  imageUrl
+                  price
+                  priceMin
+                  priceMax
+                  productLink
+                  priceBeforeDiscount
+                  discount
                 }
               }
-            }`
-          };
+            }
+          }`
+        };
 
           const bodyStr = JSON.stringify(query);
 
@@ -1923,7 +1953,6 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
               console.warn(`[Shopee Affiliate API] getProductInfoList error: ${responseData?.errCode} - ${responseData?.errMsg}`);
             }
           }
-        }
       } catch (err) {
         console.error("[Shopee Affiliate API] Error during getProductInfoList request:", err);
       }
@@ -3208,8 +3237,12 @@ app.post("/api/ml-exchange-code", async (req, res) => {
       });
     } else {
       console.error("[ML OAuth Exchange Error Response]", data);
+      let errMsg = data.message || data.error;
+      if (data.error === 'invalid_client' || errMsg === 'invalid_client' || (typeof errMsg === 'string' && errMsg.includes('invalid_client'))) {
+        errMsg = "Credenciais do Mercado Livre rejeitadas (invalid_client). Verifique o App ID e Client Secret em Configurações > Afiliados.";
+      }
       return res.status(400).json({
-        error: data.message || data.error || "O Mercado Livre rejeitou a troca das chaves. Verifique as credenciais ou o Redirect URI cadastrado.",
+        error: errMsg || "O Mercado Livre rejeitou a troca das chaves. Verifique as credenciais ou o Redirect URI cadastrado.",
       });
     }
   } catch (err: any) {
@@ -3247,7 +3280,8 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
     // Renovar token do Mercado Livre se necessário
     if (mlRefreshToken && mlAppId && mlClientSecret) {
       if (!mlAccessToken || (keys.mercadoLivreExpiresAt && Date.now() >= keys.mercadoLivreExpiresAt - 60000)) {
-        const renewed = await refreshMercadoLivreToken(mlAppId, mlClientSecret, mlRefreshToken);
+        const source = keys.mercadoLivreClientSecret ? "config do usuário" : "env do servidor";
+        const renewed = await refreshMercadoLivreToken(mlAppId, mlClientSecret, mlRefreshToken, source);
         if (renewed) {
           mlAccessToken = renewed.access_token;
         }
@@ -3318,37 +3352,26 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
     };
 
     const sAppId = keys.shopeeAppId || keys.shopeeKey || process.env.SHOPEE_APP_ID;
-    const sSecret = keys.shopeeSecret || process.env.SHOPEE_APP_SECRET;
+    const sSecret = keys.shopeeSecret || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET;
 
     if (sAppId && sSecret) {
       try {
-        const timestamp = Math.floor(Date.now() / 1000);
+        const secretLen = sSecret ? sSecret.length : 0;
+        const secretLast4 = secretLen >= 4 ? sSecret.slice(-4) : (sSecret || "none");
+        const source = keys.shopeeSecret ? "config do usuário" : "env do servidor";
+        console.log(`[SHOPEE DIAG] extract-metrics conversionReport | appId: ${sAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
+
         const gqlQuery = `query { conversionReport(limit: 50) { nodes { purchaseTime conversionId commission totalCommission orders { itemName commissionItemPrice itemsCount } } } }`;
         const payload = JSON.stringify({ query: gqlQuery });
-        const sigFactor = `${sAppId}${timestamp}${payload}${sSecret}`;
-        const signature = crypto.createHash("sha256").update(sigFactor).digest("hex");
 
-        let shopeeRes = await fetch("https://open-api.affiliate.shopee.com.br/graphql", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `SHA256 Credential=${sAppId}, Timestamp=${timestamp}, Signature=${signature}`
-          },
-          body: payload
-        });
+        const shopeeRes = await fetchShopeeGraphQLWithSignatureFallback(
+          "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
+          sAppId,
+          sSecret,
+          payload
+        );
 
-        if (!shopeeRes.ok) {
-          shopeeRes = await fetch("https://open-api.affiliate.shopee.com/graphql", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `SHA256 Credential=${sAppId}, Timestamp=${timestamp}, Signature=${signature}`
-            },
-            body: payload
-          });
-        }
-
-        if (shopeeRes.ok) {
+        if (shopeeRes && shopeeRes.ok) {
           const shopeeJson = await shopeeRes.json();
           if (shopeeJson?.data?.conversionReport?.nodes) {
             const nodes = shopeeJson.data.conversionReport.nodes || [];
@@ -3558,9 +3581,8 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: 
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-3.6-flash",
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-1.5-pro",
   ];
   const triedModels = new Set<string>();
 
@@ -3571,20 +3593,9 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, primaryModel: 
     try {
       return await ai.models.generateContent({ ...params, model });
     } catch (err: any) {
-      const errStr = String(err?.message || err);
-      if (
-        errStr.includes("RESOURCE_EXHAUSTED") ||
-        errStr.includes("429") ||
-        errStr.includes("quota") ||
-        errStr.includes("NOT_FOUND") ||
-        errStr.includes("404") ||
-        errStr.includes("no longer available")
-      ) {
-        console.warn(`[Gemini Model Fallback] Modelo ${model} indisponível ou limite atingido (429/cota). Tentando modelo alternativo...`);
-        lastErr = err;
-        continue;
-      }
-      throw err;
+      const errStr = String(err?.message || err || JSON.stringify(err));
+      console.warn(`[Gemini Model Fallback] Modelo ${model} indisponível ou em alta demanda (${errStr}). Tentando modelo alternativo...`);
+      lastErr = err;
     }
   }
   throw lastErr;
@@ -3634,8 +3645,16 @@ async function callGeminiWithRotation<T>(
       return { result, keyUsed: key };
     } catch (err: any) {
       let errDetail = err?.message || String(err);
+      if (typeof err === 'object' && err !== null && !err?.message) {
+        try {
+          const jsonStr = JSON.stringify(err);
+          if (jsonStr && jsonStr !== '{}') errDetail = jsonStr;
+        } catch {}
+      }
       if (errDetail.includes("RESOURCE_EXHAUSTED") || errDetail.includes("429") || errDetail.includes("quota")) {
         errDetail = "Limite de cota ou rate limit excedido (429 RESOURCE_EXHAUSTED).";
+      } else if (errDetail.includes("503") || errDetail.includes("UNAVAILABLE") || errDetail.includes("high demand")) {
+        errDetail = "Modelo temporariamente indisponível por alta demanda no servidor da Google (503 UNAVAILABLE).";
       }
       console.warn(`[Gemini Rotation] Erro ao usar a chave ${i + 1}: ${errDetail}. Alternando para a próxima chave...`);
       lastError = err;
@@ -4726,9 +4745,13 @@ app.post("/api/test-key", async (req, res) => {
             message: "App ID e Client Secret autenticados com sucesso no Mercado Livre! Token gerado.",
           });
         } else {
+          let errDetail = tokenData.message || tokenData.error;
+          if (tokenData.error === 'invalid_client' || errDetail === 'invalid_client' || (typeof errDetail === 'string' && errDetail.includes('invalid_client'))) {
+            errDetail = "App ID ou Client Secret do Mercado Livre incorretos (invalid_client). Verifique suas credenciais no painel Mercado Livre Developers.";
+          }
           return res.status(400).json({
             success: false,
-            error: tokenData.message || tokenData.error || "App ID ou Client Secret incorretos no Mercado Livre.",
+            error: errDetail || "App ID ou Client Secret incorretos no Mercado Livre.",
           });
         }
       } else if (accessToken) {
@@ -4773,9 +4796,47 @@ app.post("/api/test-key", async (req, res) => {
     }
 
     if (provider === "shopee") {
-      const key = keys?.shopeeKey?.trim();
-      if (!key || key.length < 5) {
-        return res.status(400).json({ success: false, error: "Informe uma chave válida de Afiliados Shopee." });
+      const sAppId = keys?.shopeeAppId?.trim() || keys?.shopeeKey?.trim() || process.env.SHOPEE_APP_ID;
+      const sSecret = keys?.shopeeSecret?.trim() || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET;
+      const sTracking = keys?.shopeeTrackingId?.trim();
+
+      const source = keys?.shopeeSecret?.trim() ? "config do usuário" : "env do servidor";
+      const secretLen = sSecret ? sSecret.length : 0;
+      const secretLast4 = secretLen >= 4 ? sSecret.slice(-4) : (sSecret || "none");
+
+      console.log(`[SHOPEE DIAG] /api/integrations/test-keys (shopee) | appId: ${sAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
+
+      if (sAppId && sSecret) {
+        try {
+          const testQuery = JSON.stringify({ query: `query { conversionReport(limit: 1) { nodes { conversionId } } }` });
+          const testRes = await fetchShopeeGraphQLWithSignatureFallback(
+            "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
+            sAppId,
+            sSecret,
+            testQuery
+          );
+
+          if (testRes && testRes.ok) {
+            const testJson = await testRes.json();
+            console.log(`[SHOPEE DIAG] /api/integrations/test-keys resposta:`, JSON.stringify(testJson));
+            if (testJson?.data || !testJson?.errors) {
+              return res.json({ success: true, message: "App ID e Secret da Shopee validados com sucesso via API GraphQL!" });
+            } else {
+              const errMsg = testJson?.errors?.[0]?.message || JSON.stringify(testJson?.errors);
+              return res.status(400).json({ success: false, error: `Shopee API retornou erro de chave/assinatura: ${errMsg}` });
+            }
+          } else {
+            const errTxt = testRes ? await testRes.text() : "Sem resposta HTTP";
+            console.error(`[SHOPEE DIAG] /api/integrations/test-keys resposta de erro: ${testRes?.status} - ${errTxt}`);
+            return res.status(400).json({ success: false, error: `Falha na autenticação com a API Shopee: ${errTxt.substring(0, 150)}` });
+          }
+        } catch (shTestErr: any) {
+          console.error("[SHOPEE DIAG] /api/integrations/test-keys exceção:", shTestErr);
+        }
+      }
+
+      if (!sAppId && !sTracking) {
+        return res.status(400).json({ success: false, error: "Informe o App ID + Secret ou uma Tag de Afiliados Shopee válida." });
       }
       return res.json({ success: true, message: "Credenciais de Afiliado Shopee validadas!" });
     }

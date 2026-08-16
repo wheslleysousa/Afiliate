@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.setState({ error, errorInfo });
   }
 
-  private handleCopyError = async (): void => {
+  private handleCopyError = async (): Promise<void> => {
     const err = this.state.error;
     const info = this.state.errorInfo;
     const formatted = formatErrorForClipboard({
