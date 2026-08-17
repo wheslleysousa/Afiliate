@@ -337,8 +337,47 @@ export type AppTab =
   | "templates"
   | "extension"
   | "url-shortener"
+  | "bio"
   | "settings"
   | "api-docs";
+
+// ─── Link in Bio (mini-site do afiliado, estilo Linktree) ───────────────────
+
+export interface BioTheme {
+  bgType: "solid" | "gradient" | "image";
+  bgValue: string;          // cor hex, string de gradiente CSS, ou URL de imagem
+  buttonColor: string;      // cor de fundo dos botões
+  buttonTextColor: string;  // cor do texto dos botões
+  buttonShape: "rounded" | "pill" | "square";
+  textColor: string;        // cor do nome/bio/seções
+  font: string;             // família de fonte
+}
+
+export interface BioBlock {
+  id: string;
+  type: "link" | "section";
+  title: string;
+  url?: string;             // apenas para type = 'link'
+  icon?: string;            // nome do ícone (lucide) ou emoji
+  active?: boolean;         // se false, não aparece na página pública
+  order: number;
+}
+
+export interface BioPage {
+  slug: string;             // lkrm.site/{slug} — compartilha namespace com shortLinks
+  ownerUid: string;
+  userId?: string;
+  createdBy?: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  theme: BioTheme;
+  blocks: BioBlock[];
+  published: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 // ─── Projetos & Roteiros de Vídeo ──────────────────────────────────────────
 

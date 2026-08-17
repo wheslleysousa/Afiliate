@@ -3044,6 +3044,45 @@ app.get(["/r/:productId", "/r"], (req, res, next) => {
   next();
 });
 
+// Bio-link click tracker: conta o clique (mesmo mapa de analytics) e redireciona
+// para qualquer destino público seguro (Instagram, WhatsApp, YouTube, etc.).
+// Diferente de /r/ (restrito a marketplaces), aqui os links de bio são livres,
+// porém ainda protegidos contra SSRF via isSafePublicUrl.
+app.get("/rb/:trackId", (req, res) => {
+  const trackId = req.params.trackId || "bio";
+  const targetUrl = req.query.url as string;
+
+  if (!targetUrl) {
+    return res.status(400).send("Destino do link não informado.");
+  }
+
+  if (trackId) {
+    if (!globalExternalClicksMap[trackId]) {
+      globalExternalClicksMap[trackId] = { clicks: 0, lastClick: new Date().toISOString(), history: [] };
+    }
+    globalExternalClicksMap[trackId].clicks += 1;
+    globalExternalClicksMap[trackId].lastClick = new Date().toISOString();
+    globalExternalClicksMap[trackId].history.push({
+      timestamp: Date.now(),
+      userAgent: req.get("user-agent"),
+      referer: req.get("referer") || "bio_page",
+    });
+  }
+
+  try {
+    const decoded = decodeURIComponent(targetUrl);
+    if (isSafePublicUrl(decoded)) {
+      return res.redirect(302, decoded);
+    }
+    return res.status(400).send("Destino do redirecionamento inválido ou não autorizado.");
+  } catch {
+    if (isSafePublicUrl(targetUrl)) {
+      return res.redirect(302, targetUrl);
+    }
+    return res.status(400).send("Destino do redirecionamento inválido.");
+  }
+});
+
 // Endpoint to fetch real-time click statistics from server
 app.get("/api/analytics/clicks", (req, res) => {
   res.json({

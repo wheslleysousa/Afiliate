@@ -29,6 +29,22 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+    match /bioPages/{slug} {
+      // Leitura pública necessária para renderizar a página de bio (lkrm.site/{slug})
+      allow read: if true;
+      // Criação permitida para usuários autenticados garantindo o vínculo de propriedade
+      allow create: if request.auth != null && (
+        !('ownerUid' in request.resource.data) ||
+        request.resource.data.ownerUid == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      // Atualização e exclusão estritamente restritas ao dono da bio
+      allow update, delete: if request.auth != null && (
+        (resource.data.ownerUid != null && resource.data.ownerUid == request.auth.uid) ||
+        (resource.data.userId != null && resource.data.userId == request.auth.uid) ||
+        (resource.data.createdBy != null && resource.data.createdBy == request.auth.uid)
+      );
+    }
     match /shortLinks/{slug} {
       // Leitura pública necessária para resolução de links encurtados
       allow read: if true;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab, UserProfile } from '../types';
-import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle, Scissors, Film } from 'lucide-react';
+import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle, Scissors, Film, Link2 } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -72,6 +72,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'url-shortener',
       label: 'Encurtador de Links',
       icon: (active) => <Scissors className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
+    },
+    {
+      id: 'bio',
+      label: 'Link in Bio',
+      icon: (active) => <Link2 className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
     },
     {
       id: 'settings',

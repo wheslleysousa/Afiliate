@@ -12,6 +12,8 @@ import { WhatsAppAutomationTab } from './components/WhatsAppAutomationTab';
 import { TemplatesTab } from './components/TemplatesTab';
 import { ExtensionTab } from './components/ExtensionTab';
 import { UrlShortenerTab } from './components/UrlShortenerTab';
+import { BioTab } from './components/BioTab';
+import { PublicBioPage } from './components/PublicBioPage';
 import { ProjectsTab } from './components/ProjectsTab';
 import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
@@ -64,18 +66,36 @@ export const getMlRedirectUri = () => {
 
 export default function App() {
   const [redirectingState, setRedirectingState] = useState<{ status: 'idle' | 'redirecting' | 'error', url?: string }>({ status: 'idle' });
+  // Slug de uma página pública de Bio (lkrm.site/{slug}) detectada no boot
+  const [publicBioSlug, setPublicBioSlug] = useState<string | null>(null);
 
-  // Fast Client-Side Redirect for Short Links
+  // Fast Client-Side Redirect for Short Links + resolução de páginas de Bio
   useEffect(() => {
     const path = window.location.pathname;
     if (path !== '/' && path !== '') {
       const parts = path.replace(/^\//, '').split('?')[0].split('/').filter(Boolean);
-      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'settings', 'api-docs'];
+      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'bio', 'settings', 'api-docs'];
       const firstSegment = parts[0];
 
       if (firstSegment && !validAppTabs.includes(firstSegment)) {
         setRedirectingState({ status: 'redirecting' });
         const lookupSlug = parts[parts.length - 1];
+
+        // Fallback: se não for link curto, tenta resolver como página de Bio (namespace compartilhado)
+        const tryBioOrError = () => {
+          getDoc(doc(db, 'bioPages', firstSegment)).then((bioSnap) => {
+            if (bioSnap.exists() && bioSnap.data().published !== false) {
+              setPublicBioSlug(firstSegment);
+              setRedirectingState({ status: 'idle' });
+            } else {
+              setRedirectingState({ status: 'error' });
+              setTimeout(() => { window.location.href = '/'; }, 3500);
+            }
+          }).catch(() => {
+            setRedirectingState({ status: 'error' });
+            setTimeout(() => { window.location.href = '/'; }, 3500);
+          });
+        };
 
         getDoc(doc(db, 'shortLinks', lookupSlug)).then((docSnap) => {
           if (docSnap.exists() && docSnap.data().targetUrl) {
@@ -91,17 +111,14 @@ export default function App() {
                 setRedirectingState({ status: 'redirecting', url: targetUrl });
                 window.location.href = targetUrl;
               } else {
-                setRedirectingState({ status: 'error' });
-                setTimeout(() => { window.location.href = '/'; }, 3500);
+                tryBioOrError();
               }
             }).catch(() => {
-              setRedirectingState({ status: 'error' });
-              setTimeout(() => { window.location.href = '/'; }, 3500);
+              tryBioOrError();
             });
           }
         }).catch(() => {
-          setRedirectingState({ status: 'error' });
-          setTimeout(() => { window.location.href = '/'; }, 3500);
+          tryBioOrError();
         });
       }
     }
@@ -867,6 +884,15 @@ export default function App() {
     }
   };
 
+  // Public Bio Page (lkrm.site/{slug}) — renderizada sem login, sem shell do app
+  if (publicBioSlug) {
+    return (
+      <ThemeProvider>
+        <PublicBioPage slug={publicBioSlug} />
+      </ThemeProvider>
+    );
+  }
+
   // Universal Redirecting Screen for Short Links (Products, Groups, Sites, Channels)
   if (redirectingState.status === 'redirecting') {
     return (
@@ -1039,6 +1065,7 @@ export default function App() {
                 {activeTab === 'templates' && 'Templates de Copy'}
                 {activeTab === 'extension' && 'Extensão'}
                 {activeTab === 'url-shortener' && 'Encurtador de Links'}
+                {activeTab === 'bio' && 'Link in Bio'}
                 {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
@@ -1227,6 +1254,12 @@ export default function App() {
                 onSaveApiKeys={handleSaveApiKeys}
                 uid={currentUser?.id}
               />
+            </ErrorBoundary>
+          )}
+
+          {activeTab === 'bio' && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar Link in Bio">
+              <BioTab user={currentUser} uid={currentUser?.id} />
             </ErrorBoundary>
           )}
 
