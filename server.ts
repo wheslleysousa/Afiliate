@@ -3426,6 +3426,122 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
   }
 });
 
+// Shopee Affiliate — relatório dedicado para o Dashboard (agrega o conversionReport)
+app.post("/api/shopee/report", async (req, res) => {
+  try {
+    const { apiKeys } = req.body || {};
+    const keys = apiKeys || {};
+    const sAppId = keys.shopeeAppId || keys.shopeeKey || process.env.SHOPEE_APP_ID;
+    const sSecret = keys.shopeeSecret || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET;
+
+    if (!sAppId || !sSecret) {
+      return res.status(200).json({
+        connected: false,
+        reason: "Configure o App ID e o Secret da API de Afiliados da Shopee em Configurações.",
+        totals: { orders: 0, sales: 0, commission: 0, avgTicket: 0 },
+        byDay: [], topProducts: [], recent: [],
+      });
+    }
+
+    const gqlQuery = `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId commission totalCommission orders { itemName commissionItemPrice itemsCount } } } }`;
+    const payload = JSON.stringify({ query: gqlQuery });
+
+    const shopeeRes = await fetchShopeeGraphQLWithSignatureFallback(
+      "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
+      sAppId,
+      sSecret,
+      payload
+    );
+
+    const raw = await shopeeRes.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch { /* resposta não-JSON */ }
+
+    if (!shopeeRes.ok || !json || json.errors) {
+      const apiErr = json?.errors?.[0]?.message || raw?.slice(0, 200) || `HTTP ${shopeeRes.status}`;
+      console.log("[SHOPEE DIAG] /api/shopee/report erro:", shopeeRes.status, apiErr);
+      return res.status(200).json({
+        connected: true, error: `A API da Shopee retornou: ${apiErr}`,
+        totals: { orders: 0, sales: 0, commission: 0, avgTicket: 0 },
+        byDay: [], topProducts: [], recent: [],
+      });
+    }
+
+    const nodes: any[] = json?.data?.conversionReport?.nodes || [];
+
+    const toMs = (t: any) => {
+      if (t == null) return null;
+      if (typeof t === "number") return t < 1e12 ? t * 1000 : t; // segundos → ms
+      const n = Number(t);
+      if (!isNaN(n)) return n < 1e12 ? n * 1000 : n;
+      const d = Date.parse(String(t));
+      return isNaN(d) ? null : d;
+    };
+
+    let totalCommission = 0;
+    let totalSales = 0;
+    const dayMap: Record<string, { commission: number; orders: number }> = {};
+    const prodMap: Record<string, { name: string; count: number; commission: number }> = {};
+    const recent: any[] = [];
+
+    nodes.forEach((n) => {
+      const comm = Number(n.commission ?? n.totalCommission) || 0;
+      totalCommission += comm;
+
+      const ms = toMs(n.purchaseTime);
+      const dayKey = ms ? new Date(ms).toISOString().slice(0, 10) : "—";
+      if (!dayMap[dayKey]) dayMap[dayKey] = { commission: 0, orders: 0 };
+      dayMap[dayKey].commission += comm;
+      dayMap[dayKey].orders += 1;
+
+      let firstItem = "";
+      if (Array.isArray(n.orders)) {
+        n.orders.forEach((o: any) => {
+          const price = Number(o.commissionItemPrice) || 0;
+          const qty = Number(o.itemsCount) || 1;
+          totalSales += price * qty;
+          const name = o.itemName || "Produto";
+          if (!firstItem) firstItem = name;
+          if (!prodMap[name]) prodMap[name] = { name, count: 0, commission: 0 };
+          prodMap[name].count += qty;
+        });
+      }
+      if (recent.length < 12) {
+        recent.push({ purchaseTime: ms, commission: Number(comm.toFixed(2)), item: firstItem || "—" });
+      }
+    });
+
+    const byDay = Object.entries(dayMap)
+      .filter(([k]) => k !== "—")
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, v]) => ({ date, commission: Number(v.commission.toFixed(2)), orders: v.orders }));
+
+    const topProducts = Object.values(prodMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6)
+      .map((p) => ({ name: p.name, count: p.count }));
+
+    const orders = nodes.length;
+    return res.json({
+      connected: true,
+      totals: {
+        orders,
+        sales: Number(totalSales.toFixed(2)),
+        commission: Number(totalCommission.toFixed(2)),
+        avgTicket: orders > 0 ? Number((totalSales / orders).toFixed(2)) : 0,
+      },
+      byDay,
+      topProducts,
+      recent,
+      extractedAt: new Date().toLocaleString("pt-BR"),
+    });
+  } catch (err: any) {
+    console.error("[Shopee Report Error]", err);
+    return res.status(500).json({ error: "Erro ao buscar o relatório da Shopee.", details: err.message });
+  }
+});
+
 // TikTok Shop OAuth Initiate Connect Endpoint
 app.get("/api/auth/tiktok/connect", (req, res) => {
   const appKey = (req.query.appKey as string)?.trim() || process.env.TIKTOK_APP_KEY || process.env.TIKTOKSHOP_APP_KEY;
