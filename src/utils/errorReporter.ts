@@ -14,7 +14,7 @@ export interface ReportedErrorInfo {
   rawError?: any;
 }
 
-export const APP_VERSION = '0.0.42';
+export const APP_VERSION = '0.0.43';
 
 /**
  * Mascara quaisquer tokens, chaves de API, autorizações ou senhas antes de exibir/copiar.

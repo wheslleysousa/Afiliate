@@ -583,60 +583,30 @@ async function fetchShopeeGraphQLWithSignatureFallback(
   console.log(`[SHOPEE DIAG] Base string da assinatura (len=${factor.length}): ${factor.length > 300 ? factor.substring(0, 300) + '...' : factor}`);
   console.log(`[SHOPEE DIAG] Assinatura SHA256 puro gerada: ${signature}`);
 
-  const attempts = [
-    {
-      name: "Plain SHA256 (With spaces - Official Spec)",
-      header: `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`
-    },
-    {
-      name: "Plain SHA256 (No spaces)",
-      header: `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`
-    }
-  ];
+  const headerValue = `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`;
 
-  let lastResponse: any = null;
-  for (let i = 0; i < attempts.length; i++) {
-    const attempt = attempts[i];
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": attempt.header,
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json"
-        },
-        body: payloadStr,
-        signal: AbortSignal.timeout(8000)
-      });
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": headerValue,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+      },
+      body: payloadStr,
+      signal: AbortSignal.timeout(8000)
+    });
 
-      const responseClone = response.clone();
-      const rawText = await responseClone.text();
-      console.log(`[SHOPEE DIAG] Tentativa '${attempt.name}' | Status HTTP: ${response.status} | Resposta crua: ${rawText}`);
+    const responseClone = response.clone();
+    const rawText = await responseClone.text();
+    console.log(`[SHOPEE DIAG] GraphQL Resposta | Status HTTP: ${response.status} | Resposta crua: ${rawText}`);
 
-      if (response.ok) {
-        try {
-          const result = JSON.parse(rawText);
-          if (result?.errors && JSON.stringify(result.errors).includes("Invalid Signature")) {
-            lastResponse = response;
-            continue; // try next signature
-          }
-          return response;
-        } catch (jsonErr) {
-          return response;
-        }
-      } else {
-        // If it's a 403, 404, 500, etc, it's likely a WAF block or endpoint issue, not a signature issue.
-        lastResponse = response;
-        break;
-      }
-    } catch (fetchErr: any) {
-      console.error(`[SHOPEE DIAG] Tentativa '${attempt.name}' exceção de rede/fetch | Message: ${fetchErr?.message || fetchErr} | Cause: ${fetchErr?.cause || 'N/A'}`);
-      break;
-    }
+    return response;
+  } catch (fetchErr: any) {
+    console.error(`[SHOPEE DIAG] GraphQL exceção de rede/fetch | Message: ${fetchErr?.message || fetchErr} | Cause: ${fetchErr?.cause || 'N/A'}`);
+    throw fetchErr;
   }
-
-  return lastResponse;
 }
 
 // Helper to generate Shopee Affiliate Promotion Link using GraphQL and HMAC-SHA256 signature
@@ -977,7 +947,22 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
           if (token && token.trim()) {
             apiHeaders["Authorization"] = `Bearer ${token.trim()}`;
           }
-          return await fetch(getApiUrl(itemId!), { headers: apiHeaders });
+          const id = itemId;
+          const tokenLast4 = token && token.length >= 4 ? token.slice(-4) : "none";
+          console.log("[ML DIAG] Requisitando API de itens do ML | id: " + id + " | com token: " + !!token + " | tokenLast4: " + tokenLast4);
+
+          const response = await fetch(getApiUrl(itemId!), { headers: apiHeaders });
+
+          if (!response.ok) {
+            const rawBody = await response.clone().text().catch(() => "N/A");
+            console.error(`[ML DIAG] Resposta de erro do ML | status: ${response.status} | corpo: ${rawBody}`);
+
+            if (token && (response.status === 401 || response.status === 403)) {
+              console.log(`[ML DIAG] items API bloqueada mesmo com token: status=${response.status}`);
+            }
+          }
+
+          return response;
         };
 
         // 1. First attempt with existing token (if available)
