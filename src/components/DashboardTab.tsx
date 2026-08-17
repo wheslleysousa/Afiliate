@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, ShoppingCart, DollarSign, Wallet, Receipt,
-  RefreshCw, AlertTriangle, TrendingUp, Package,
+  RefreshCw, AlertTriangle, TrendingUp, Package, CalendarDays,
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -25,6 +25,20 @@ interface DashboardTabProps {
   onNavigateToSettings?: () => void;
 }
 
+type RangeKey = 'today' | 'yesterday' | '7d' | '15d' | '30d' | '60d' | '90d' | 'all' | 'custom';
+
+const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
+  { key: 'today', label: 'Hoje' },
+  { key: 'yesterday', label: 'Ontem' },
+  { key: '7d', label: '7 dias' },
+  { key: '15d', label: '15 dias' },
+  { key: '30d', label: '30 dias' },
+  { key: '60d', label: '60 dias' },
+  { key: '90d', label: '90 dias' },
+  { key: 'all', label: 'Tudo' },
+  { key: 'custom', label: 'Personalizado' },
+];
+
 const fmtMoney = (v: number) =>
   `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtInt = (v: number) => (Number(v) || 0).toLocaleString('pt-BR');
@@ -32,22 +46,46 @@ const fmtDay = (iso: string) => {
   const p = iso.split('-');
   return p.length === 3 ? `${p[2]}/${p[1]}` : iso;
 };
+const secs = (d: Date) => Math.floor(d.getTime() / 1000);
+const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
+
+function computeRange(key: RangeKey, customStart?: string, customEnd?: string): { startTime: number | null; endTime: number | null } {
+  const now = new Date();
+  if (key === 'all') return { startTime: null, endTime: null };
+  if (key === 'today') return { startTime: secs(startOfDay(now)), endTime: secs(now) };
+  if (key === 'yesterday') {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    return { startTime: secs(startOfDay(y)), endTime: secs(endOfDay(y)) };
+  }
+  if (key === 'custom') {
+    if (!customStart || !customEnd) return { startTime: null, endTime: null };
+    return { startTime: secs(startOfDay(new Date(customStart))), endTime: secs(endOfDay(new Date(customEnd))) };
+  }
+  const days = parseInt(key, 10); // '7d' -> 7
+  const start = new Date(now); start.setDate(start.getDate() - days);
+  return { startTime: secs(startOfDay(start)), endTime: secs(now) };
+}
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateToSettings }) => {
   const [data, setData] = useState<ShopeeReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState<RangeKey>('30d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
 
   const shopeeConfigured = !!(apiKeys?.shopeeAppId && apiKeys?.shopeeSecret);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (r: RangeKey, cs?: string, ce?: string) => {
     setLoading(true);
     setError(null);
     try {
+      const { startTime, endTime } = computeRange(r, cs, ce);
       const res = await apiFetch('/api/shopee/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKeys }),
+        body: JSON.stringify({ apiKeys, startTime, endTime }),
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
@@ -62,11 +100,14 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
   }, [apiKeys]);
 
   useEffect(() => {
-    load();
+    if (range !== 'custom') load(range);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [range]);
 
   const t = data?.totals;
+  const canApplyCustom = range === 'custom' && !!customStart && !!customEnd;
+
+  const rangeLabel = useMemo(() => RANGE_OPTIONS.find((o) => o.key === range)?.label || '', [range]);
 
   return (
     <div className="space-y-6">
@@ -77,17 +118,61 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
             <BarChart3 className="w-5 h-5 text-blue-400" /> Dashboard <span className="text-[#ee4d2d]">Shopee</span>
           </h1>
           <p className="text-xs sm:text-sm text-[#93a0b5] mt-0.5">
-            Suas métricas reais de afiliado da Shopee (via API oficial): pedidos, vendas, comissão e conversões.
+            Suas métricas reais de afiliado da Shopee — período: <span className="text-[#eef2f9] font-semibold">{rangeLabel}</span>.
           </p>
         </div>
         <button
-          onClick={load}
+          onClick={() => load(range, customStart, customEnd)}
           disabled={loading}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
+      </div>
+
+      {/* Filtro de período */}
+      <div className="bg-[#151a26] border border-[#1e2636] rounded-2xl p-3 sm:p-4 shadow-lg shadow-black/20">
+        <div className="flex items-center gap-2 mb-2 text-[11px] font-bold uppercase tracking-wide text-[#93a0b5]">
+          <CalendarDays className="w-3.5 h-3.5" /> Período
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {RANGE_OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setRange(o.key)}
+              className={`text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${
+                range === o.key
+                  ? 'bg-blue-600 border-blue-500 text-white'
+                  : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5] hover:text-white hover:border-blue-500/40'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {range === 'custom' && (
+          <div className="flex flex-wrap items-end gap-3 mt-3">
+            <label className="flex flex-col gap-1 text-[11px] font-bold text-[#93a0b5]">
+              De
+              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                className="bg-[#0e1119] border border-[#1e2636] rounded-lg text-[#eef2f9] text-xs px-3 py-2 outline-none focus:border-blue-500" />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] font-bold text-[#93a0b5]">
+              Até
+              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                className="bg-[#0e1119] border border-[#1e2636] rounded-lg text-[#eef2f9] text-xs px-3 py-2 outline-none focus:border-blue-500" />
+            </label>
+            <button
+              onClick={() => load('custom', customStart, customEnd)}
+              disabled={!canApplyCustom || loading}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded-lg px-4 py-2 text-xs"
+            >
+              Aplicar
+            </button>
+          </div>
+        )}
+        <p className="text-[10px] text-[#64708a] mt-2">A Shopee limita o relatório a no máximo ~90 dias por consulta.</p>
       </div>
 
       {error && (
@@ -154,7 +239,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
             </ResponsiveContainer>
           </div>
         ) : (
-          <EmptyHint text={loading ? 'Carregando...' : 'Sem conversões no período ainda. Assim que você tiver vendas de afiliado, elas aparecem aqui.'} />
+          <EmptyHint text={loading ? 'Carregando...' : 'Sem conversões neste período. Assim que você tiver vendas de afiliado, elas aparecem aqui.'} />
         )}
       </div>
 
@@ -174,7 +259,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
               ))}
             </ul>
           ) : (
-            <EmptyHint text="Sem dados ainda." />
+            <EmptyHint text="Sem dados de produtos neste período." />
           )}
         </div>
 
@@ -195,13 +280,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
               ))}
             </ul>
           ) : (
-            <EmptyHint text="Sem conversões recentes." />
+            <EmptyHint text="Sem conversões neste período." />
           )}
         </div>
       </div>
 
       <p className="text-[11px] text-[#64708a] text-center">
-        Dados da API oficial de Afiliados da Shopee (até ~90 dias). {data?.extractedAt ? `Última atualização: ${data.extractedAt}.` : ''}
+        Dados da API oficial de Afiliados da Shopee. {data?.extractedAt ? `Última atualização: ${data.extractedAt}.` : ''}
       </p>
     </div>
   );

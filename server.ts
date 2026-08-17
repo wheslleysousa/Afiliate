@@ -3459,10 +3459,16 @@ app.post("/api/shopee/report", async (req, res) => {
       });
     }
 
-    // Tenta a query completa (com itens dos pedidos) e, se der erro de schema,
-    // cai numa query mínima (só comissão) para o dashboard preencher mesmo assim.
+    // Filtro de período (unix em segundos). A API da Shopee limita o intervalo a ~90 dias.
+    const startTime = Number(req.body?.startTime) || null;
+    const endTime = Number(req.body?.endTime) || null;
+    const dateArgs = (startTime && endTime) ? `, purchaseTimeStart: ${startTime}, purchaseTimeEnd: ${endTime}` : "";
+
+    // Query mínima (comissão) — os campos de item do pedido têm nomes próprios na
+    // Shopee e são adicionados depois. Tenta com o filtro de datas e, se falhar,
+    // sem filtro (para nunca quebrar o dashboard).
     const queryVariants = [
-      `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId totalCommission netCommission orders { itemName commissionItemPrice itemsCount } } } }`,
+      `query { conversionReport(limit: 100${dateArgs}) { nodes { purchaseTime conversionId totalCommission netCommission } } }`,
       `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId totalCommission netCommission } } }`,
     ];
 
