@@ -3,6 +3,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
 import { NewProductTab } from './components/NewProductTab';
+import { DashboardTab } from './components/DashboardTab';
 import { SavedProductsTab } from './components/SavedProductsTab';
 import { MarketplaceTab } from './components/MarketplaceTab';
 import { MinedProductsTab } from './components/MinedProductsTab';
@@ -69,7 +70,7 @@ export default function App() {
     const path = window.location.pathname;
     if (path !== '/' && path !== '') {
       const parts = path.replace(/^\//, '').split('?')[0].split('/').filter(Boolean);
-      const validAppTabs = ['new-product', 'saved-products', 'marketplace', 'my-products', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'settings', 'api-docs'];
+      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'settings', 'api-docs'];
       const firstSegment = parts[0];
 
       if (firstSegment && !validAppTabs.includes(firstSegment)) {
@@ -111,7 +112,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Sidebar navigation & responsive state
-  const [activeTab, setActiveTab] = useState<AppTab>('new-product');
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [initialProductForProject, setInitialProductForProject] = useState<Partial<GlobalProduct> | null>(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState<boolean>(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -1029,7 +1030,8 @@ export default function App() {
                 Painel do Afiliado /
               </span>
               <span className="text-xs sm:text-sm font-extrabold text-white">
-                {activeTab === 'new-product' && 'Novo Produto'}
+                {activeTab === 'dashboard' && 'Dashboard'}
+                {activeTab === 'new-product' && 'Gerar Copy'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
                 {activeTab === 'my-products' && 'Meus Produtos'}
                 {activeTab === 'projects' && 'Estúdio de Criação & Projetos'}
@@ -1096,8 +1098,17 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'dashboard' && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar o Dashboard">
+              <DashboardTab
+                apiKeys={apiKeys}
+                onNavigateToSettings={() => setActiveTab('settings')}
+              />
+            </ErrorBoundary>
+          )}
+
           {activeTab === 'new-product' && (
-            <ErrorBoundary isTabLevel title="Erro ao carregar Novo Produto">
+            <ErrorBoundary isTabLevel title="Erro ao carregar Gerar Copy">
               <NewProductTab
                 onSaveProduct={handleSaveProduct}
                 savedCount={savedItems.length}

@@ -33,9 +33,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems: { id: AppTab; label: string; icon: (isActive: boolean) => React.ReactNode; badge?: number }[] = [
     {
-      id: 'new-product',
-      label: 'Novo Produto',
-      icon: (active) => <PlusCircle className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: (active) => <BarChart2 className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
     },
     {
       id: 'marketplace',

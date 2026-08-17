@@ -327,6 +327,7 @@ export interface WaSession {
 // ─── Navegação ───────────────────────────────────────────────────────────────
 
 export type AppTab =
+  | "dashboard"
   | "new-product"
   | "saved-products"
   | "marketplace"
