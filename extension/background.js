@@ -297,6 +297,7 @@ async function syncProductToFirestore(product, uid, idToken) {
     commission_amount: estCommAmt,
     sales_trend_pct: estTrend,
     original_link: url,
+    affiliate_link: product.affiliate_link || null,
     miners:        [uid],
     mineCount:     1,
     firstMinedAt:  now,
@@ -338,6 +339,7 @@ async function syncProductToFirestore(product, uid, idToken) {
     if (doc.specs)                patch.specs = doc.specs;
     if (doc.pictures && doc.pictures.length > 0) patch.pictures = doc.pictures;
     if (doc.discount_pct != null) patch.discount_pct = doc.discount_pct;
+    if (doc.affiliate_link)       patch.affiliate_link = doc.affiliate_link;
     if (doc.free_shipping)        patch.free_shipping = doc.free_shipping;
     if (doc.commission_rate != null) patch.commission_rate = doc.commission_rate;
     if (doc.commission_amount != null) patch.commission_amount = doc.commission_amount;

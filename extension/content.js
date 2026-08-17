@@ -3132,6 +3132,52 @@ function scheduleReapply() {
   reapplyTimer = setTimeout(() => reapplyFiltersToMinedList(false), 900);
 }
 
+/**
+ * Gera o link de afiliado REAL do Mercado Livre (short link meli.la) usando a
+ * sessão logada do usuário no próprio Mercado Livre (mesma origem, cookies +
+ * CSRF da página). Só funciona se o usuário estiver logado no Mercado Livre
+ * Afiliados. Retorna null silenciosamente em qualquer falha (não trava a mineração).
+ */
+async function generateMercadoLivreAffiliateLink(productUrl) {
+  if (!productUrl) return null;
+  try {
+    const base = 'https://www.mercadolivre.com.br';
+    const api  = '/affiliate-program/api/v2/stripe/user';
+
+    // CSRF token da página (meta, script inline ou cookie _csrf)
+    let csrf = null;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) csrf = meta.getAttribute('content');
+    if (!csrf) { const m = document.cookie.match(/_csrf=([^;]+)/); if (m) csrf = decodeURIComponent(m[1]); }
+
+    const headers = { 'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json' };
+    if (csrf) headers['x-csrf-token'] = csrf;
+
+    // 1) Buscar a tag de afiliado (também valida se está logado no programa)
+    const tagsRes = await fetch(`${base}${api}/tags`, { method: 'GET', credentials: 'include', headers });
+    if (!tagsRes.ok) return null;
+    const tagsData = await tagsRes.json();
+    const tags = tagsData.tags || tagsData;
+    if (!Array.isArray(tags) || tags.length === 0) return null;
+    const tagId = tags[0].id || tags[0];
+
+    // 2) Gerar o short link de afiliado
+    const linkRes = await fetch(`${base}${api}/links`, {
+      method: 'POST', credentials: 'include', headers,
+      body: JSON.stringify({ url: productUrl, tag_id: tagId })
+    });
+    if (!linkRes.ok) return null;
+    const linkData = await linkRes.json();
+    const short = linkData.short_url || linkData.short_link || linkData.url || null;
+
+    // Só aceitar short link de afiliado meli.la (o que atribui comissão)
+    if (short && short.startsWith('https://meli.la/')) return short;
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function processAndFilterProduct(product, manual = false) {
   if (!product || !product.title) {
     if (manual) showToast('❌ Erro ao extrair dados do produto. Tente novamente.', true);
@@ -3139,6 +3185,14 @@ async function processAndFilterProduct(product, manual = false) {
   }
 
   product = await enrichProductDataInBackground(product);
+
+  // Link de afiliado REAL do Mercado Livre (meli.la) via sessão logada — aditivo e seguro
+  try {
+    if (product && product.platform === 'mercadolivre' && !product.affiliate_link) {
+      const mlAff = await generateMercadoLivreAffiliateLink(product.original_link || product.link);
+      if (mlAff) product.affiliate_link = mlAff;
+    }
+  } catch (e) { /* mantém sem link de afiliado */ }
 
   // CRITICAL REQUIREMENT: Se for clique MANUAL (manual = true), BYPASS nos filtros de qualidade!
   if (!manual) {
