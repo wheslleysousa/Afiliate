@@ -903,7 +903,7 @@ async function scrapeMercadoLivre(url: string, mlConfig?: any) {
     let refreshToken = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreRefreshToken : undefined;
     let expiresAt = typeof mlConfig === 'object' ? mlConfig?.mercadoLivreExpiresAt : undefined;
     const appId = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreAppId : undefined) || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
-    const clientSecret = (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined) || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    const clientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || (typeof mlConfig === 'object' ? mlConfig?.mercadoLivreClientSecret : undefined);
 
     // Preemptive Auto-Renew using Refresh Token if expired (or close to expiry)
     if (refreshToken && appId && clientSecret) {
@@ -3183,7 +3183,7 @@ app.post("/api/ml-exchange-code", async (req, res) => {
     }
 
     const mAppId = appId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
-    const mClientSecret = clientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    const mClientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || clientSecret?.trim();
 
     if (!mAppId || !mClientSecret) {
       return res.status(400).json({ error: "Credenciais do Mercado Livre não configuradas no servidor." });
@@ -3268,7 +3268,7 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
 
     let mlAccessToken = keys.mercadoLivreKey;
     const mlAppId = keys.mercadoLivreAppId || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
-    const mlClientSecret = keys.mercadoLivreClientSecret || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    const mlClientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || keys.mercadoLivreClientSecret;
     const mlRefreshToken = keys.mercadoLivreRefreshToken;
 
     // Renovar token do Mercado Livre se necessário
@@ -3497,6 +3497,17 @@ app.post("/api/shopee/report", async (req, res) => {
     }
 
     const nodes: any[] = json?.data?.conversionReport?.nodes || [];
+
+    // DIAGNÓSTICO (temporário): descobrir os campos reais do schema para montar a
+    // query completa (vendas por item, cliques). Loga os nomes de campo dos tipos.
+    try {
+      const introspectQuery = `query { R: __type(name: "ConversionReport") { fields { name } } O: __type(name: "ConversionReportOrder") { fields { name } } }`;
+      const introRes = await fetchShopeeGraphQLWithSignatureFallback(
+        "https://open-api.affiliate.shopee.com.br/graphql", sAppId, sSecret, JSON.stringify({ query: introspectQuery })
+      );
+      const introRaw = await introRes.text();
+      console.log("[SHOPEE SCHEMA]", introRaw.slice(0, 1800));
+    } catch { /* ignora — só diagnóstico */ }
 
     const toMs = (t: any) => {
       if (t == null) return null;
@@ -4845,7 +4856,7 @@ app.post("/api/test-key", async (req, res) => {
 
     if (provider === "mercadolivre") {
       const appId = keys?.mercadoLivreAppId?.trim() || process.env.MERCADO_LIVRE_CLIENT_ID || process.env.MERCADOLIVRE_APP_ID;
-      const clientSecret = keys?.mercadoLivreClientSecret?.trim() || process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+      const clientSecret = process.env.MERCADO_LIVRE_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET || keys?.mercadoLivreClientSecret?.trim();
       const accessToken = keys?.mercadoLivreKey?.trim();
 
       if (appId && clientSecret) {
