@@ -612,7 +612,7 @@ async function fetchShopeeGraphQLWithSignatureFallback(
       });
 
       const rawText = await response.clone().text();
-      console.log(`[SHOPEE DIAG] GraphQL ${ep} | Status HTTP: ${response.status} | Resposta crua: ${rawText.slice(0, 300)}`);
+      console.log(`[SHOPEE DIAG] GraphQL ${ep} | Status HTTP: ${response.status} | Resposta crua: ${rawText.slice(0, 800)}`);
 
       lastResponse = response;
       // 404 = rota inexistente → tenta a próxima URL. Qualquer outro status é a rota certa.
@@ -3355,7 +3355,7 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
         const source = keys.shopeeSecret ? "config do usuário" : "env do servidor";
         console.log(`[SHOPEE DIAG] extract-metrics conversionReport | appId: ${sAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
 
-        const gqlQuery = `query { conversionReport(limit: 50) { nodes { purchaseTime conversionId commission totalCommission orders { itemName commissionItemPrice itemsCount } } } }`;
+        const gqlQuery = `query { conversionReport(limit: 50) { nodes { purchaseTime conversionId totalCommission netCommission orders { itemName commissionItemPrice itemsCount } } } }`;
         const payload = JSON.stringify({ query: gqlQuery });
 
         const shopeeRes = await fetchShopeeGraphQLWithSignatureFallback(
@@ -3459,25 +3459,32 @@ app.post("/api/shopee/report", async (req, res) => {
       });
     }
 
-    const gqlQuery = `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId commission totalCommission orders { itemName commissionItemPrice itemsCount } } } }`;
-    const payload = JSON.stringify({ query: gqlQuery });
+    // Tenta a query completa (com itens dos pedidos) e, se der erro de schema,
+    // cai numa query mínima (só comissão) para o dashboard preencher mesmo assim.
+    const queryVariants = [
+      `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId totalCommission netCommission orders { itemName commissionItemPrice itemsCount } } } }`,
+      `query { conversionReport(limit: 100) { nodes { purchaseTime conversionId totalCommission netCommission } } }`,
+    ];
 
-    const shopeeRes = await fetchShopeeGraphQLWithSignatureFallback(
-      "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
-      sAppId,
-      sSecret,
-      payload
-    );
-
-    const raw = await shopeeRes.text();
     let json: any = null;
-    try { json = JSON.parse(raw); } catch { /* resposta não-JSON */ }
+    let lastErr = "";
+    for (const q of queryVariants) {
+      const shopeeRes = await fetchShopeeGraphQLWithSignatureFallback(
+        "https://open-api.affiliate.shopee.com.br/graphql",
+        sAppId, sSecret, JSON.stringify({ query: q })
+      );
+      const raw = await shopeeRes.text();
+      let parsed: any = null;
+      try { parsed = JSON.parse(raw); } catch { /* não-JSON */ }
+      if (shopeeRes.ok && parsed && !parsed.errors) { json = parsed; break; }
+      lastErr = (Array.isArray(parsed?.errors) ? parsed.errors.map((e: any) => e.message).join(" | ") : null)
+        || raw?.slice(0, 400) || `HTTP ${shopeeRes.status}`;
+      console.log("[SHOPEE DIAG] /api/shopee/report tentativa falhou:", lastErr);
+    }
 
-    if (!shopeeRes.ok || !json || json.errors) {
-      const apiErr = json?.errors?.[0]?.message || raw?.slice(0, 200) || `HTTP ${shopeeRes.status}`;
-      console.log("[SHOPEE DIAG] /api/shopee/report erro:", shopeeRes.status, apiErr);
+    if (!json) {
       return res.status(200).json({
-        connected: true, error: `A API da Shopee retornou: ${apiErr}`,
+        connected: true, error: `A API da Shopee retornou: ${lastErr}`,
         totals: { orders: 0, sales: 0, commission: 0, avgTicket: 0 },
         byDay: [], topProducts: [], recent: [],
       });
@@ -3501,7 +3508,7 @@ app.post("/api/shopee/report", async (req, res) => {
     const recent: any[] = [];
 
     nodes.forEach((n) => {
-      const comm = Number(n.commission ?? n.totalCommission) || 0;
+      const comm = Number(n.totalCommission ?? n.netCommission ?? n.commission) || 0;
       totalCommission += comm;
 
       const ms = toMs(n.purchaseTime);
