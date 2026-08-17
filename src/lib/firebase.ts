@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 import {
   getFirestore,
   initializeFirestore,
@@ -43,6 +44,9 @@ try {
 }
 
 export const db = firestoreInstance;
+
+// Firebase Storage — usado para upload de imagens da Bio (avatar, banner, blocos)
+export const storage = getStorage(app);
 
 export enum OperationType {
   CREATE = 'create',

@@ -343,22 +343,33 @@ export type AppTab =
 
 // ─── Link in Bio (mini-site do afiliado, estilo Linktree) ───────────────────
 
+export type BioButtonShape = "sharp" | "square" | "rounded" | "large" | "pill";
+export type BioButtonStyle = "fill" | "outline" | "soft" | "glass" | "hard";
+export type BioAvatarShape = "circle" | "rounded" | "square";
+
 export interface BioTheme {
   bgType: "solid" | "gradient" | "image";
   bgValue: string;          // cor hex, string de gradiente CSS, ou URL de imagem
-  buttonColor: string;      // cor de fundo dos botões
+  buttonColor: string;      // cor de fundo/realce dos botões
   buttonTextColor: string;  // cor do texto dos botões
-  buttonShape: "rounded" | "pill" | "square";
+  buttonShape: BioButtonShape;
+  buttonStyle: BioButtonStyle;   // estilo do card/botão (preenchido, contorno, glass...)
   textColor: string;        // cor do nome/bio/seções
-  font: string;             // família de fonte
+  font: string;             // família de fonte (CSS font-family)
+  avatarShape: BioAvatarShape;
 }
+
+export type BioBlockType = "link" | "section" | "text" | "image" | "video";
 
 export interface BioBlock {
   id: string;
-  type: "link" | "section";
-  title: string;
-  url?: string;             // apenas para type = 'link'
-  icon?: string;            // nome do ícone (lucide) ou emoji
+  type: BioBlockType;
+  title?: string;           // rótulo do link / título da seção
+  url?: string;             // destino do link, ou clique da imagem (opcional)
+  icon?: string;            // emoji do link
+  text?: string;            // parágrafo (type = 'text')
+  imageUrl?: string;        // imagem (type = 'image')
+  videoUrl?: string;        // URL do vídeo (type = 'video', YouTube/Vimeo)
   active?: boolean;         // se false, não aparece na página pública
   order: number;
 }
