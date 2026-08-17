@@ -585,28 +585,44 @@ async function fetchShopeeGraphQLWithSignatureFallback(
 
   const headerValue = `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`;
 
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": headerValue,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json"
-      },
-      body: payloadStr,
-      signal: AbortSignal.timeout(8000)
-    });
+  // A URL correta do endpoint varia; tentamos variantes conhecidas e ficamos com
+  // a primeira que NÃO retornar 404 (rota inexistente). A assinatura não depende
+  // da URL, então pode ser reutilizada.
+  const candidates: string[] = [];
+  const pushUnique = (u: string) => { if (u && !candidates.includes(u)) candidates.push(u); };
+  pushUnique(endpoint);
+  if (endpoint.includes("/api/v1/graphql")) pushUnique(endpoint.replace("/api/v1/graphql", "/graphql"));
+  if (endpoint.endsWith("/graphql") && !endpoint.includes("/api/v1/")) pushUnique(endpoint.replace(/\/graphql$/, "/api/v1/graphql"));
+  pushUnique("https://open-api.affiliate.shopee.com.br/graphql");
+  pushUnique("https://open-api.affiliate.shopee.com.br/api/v1/graphql");
 
-    const responseClone = response.clone();
-    const rawText = await responseClone.text();
-    console.log(`[SHOPEE DIAG] GraphQL Resposta | Status HTTP: ${response.status} | Resposta crua: ${rawText}`);
+  let lastResponse: Response | null = null;
+  for (const ep of candidates) {
+    try {
+      const response = await fetch(ep, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": headerValue,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        },
+        body: payloadStr,
+        signal: AbortSignal.timeout(8000)
+      });
 
-    return response;
-  } catch (fetchErr: any) {
-    console.error(`[SHOPEE DIAG] GraphQL exceção de rede/fetch | Message: ${fetchErr?.message || fetchErr} | Cause: ${fetchErr?.cause || 'N/A'}`);
-    throw fetchErr;
+      const rawText = await response.clone().text();
+      console.log(`[SHOPEE DIAG] GraphQL ${ep} | Status HTTP: ${response.status} | Resposta crua: ${rawText.slice(0, 300)}`);
+
+      lastResponse = response;
+      // 404 = rota inexistente → tenta a próxima URL. Qualquer outro status é a rota certa.
+      if (response.status !== 404) return response;
+    } catch (fetchErr: any) {
+      console.error(`[SHOPEE DIAG] GraphQL exceção em ${ep} | Message: ${fetchErr?.message || fetchErr} | Cause: ${fetchErr?.cause || 'N/A'}`);
+    }
   }
+  if (lastResponse) return lastResponse;
+  throw new Error("Nenhum endpoint da Shopee respondeu.");
 }
 
 // Helper to generate Shopee Affiliate Promotion Link using GraphQL and HMAC-SHA256 signature
