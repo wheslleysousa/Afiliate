@@ -151,13 +151,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     enrichData();
   }, [product.id, product.original_link]);
 
-  // Gera o link de afiliado real da Shopee (s.shopee) automaticamente, via API oficial.
+  // Link de afiliado Shopee gerado com as credenciais DO USUÁRIO ATUAL (não do minerador).
+  const [myShopeeLink, setMyShopeeLink] = useState('');
   useEffect(() => {
+    setMyShopeeLink('');
     const p = currentProduct;
     const plat = (p.platform || '').toLowerCase();
-    if (plat !== 'shopee') return;
-    if (p.affiliate_link && /^https?:\/\//i.test(p.affiliate_link)) return;
-    if (!p.original_link) return;
+    if (plat !== 'shopee' || !p.original_link) return;
+    if (!(keys.shopeeAppId && keys.shopeeSecret)) return; // sem credenciais, usa link direto
     let cancelled = false;
     (async () => {
       try {
@@ -168,14 +169,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           action: 'Gerar link de afiliado Shopee',
         });
         const json = await res.json();
-        if (!cancelled && json?.success && json.link) {
-          setCurrentProduct((prev) => ({ ...prev, affiliate_link: json.link }));
-          try { await setDoc(doc(db, 'products', p.id), { affiliate_link: json.link }, { merge: true }); } catch { /* ignore */ }
-        }
+        if (!cancelled && json?.success && json.link) setMyShopeeLink(json.link);
       } catch { /* silencioso */ }
     })();
     return () => { cancelled = true; };
-  }, [currentProduct.id, currentProduct.platform, currentProduct.original_link, currentProduct.affiliate_link]);
+  }, [currentProduct.id, currentProduct.platform, currentProduct.original_link, keys.shopeeAppId, keys.shopeeSecret]);
 
   // Link de Afiliado com Rastreamento (usado para compartilhar/copy — formato curto)
   const affiliateLink = buildShareableTrackingLink(
@@ -186,10 +184,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     currentProduct.title
   );
 
-  // Link direto para ABRIR o produto (funciona sempre, sem depender de doc de link curto).
-  // Prioridade: link de afiliado real já gerado (ex.: meli.la) → link direto com tracking → URL original.
+  // Link direto para ABRIR o produto, SEMPRE com o link de afiliado DO USUÁRIO ATUAL.
+  // - Shopee: link gerado agora com as credenciais do usuário (myShopeeLink).
+  // - Em "Meus Produtos" (produto do próprio usuário): usa o affiliate_link salvo dele.
+  // - No Marketplace Global: NÃO usa o affiliate_link do minerador; gera do zero com as
+  //   chaves do usuário atual (ou cai para a URL original).
+  const isMine = mode === 'my-products';
   const directLink =
-    (currentProduct.affiliate_link && /^https?:\/\//i.test(currentProduct.affiliate_link) ? currentProduct.affiliate_link : '') ||
+    (myShopeeLink && /^https?:\/\//i.test(myShopeeLink) ? myShopeeLink : '') ||
+    (isMine && currentProduct.affiliate_link && /^https?:\/\//i.test(currentProduct.affiliate_link) ? currentProduct.affiliate_link : '') ||
     buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys) ||
     currentProduct.original_link ||
     '';
