@@ -344,34 +344,55 @@ export type AppTab =
 // ─── Link in Bio (mini-site do afiliado, estilo Linktree) ───────────────────
 
 export type BioButtonShape = "sharp" | "square" | "rounded" | "large" | "pill";
-export type BioButtonStyle = "fill" | "outline" | "soft" | "glass" | "hard";
-export type BioAvatarShape = "circle" | "rounded" | "square";
+export type BioButtonStyle = "fill" | "outline" | "soft" | "glass" | "hard" | "gradient" | "neumorph";
+export type BioAvatarShape = "circle" | "rounded" | "square" | "squircle" | "none";
 
 export interface BioTheme {
   bgType: "solid" | "gradient" | "image";
-  bgValue: string;          // cor hex, string de gradiente CSS, ou URL de imagem
+  bgValue: string;          // cor hex, string de gradiente/CSS, ou URL de imagem
   buttonColor: string;      // cor de fundo/realce dos botões
+  buttonColor2?: string;    // segunda cor (estilo gradiente)
   buttonTextColor: string;  // cor do texto dos botões
+  buttonBorderColor?: string;
+  buttonBorderWidth?: number;
   buttonShape: BioButtonShape;
-  buttonStyle: BioButtonStyle;   // estilo do card/botão (preenchido, contorno, glass...)
-  textColor: string;        // cor do nome/bio/seções
+  buttonStyle: BioButtonStyle;
+  shadowColor?: string;     // cor da sombra (estilo 3D/neumorph)
+  shadowOffset?: number;    // distância da sombra (px)
+  shadowBlur?: number;      // desfoque da sombra (px)
+  textColor: string;        // cor da bio/descrições
+  titleColor?: string;      // cor do nome (padrão = textColor)
   font: string;             // família de fonte (CSS font-family)
+  titleSize?: number;       // tamanho do nome (px)
+  bioSize?: number;         // tamanho da descrição (px)
   avatarShape: BioAvatarShape;
+  avatarSize?: number;      // tamanho do avatar (px)
+  bannerHeight?: number;    // altura do banner (px)
 }
 
 export type BioBlockType = "link" | "section" | "text" | "image" | "video";
+export type BioIconType = "none" | "emoji" | "builtin" | "image";
 
 export interface BioBlock {
   id: string;
   type: BioBlockType;
   title?: string;           // rótulo do link / título da seção
   url?: string;             // destino do link, ou clique da imagem (opcional)
-  icon?: string;            // emoji do link
-  text?: string;            // parágrafo (type = 'text')
+  icon?: string;            // emoji do link (quando iconType = 'emoji')
+  iconType?: BioIconType;   // fonte do ícone do link
+  iconKey?: string;         // id do ícone embutido (quando iconType = 'builtin')
+  iconImage?: string;       // URL de imagem do ícone (quando iconType = 'image')
+  text?: string;            // parágrafo (type = 'text') ou subtítulo (type = 'section')
   imageUrl?: string;        // imagem (type = 'image')
   videoUrl?: string;        // URL do vídeo (type = 'video', YouTube/Vimeo)
   active?: boolean;         // se false, não aparece na página pública
   order: number;
+}
+
+export interface BioSocial {
+  id: string;
+  platform: string;         // 'instagram' | 'tiktok' | 'whatsapp' | ...
+  url: string;
 }
 
 export interface BioPage {
@@ -385,6 +406,7 @@ export interface BioPage {
   bannerUrl?: string;
   theme: BioTheme;
   blocks: BioBlock[];
+  socials?: BioSocial[];
   published: boolean;
   createdAt?: string;
   updatedAt?: string;

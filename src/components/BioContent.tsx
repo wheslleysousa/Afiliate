@@ -1,14 +1,11 @@
 import React from 'react';
-import { BioPage, BioBlock, BioTheme } from '../types';
+import { BioPage, BioBlock, BioTheme, BioSocial } from '../types';
+import { renderBuiltinIcon, renderSocialIcon } from './bioIcons';
 
 interface BioContentProps {
   page: BioPage;
-  /**
-   * Retorna o href de um bloco de link. Quando fornecido, os botões viram
-   * âncoras clicáveis (usado na página pública, roteando pelo contador /rb/).
-   * Quando ausente, os botões não navegam (usado no preview do editor).
-   */
   getHref?: (block: BioBlock) => string | undefined;
+  getSocialHref?: (s: BioSocial) => string | undefined;
   onLinkClick?: (block: BioBlock) => void;
 }
 
@@ -27,6 +24,7 @@ function avatarRadius(shape: BioTheme['avatarShape']): string {
   switch (shape) {
     case 'square': return '14px';
     case 'rounded': return '28px';
+    case 'squircle': return '32%';
     case 'circle':
     default: return '9999px';
   }
@@ -45,22 +43,28 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(37,99,235,${alpha})`;
 }
 
-/** Retorna o estilo inline do botão de link conforme buttonStyle + shape. */
 function linkButtonStyle(theme: BioTheme): React.CSSProperties {
   const radius = buttonRadius(theme.buttonShape);
   const base: React.CSSProperties = { borderRadius: radius };
+  const shadowColor = theme.shadowColor || 'rgba(0,0,0,0.5)';
+  const off = theme.shadowOffset ?? 4;
+  const blur = theme.shadowBlur ?? 0;
   switch (theme.buttonStyle) {
     case 'outline':
-      return { ...base, background: 'transparent', color: theme.buttonColor, border: `2px solid ${theme.buttonColor}` };
+      return { ...base, background: 'transparent', color: theme.buttonColor, border: `${theme.buttonBorderWidth || 2}px solid ${theme.buttonBorderColor || theme.buttonColor}` };
     case 'soft':
       return { ...base, backgroundColor: hexToRgba(theme.buttonColor, 0.16), color: theme.buttonColor, border: `1px solid ${hexToRgba(theme.buttonColor, 0.35)}` };
     case 'glass':
       return { ...base, backgroundColor: 'rgba(255,255,255,0.12)', color: theme.buttonTextColor, border: '1px solid rgba(255,255,255,0.28)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' };
     case 'hard':
-      return { ...base, backgroundColor: theme.buttonColor, color: theme.buttonTextColor, border: '2px solid #0a0a0a', boxShadow: '4px 4px 0 #0a0a0a' };
+      return { ...base, backgroundColor: theme.buttonColor, color: theme.buttonTextColor, border: `2px solid ${theme.buttonBorderColor || '#0a0a0a'}`, boxShadow: `${off}px ${off}px ${blur}px ${shadowColor}` };
+    case 'neumorph':
+      return { ...base, backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `${off}px ${off}px ${blur || 12}px rgba(0,0,0,0.45), -${off}px -${off}px ${blur || 12}px rgba(255,255,255,0.08)` };
+    case 'gradient':
+      return { ...base, backgroundImage: `linear-gradient(135deg, ${theme.buttonColor}, ${theme.buttonColor2 || theme.buttonColor})`, color: theme.buttonTextColor, boxShadow: `0 6px 18px ${hexToRgba(theme.buttonColor, 0.35)}` };
     case 'fill':
     default:
-      return { ...base, backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' };
+      return { ...base, backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `0 4px 14px ${hexToRgba(theme.buttonColor, 0.25)}` };
   }
 }
 
@@ -74,7 +78,6 @@ function backgroundStyle(theme: BioTheme): React.CSSProperties {
   return { backgroundColor: theme.bgValue || '#0e1119' };
 }
 
-/** Converte URLs de YouTube/Vimeo em URL de embed. Retorna null se não reconhecido. */
 export function toEmbedUrl(raw?: string): string | null {
   if (!raw) return null;
   try {
@@ -98,46 +101,85 @@ export function toEmbedUrl(raw?: string): string | null {
   return null;
 }
 
-export const BioContent: React.FC<BioContentProps> = ({ page, getHref, onLinkClick }) => {
+const LinkIcon: React.FC<{ block: BioBlock; color: string }> = ({ block, color }) => {
+  const t = block.iconType;
+  if (t === 'image' && block.iconImage) {
+    return <img src={block.iconImage} alt="" className="w-6 h-6 rounded object-cover shrink-0" />;
+  }
+  if (t === 'builtin' && block.iconKey) {
+    return <span className="shrink-0 inline-flex">{renderBuiltinIcon(block.iconKey, 20, color)}</span>;
+  }
+  if ((t === 'emoji' || !t) && block.icon) {
+    return <span className="text-lg leading-none shrink-0">{block.icon}</span>;
+  }
+  return null;
+};
+
+export const BioContent: React.FC<BioContentProps> = ({ page, getHref, getSocialHref, onLinkClick }) => {
   const theme = page.theme;
   const btnStyle = linkButtonStyle(theme);
+  const titleColor = theme.titleColor || theme.textColor || '#ffffff';
+  const avatarSize = theme.avatarSize ?? 96;
+  const bannerHeight = theme.bannerHeight ?? 112;
 
   const visibleBlocks = [...(page.blocks || [])]
     .filter((b) => b.active !== false)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const socials = (page.socials || []).filter((s) => s.url);
 
-  const btnCls = 'block w-full px-5 py-3.5 font-bold text-sm text-center transition-transform active:scale-[0.98] hover:brightness-110';
+  const btnCls = 'flex items-center justify-center gap-2 w-full px-5 py-3.5 font-bold text-sm text-center transition-transform active:scale-[0.98] hover:brightness-110';
 
   return (
     <div
       className="min-h-full w-full flex flex-col items-center px-5 pb-16"
       style={{ ...backgroundStyle(theme), color: theme.textColor || '#ffffff', fontFamily: theme.font || 'Inter, system-ui, sans-serif' }}
     >
-      {/* Banner opcional */}
+      {/* Banner */}
       {page.bannerUrl ? (
         <div className="w-full max-w-md">
-          <div className="w-full h-28 rounded-b-3xl bg-center bg-cover shadow-lg" style={{ backgroundImage: `url("${page.bannerUrl}")` }} />
+          <div className="w-full rounded-b-3xl bg-center bg-cover shadow-lg" style={{ height: bannerHeight, backgroundImage: `url("${page.bannerUrl}")` }} />
         </div>
       ) : (
         <div className="h-8" />
       )}
 
       {/* Avatar */}
-      <div className={page.bannerUrl ? '-mt-12' : 'mt-6'}>
-        {page.avatarUrl ? (
-          <img src={page.avatarUrl} alt={page.displayName} className="w-24 h-24 object-cover border-4 shadow-xl" style={{ borderColor: theme.buttonColor || '#ffffff', borderRadius: avatarRadius(theme.avatarShape) }} />
-        ) : (
-          <div className="w-24 h-24 flex items-center justify-center text-3xl font-black border-4 shadow-xl" style={{ backgroundColor: theme.buttonColor || '#2563eb', color: theme.buttonTextColor || '#ffffff', borderColor: '#ffffff33', borderRadius: avatarRadius(theme.avatarShape) }}>
-            {(page.displayName || '?').trim().charAt(0).toUpperCase()}
-          </div>
-        )}
-      </div>
+      {theme.avatarShape !== 'none' && (
+        <div style={{ marginTop: page.bannerUrl ? -(avatarSize / 2) : 24 }}>
+          {page.avatarUrl ? (
+            <img src={page.avatarUrl} alt={page.displayName} className="object-cover border-4 shadow-xl" style={{ width: avatarSize, height: avatarSize, borderColor: theme.buttonColor || '#ffffff', borderRadius: avatarRadius(theme.avatarShape) }} />
+          ) : (
+            <div className="flex items-center justify-center font-black border-4 shadow-xl" style={{ width: avatarSize, height: avatarSize, fontSize: avatarSize / 2.6, backgroundColor: theme.buttonColor || '#2563eb', color: theme.buttonTextColor || '#ffffff', borderColor: '#ffffff33', borderRadius: avatarRadius(theme.avatarShape) }}>
+              {(page.displayName || '?').trim().charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Nome + bio */}
-      <h1 className="mt-4 text-xl font-extrabold tracking-tight text-center drop-shadow">{page.displayName || 'Seu nome'}</h1>
+      <h1 className="mt-4 font-extrabold tracking-tight text-center drop-shadow" style={{ color: titleColor, fontSize: theme.titleSize ?? 22 }}>
+        {page.displayName || 'Seu nome'}
+      </h1>
       {page.bio ? (
-        <p className="mt-1.5 text-sm text-center max-w-xs opacity-90 leading-relaxed whitespace-pre-line">{page.bio}</p>
+        <p className="mt-1.5 text-center max-w-xs opacity-90 leading-relaxed whitespace-pre-line" style={{ fontSize: theme.bioSize ?? 14 }}>
+          {page.bio}
+        </p>
       ) : null}
+
+      {/* Redes sociais */}
+      {socials.length > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+          {socials.map((s) => {
+            const href = getSocialHref ? getSocialHref(s) : s.url;
+            const icon = renderSocialIcon(s.platform, 24, titleColor);
+            return (
+              <a key={s.id} href={href} target="_blank" rel="noopener noreferrer" className="opacity-90 hover:opacity-100 hover:scale-110 transition-transform" style={{ color: titleColor }} aria-label={s.platform}>
+                {icon}
+              </a>
+            );
+          })}
+        </div>
+      )}
 
       {/* Blocos */}
       <div className="w-full max-w-md mt-6 space-y-3">
@@ -147,7 +189,10 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, onLinkCli
           visibleBlocks.map((block) => {
             if (block.type === 'section') {
               return (
-                <h2 key={block.id} className="pt-4 pb-1 text-xs font-black uppercase tracking-widest text-center opacity-80">{block.title}</h2>
+                <div key={block.id} className="pt-4 pb-1 text-center">
+                  <h2 className="text-xs font-black uppercase tracking-widest opacity-80">{block.title}</h2>
+                  {block.text ? <p className="text-xs opacity-60 mt-0.5">{block.text}</p> : null}
+                </div>
               );
             }
 
@@ -174,13 +219,7 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, onLinkCli
               return (
                 <div key={block.id} className="w-full overflow-hidden shadow-md" style={{ borderRadius: buttonRadius(theme.buttonShape) }}>
                   <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-                    <iframe
-                      src={embed}
-                      title={block.title || 'video'}
-                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
+                    <iframe src={embed} title={block.title || 'video'} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                   </div>
                 </div>
               );
@@ -188,11 +227,12 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, onLinkCli
 
             // link
             const href = getHref ? getHref(block) : undefined;
+            const textColor = (btnStyle.color as string) || theme.buttonTextColor;
             const inner = (
-              <div className="flex items-center justify-center gap-2 w-full">
-                {block.icon ? <span className="text-lg leading-none">{block.icon}</span> : null}
+              <>
+                <LinkIcon block={block} color={textColor} />
                 <span className="truncate">{block.title || 'Link'}</span>
-              </div>
+              </>
             );
             if (href) {
               return (

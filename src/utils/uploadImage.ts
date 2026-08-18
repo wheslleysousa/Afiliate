@@ -6,19 +6,35 @@ export interface UploadResult {
   url: string;
 }
 
-function fileToDataUrl(file: File): Promise<string> {
+function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onload = () => {
+      const s = String(reader.result || '');
+      resolve(s.includes(',') ? s.split(',')[1] : s); // sem o prefixo data:...
+    };
     reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
     reader.readAsDataURL(file);
   });
 }
 
+let cachedKey: string | null = null;
+async function getImgbbKey(): Promise<string> {
+  if (cachedKey) return cachedKey;
+  try {
+    const res = await apiFetch('/api/bio/upload-config', { action: 'Config de upload da Bio' });
+    const json = await res.json();
+    cachedKey = json?.imgbbKey || '';
+  } catch {
+    cachedKey = '';
+  }
+  return cachedKey || '';
+}
+
 /**
- * Faz upload de uma imagem através do backend (proxy para o ImgBB, hospedagem
- * gratuita) e retorna a URL pública. Não depende do Firebase Storage.
- * O parâmetro `uid`/`kind` é mantido por compatibilidade de assinatura.
+ * Upload de imagem feito DIRETO do navegador para o ImgBB (o IP do usuário não
+ * é bloqueado, ao contrário do IP do servidor Render). A chave vem do backend.
+ * Se a chave não estiver configurada, oriente o usuário a colar uma URL.
  */
 export async function uploadBioImage(
   file: File,
@@ -32,20 +48,24 @@ export async function uploadBioImage(
     throw new Error('Imagem muito grande. O limite é 5 MB.');
   }
 
-  const dataUrl = await fileToDataUrl(file);
-
-  const res = await apiFetch('/api/bio/upload-image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: dataUrl,
-    action: 'Upload de imagem da Bio',
-    title: 'ao enviar imagem da Bio',
-  });
-
-  let json: any = null;
-  try { json = await res.json(); } catch { /* ignore */ }
-  if (!res.ok || !json?.url) {
-    throw new Error(json?.error || 'Falha no upload da imagem.');
+  const key = await getImgbbKey();
+  if (!key) {
+    throw new Error('Upload não configurado. Cole a URL de uma imagem, ou peça para configurar a chave IMGBB_API_KEY no servidor.');
   }
-  return { url: json.url };
+
+  const base64 = await fileToBase64(file);
+  const form = new FormData();
+  form.append('image', base64);
+
+  const resp = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    body: form,
+  });
+  let json: any = null;
+  try { json = await resp.json(); } catch { /* ignore */ }
+  const url = json?.data?.url || json?.data?.display_url;
+  if (!resp.ok || !url) {
+    throw new Error(json?.error?.message || 'Falha no upload da imagem.');
+  }
+  return { url };
 }

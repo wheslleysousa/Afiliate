@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { BioPage, BioBlock } from '../types';
+import { BioPage, BioBlock, BioSocial } from '../types';
 import { BioContent } from './BioContent';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -15,6 +15,12 @@ function trackedHref(slug: string, block: BioBlock): string | undefined {
   const trackId = `bio_${slug}_${block.id}`;
   // Caminho relativo → mesmo domínio (lkrm.site), onde /rb/ é servido pelo backend.
   return `/rb/${encodeURIComponent(trackId)}?url=${encodeURIComponent(block.url)}`;
+}
+
+function trackedSocialHref(slug: string, s: BioSocial): string | undefined {
+  if (!s.url) return undefined;
+  const trackId = `bio_${slug}_social_${s.id}`;
+  return `/rb/${encodeURIComponent(trackId)}?url=${encodeURIComponent(s.url)}`;
 }
 
 export const PublicBioPage: React.FC<PublicBioPageProps> = ({ slug }) => {
@@ -73,7 +79,7 @@ export const PublicBioPage: React.FC<PublicBioPageProps> = ({ slug }) => {
 
   return (
     <div className="min-h-screen w-full">
-      <BioContent page={page} getHref={(b) => trackedHref(slug, b)} />
+      <BioContent page={page} getHref={(b) => trackedHref(slug, b)} getSocialHref={(s) => trackedSocialHref(slug, s)} />
     </div>
   );
 };

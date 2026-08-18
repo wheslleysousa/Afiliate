@@ -3086,6 +3086,13 @@ app.get("/rb/:trackId", (req, res) => {
 // Upload de imagem da Bio via ImgBB (hospedagem gratuita) — evita a necessidade
 // do Firebase Storage (que exige plano pago). A imagem chega como base64 em
 // texto puro (o express.json global só trata application/json, então não conflita).
+// Retorna a chave do ImgBB para o navegador fazer o upload direto (evita o
+// bloqueio anti-bot que o ImgBB aplica a IPs de servidor/datacenter como o Render).
+app.get("/api/bio/upload-config", (req, res) => {
+  const key = process.env.IMGBB_API_KEY || process.env.IMGBB_KEY || "";
+  res.json({ imgbbKey: key });
+});
+
 // Configure a chave gratuita em IMGBB_API_KEY nas variáveis de ambiente.
 app.post("/api/bio/upload-image", express.text({ limit: "8mb", type: "text/*" }), async (req, res) => {
   try {
