@@ -3218,9 +3218,19 @@ async function extractAmazonAffiliate() {
   const diag = { platform: 'amazon', url: window.location.href, siteStripe: false, trackingId: null, shortLink: null, notes: [] };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth < 800;
+    diag.isMobile = isMobile;
+    diag.isProductPage = /\/dp\/|\/gp\/product\//.test(window.location.pathname);
     const wrap = document.querySelector('#amzn-ss-wrap, [id^="amzn-ss"]');
     diag.siteStripe = !!wrap;
-    if (!wrap) { diag.error = 'Barra SiteStripe não encontrada. Faça login no Amazon Associados e confirme que a barra SiteStripe aparece no topo da página do produto.'; return diag; }
+    if (!wrap) {
+      diag.error = isMobile
+        ? 'A SiteStripe da Amazon NÃO existe no celular (é só no computador). No celular, use a TAG: abra o app → Configurações → Amazon e cole sua tag de associado (ex.: suatag-20). O app monta seu link de afiliado sozinho em todos os produtos da Amazon.'
+        : (diag.isProductPage
+            ? 'SiteStripe não encontrada nesta página de produto. Faça login no Amazon Associados e confirme que a barra SiteStripe aparece no topo.'
+            : 'Você não está numa página de PRODUTO. Abra um produto da Amazon (URL com /dp/) logado no Associados e tente de novo. (No celular a SiteStripe não existe — use a tag no app.)');
+      return diag;
+    }
     const trk = document.querySelector('#amzn-ss-tracking-id');
     if (trk && trk.value) { diag.trackingId = trk.value; }
     else { const opt = document.querySelector('#amzn-ss-tracking-id option[selected], #amzn-ss-tracking-id option'); if (opt) diag.trackingId = opt.value || opt.textContent; }
@@ -3244,7 +3254,7 @@ async function extractAffiliateLinkFlow() {
     if (platform === 'mercadolivre') {
       const link = await generateMercadoLivreAffiliateLink(window.location.href);
       if (link) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(link)}</a>`, link);
-      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Verifique se você está logado no <b>Mercado Livre Afiliados</b> nesta aba e recarregue a página. Copie e me envie:</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">ML: falha — sem sessão/afiliado, ou sem tag, ou CSRF ausente.\nURL: ${escapeHtmlAff(window.location.href)}</pre>`, 'ML falha; URL: ' + window.location.href);
+      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Confira: 1) você está logado no <b>Mercado Livre Afiliados</b>; 2) está numa página de <b>PRODUTO</b> (não na home). Abra um produto e tente de novo. Copie e me envie:</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">ML: falha — sem sessão/afiliado, sem tag, CSRF ausente, ou pagina inicial.\nURL: ${escapeHtmlAff(window.location.href)}</pre>`, 'ML falha; URL: ' + window.location.href);
       return;
     }
     if (platform === 'amazon') {
