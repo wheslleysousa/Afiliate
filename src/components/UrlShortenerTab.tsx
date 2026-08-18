@@ -323,6 +323,23 @@ export const UrlShortenerTab: React.FC<UrlShortenerTabProps> = ({ apiKeys, onSav
           </div>
         </div>
 
+        {/* Toggle: link padrão nas divulgações */}
+        <div className="w-full bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="use-custom-short"
+            checked={apiKeys.useCustomShortLink === true}
+            onChange={(e) => onSaveApiKeys({ ...apiKeys, useCustomShortLink: e.target.checked })}
+            className="mt-1 accent-blue-500 w-4 h-4 cursor-pointer"
+          />
+          <label htmlFor="use-custom-short" className="cursor-pointer">
+            <span className="block text-sm font-bold text-white">Usar meu link personalizado (lkrm.site) nas divulgações</span>
+            <span className="block text-xs text-[#93a0b5] mt-0.5">
+              Desmarcado (padrão): ao divulgar, o app usa o <b>seu link de afiliado nativo</b> (meli.la, s.shopee, link da Amazon...). Marcado: usa o link personalizado no domínio <span className="font-mono text-blue-400">lkrm.site</span> com o estilo configurado abaixo.
+            </span>
+          </label>
+        </div>
+
         {/* Sub-tab Switcher Moderno */}
         <div className="flex items-center gap-1.5 bg-[#0e1119] p-1.5 rounded-2xl border border-[#1e2636] self-start sm:self-auto shadow-lg">
           <button

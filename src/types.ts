@@ -51,6 +51,9 @@ export interface ApiKeysConfig {
   customShortPrefix?: string; // Ex: radardeofertas
   shortStyle?: 'random' | 'custom_random' | 'custom_only' | 'custom_custom';
   useProductNameInShortLink?: boolean;
+  // Se true, as divulgações usam o link personalizado (lkrm.site). Padrão (false/undefined)
+  // = usa o link de afiliado nativo do usuário (meli.la, s.shopee, link.amazon...).
+  useCustomShortLink?: boolean;
 }
 
 export type UserApiKeys = ApiKeysConfig;

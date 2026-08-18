@@ -197,6 +197,35 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     currentProduct.original_link ||
     '';
 
+  // Link usado para DIVULGAR (copy/WhatsApp). Padrão = link de afiliado nativo (directLink).
+  // Se o usuário ativou "link personalizado" no encurtador, usa o lkrm.site (affiliateLink).
+  const useCustomShort = keys.useCustomShortLink === true;
+  const shareLink = useCustomShort && affiliateLink ? affiliateLink : directLink;
+
+  // Quando usa link personalizado (lkrm.site), registra o doc para que ele resolva de fato.
+  useEffect(() => {
+    if (!useCustomShort || !affiliateLink || !directLink) return;
+    const slug = affiliateLink.split('?')[0].replace(/\/+$/, '').split('/').pop();
+    if (!slug) return;
+    const uid = currentUserId;
+    (async () => {
+      try {
+        await setDoc(doc(db, 'shortLinks', slug), {
+          targetUrl: directLink,
+          originalUrl: currentProduct.original_link || '',
+          title: currentProduct.title || '',
+          platform: currentProduct.platform || '',
+          fullUrl: affiliateLink,
+          docId: slug,
+          ownerUid: uid || 'anonymous',
+          userId: uid || 'anonymous',
+          createdBy: uid || 'anonymous',
+          createdAt: new Date().toISOString(),
+        }, { merge: true });
+      } catch (e) { console.error('[Bio/Short] Falha ao registrar link personalizado:', e); }
+    })();
+  }, [useCustomShort, affiliateLink, directLink, currentUserId, currentProduct.original_link, currentProduct.title, currentProduct.platform]);
+
   // Comissão Estimada com base na categoria e tabela
   const commission = calculateCommission(
     currentProduct.price_to,
@@ -225,7 +254,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         original_link: currentProduct.original_link,
         image_url: currentProduct.image_url || '',
       };
-      const formatted = applyTemplate(activeTemplate.template, prodData, affiliateLink, commissionRates);
+      const formatted = applyTemplate(activeTemplate.template, prodData, shareLink, commissionRates);
       setCustomMessage(formatted);
     }
   }, [activeTemplateId, currentProduct, affiliateLink, customTemplates, commissionRates, mode]);
@@ -255,7 +284,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         const data = await res.json();
         if (data.variations && data.variations.length > 0) {
           const rawCopy = data.variations[0].copy;
-          const formattedWithLink = rawCopy.replace(/\{LINK\}/g, affiliateLink);
+          const formattedWithLink = rawCopy.replace(/\{LINK\}/g, shareLink);
           setCustomMessage(formattedWithLink);
         }
       }
