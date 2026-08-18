@@ -1,5 +1,4 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
+import { apiFetch } from './apiBase';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -7,16 +6,25 @@ export interface UploadResult {
   url: string;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Faz upload de uma imagem para o Firebase Storage em bioImages/{uid}/...
- * e retorna a URL pública de download.
+ * Faz upload de uma imagem através do backend (proxy para o ImgBB, hospedagem
+ * gratuita) e retorna a URL pública. Não depende do Firebase Storage.
+ * O parâmetro `uid`/`kind` é mantido por compatibilidade de assinatura.
  */
 export async function uploadBioImage(
   file: File,
-  uid: string,
-  kind: string = 'img',
+  _uid?: string,
+  _kind: string = 'img',
 ): Promise<UploadResult> {
-  if (!uid) throw new Error('Usuário não autenticado.');
   if (!file.type.startsWith('image/')) {
     throw new Error('O arquivo precisa ser uma imagem (JPG, PNG, WEBP...).');
   }
@@ -24,11 +32,20 @@ export async function uploadBioImage(
     throw new Error('Imagem muito grande. O limite é 5 MB.');
   }
 
-  const safeName = file.name.toLowerCase().replace(/[^a-z0-9.]/g, '-').slice(-40);
-  const path = `bioImages/${uid}/${kind}_${Date.now()}_${safeName}`;
-  const storageRef = ref(storage, path);
+  const dataUrl = await fileToDataUrl(file);
 
-  await uploadBytes(storageRef, file, { contentType: file.type });
-  const url = await getDownloadURL(storageRef);
-  return { url };
+  const res = await apiFetch('/api/bio/upload-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: dataUrl,
+    action: 'Upload de imagem da Bio',
+    title: 'ao enviar imagem da Bio',
+  });
+
+  let json: any = null;
+  try { json = await res.json(); } catch { /* ignore */ }
+  if (!res.ok || !json?.url) {
+    throw new Error(json?.error || 'Falha no upload da imagem.');
+  }
+  return { url: json.url };
 }

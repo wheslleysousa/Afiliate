@@ -3083,6 +3083,43 @@ app.get("/rb/:trackId", (req, res) => {
   }
 });
 
+// Upload de imagem da Bio via ImgBB (hospedagem gratuita) — evita a necessidade
+// do Firebase Storage (que exige plano pago). A imagem chega como base64 em
+// texto puro (o express.json global só trata application/json, então não conflita).
+// Configure a chave gratuita em IMGBB_API_KEY nas variáveis de ambiente.
+app.post("/api/bio/upload-image", express.text({ limit: "8mb", type: "text/*" }), async (req, res) => {
+  try {
+    const key = process.env.IMGBB_API_KEY || process.env.IMGBB_KEY;
+    if (!key) {
+      return res.status(500).json({ success: false, error: "Upload não configurado no servidor. Adicione a variável IMGBB_API_KEY (chave gratuita do imgbb.com) nas variáveis de ambiente do Render." });
+    }
+    let b64 = typeof req.body === "string" ? req.body : "";
+    if (b64.includes(",")) b64 = b64.split(",")[1]; // remove prefixo data:image/...;base64,
+    b64 = b64.trim();
+    if (!b64) {
+      return res.status(400).json({ success: false, error: "Nenhuma imagem foi enviada." });
+    }
+    if (b64.length > 7_500_000) {
+      return res.status(413).json({ success: false, error: "Imagem muito grande. O limite é 5 MB." });
+    }
+    const form = new URLSearchParams();
+    form.append("image", b64);
+    const resp = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      body: form,
+    });
+    const json: any = await resp.json().catch(() => null);
+    const url = json?.data?.url || json?.data?.display_url;
+    if (!resp.ok || !url) {
+      return res.status(502).json({ success: false, error: json?.error?.message || "Falha no upload da imagem." });
+    }
+    return res.json({ success: true, url });
+  } catch (err: any) {
+    console.error("[Bio Upload Error]", err);
+    return res.status(500).json({ success: false, error: err?.message || "Erro ao enviar a imagem." });
+  }
+});
+
 // Endpoint to fetch real-time click statistics from server
 app.get("/api/analytics/clicks", (req, res) => {
   res.json({
