@@ -691,6 +691,10 @@ function renderDraggableOverlay() {
           🔍 Pesquisar
         </button>
 
+        <button id="am-btn-extract-aff" class="am-btn-search" style="margin-top:8px;background:linear-gradient(135deg,#7c3aed,#2563eb)">
+          🔗 Extrair link de afiliado
+        </button>
+
         <!-- Auto Mine Control Card -->
         <div class="am-control-bar">
           <div>
@@ -827,6 +831,11 @@ function bindOverlayListeners(overlay) {
   const btnSearch = overlay.querySelector('#am-btn-do-search');
   if (btnSearch) {
     btnSearch.onclick = () => triggerAutomatedSearch();
+  }
+
+  const btnExtractAff = overlay.querySelector('#am-btn-extract-aff');
+  if (btnExtractAff) {
+    btnExtractAff.onclick = () => extractAffiliateLinkFlow();
   }
 
   ['ml', 'shopee', 'amazon', 'shein', 'aliexpress', 'tiktok'].forEach(mkt => {
@@ -3175,6 +3184,82 @@ async function generateMercadoLivreAffiliateLink(productUrl) {
     return null;
   } catch (e) {
     return null;
+  }
+}
+
+// ─── Extrair link de afiliado (botão do painel) ──────────────────────────────
+function escapeHtmlAff(s) {
+  return String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+}
+
+function showAffiliateResult(title, ok, bodyHtml, rawText) {
+  let ov = document.getElementById('am-aff-overlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'am-aff-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+  const color = ok === true ? '#10b981' : ok === false ? '#ef4444' : '#93a0b5';
+  ov.innerHTML = `
+    <div style="background:#0e1119;border:1px solid #1e2636;border-radius:16px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;padding:16px;color:#eef2f9;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:14px;font-weight:800;color:${color}">${escapeHtmlAff(title)}</span>
+        <button id="am-aff-close" style="background:#151a26;border:1px solid #1e2636;color:#93a0b5;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:15px">×</button>
+      </div>
+      <div style="font-size:12px;line-height:1.5">${bodyHtml}</div>
+      ${rawText ? `<button id="am-aff-copy" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;background:#2563eb;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer">Copiar resultado</button>` : ''}
+    </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  const c = ov.querySelector('#am-aff-close'); if (c) c.onclick = () => ov.remove();
+  const cp = ov.querySelector('#am-aff-copy'); if (cp) cp.onclick = () => { try { navigator.clipboard.writeText(rawText); cp.textContent = 'Copiado!'; setTimeout(() => { cp.textContent = 'Copiar resultado'; }, 1500); } catch (e) {} };
+}
+
+async function extractAmazonAffiliate() {
+  const diag = { platform: 'amazon', url: window.location.href, siteStripe: false, trackingId: null, shortLink: null, notes: [] };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    const wrap = document.querySelector('#amzn-ss-wrap, [id^="amzn-ss"]');
+    diag.siteStripe = !!wrap;
+    if (!wrap) { diag.error = 'Barra SiteStripe não encontrada. Faça login no Amazon Associados e confirme que a barra SiteStripe aparece no topo da página do produto.'; return diag; }
+    const trk = document.querySelector('#amzn-ss-tracking-id');
+    if (trk && trk.value) { diag.trackingId = trk.value; }
+    else { const opt = document.querySelector('#amzn-ss-tracking-id option[selected], #amzn-ss-tracking-id option'); if (opt) diag.trackingId = opt.value || opt.textContent; }
+    const getText = document.querySelector('#amzn-ss-text-get-link, a#amzn-ss-text-get-link, #amzn-ss-text-link a');
+    if (getText) { try { getText.click(); diag.notes.push('cliquei em obter link (texto)'); } catch (e) { diag.notes.push('falha ao clicar get-link: ' + e.message); } await wait(1800); }
+    const ta = document.querySelector('#amzn-ss-text-shortlink-textarea, textarea#amzn-ss-text-shortlink-textarea');
+    if (ta && ta.value && /https?:\/\//.test(ta.value)) diag.shortLink = ta.value.trim();
+    if (!diag.shortLink) {
+      const cands = Array.from(document.querySelectorAll('#amzn-ss-wrap input, #amzn-ss-wrap textarea, input, textarea'));
+      for (const el of cands) { const v = (el.value || '').trim(); if (/https?:\/\/(amzn\.to|link\.amazon|a\.co)\//i.test(v)) { diag.shortLink = v; diag.notes.push('achado via varredura: ' + (el.id || el.name || 'campo')); break; } }
+    }
+    if (!diag.shortLink) diag.error = 'SiteStripe encontrada, mas não consegui ler o link curto automaticamente. Clique manualmente em "Obter link" → "Texto" e tente de novo. Copie o diagnóstico abaixo e me envie.';
+    return diag;
+  } catch (e) { diag.error = 'Exceção: ' + (e && e.message || String(e)); return diag; }
+}
+
+async function extractAffiliateLinkFlow() {
+  const platform = getPlatformKey();
+  showAffiliateResult('Extraindo...', null, '<div style="padding:16px;text-align:center;color:#93a0b5">Extraindo link de afiliado, aguarde...</div>', '');
+  try {
+    if (platform === 'mercadolivre') {
+      const link = await generateMercadoLivreAffiliateLink(window.location.href);
+      if (link) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(link)}</a>`, link);
+      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Verifique se você está logado no <b>Mercado Livre Afiliados</b> nesta aba e recarregue a página. Copie e me envie:</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">ML: falha — sem sessão/afiliado, ou sem tag, ou CSRF ausente.\nURL: ${escapeHtmlAff(window.location.href)}</pre>`, 'ML falha; URL: ' + window.location.href);
+      return;
+    }
+    if (platform === 'amazon') {
+      const r = await extractAmazonAffiliate();
+      const raw = JSON.stringify(r, null, 2);
+      const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
+      if (r.shortLink) showAffiliateResult('Amazon ✓', true, `<p>Link de afiliado (SiteStripe):</p><a href="${escapeHtmlAff(r.shortLink)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.shortLink)}</a>${r.trackingId ? `<p style="margin-top:8px">Tag de associado: <b>${escapeHtmlAff(r.trackingId)}</b></p>` : ''}${diagBlock}`, raw);
+      else showAffiliateResult('Amazon ✗', false, `<p>${escapeHtmlAff(r.error || 'Não consegui extrair o link.')}</p>${diagBlock}`, raw);
+      return;
+    }
+    if (platform === 'shopee') { showAffiliateResult('Shopee', false, `<p>Na Shopee o link de afiliado (s.shopee) é gerado <b>automaticamente no app</b> pela API oficial — basta configurar o App ID e o Secret nas Configurações. Não precisa extrair aqui.</p>`, 'shopee via API'); return; }
+    if (platform === 'tiktokshop') { showAffiliateResult('TikTok Shop', false, `<p>No TikTok Shop o link de afiliado é gerado no app deles. Por enquanto, cole seu link manualmente ao divulgar.</p>`, 'tiktok manual'); return; }
+    showAffiliateResult('Plataforma', false, `<p>Extração ainda não suportada nesta plataforma (${escapeHtmlAff(platform)}).</p>`, platform);
+  } catch (e) {
+    showAffiliateResult('Erro', false, `<p>Erro inesperado: ${escapeHtmlAff(e && e.message || String(e))}</p>`, String(e && e.stack || e));
   }
 }
 

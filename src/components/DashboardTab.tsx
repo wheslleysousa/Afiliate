@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, ShoppingCart, DollarSign, Wallet, Receipt,
-  RefreshCw, AlertTriangle, TrendingUp, Package, CalendarDays,
+  RefreshCw, AlertTriangle, TrendingUp, Package, CalendarDays, MousePointerClick,
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -76,6 +76,22 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
   const [customEnd, setCustomEnd] = useState('');
 
   const shopeeConfigured = !!(apiKeys?.shopeeAppId && apiKeys?.shopeeSecret);
+  const [clicksTotal, setClicksTotal] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch('/api/analytics/clicks')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!alive) return;
+        const map = j?.clicksMap || {};
+        let sum = 0;
+        Object.values(map).forEach((v: any) => { sum += (v?.clicks || 0); });
+        setClicksTotal(sum);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const load = useCallback(async (r: RangeKey, cs?: string, ce?: string) => {
     setLoading(true);
@@ -204,7 +220,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ apiKeys, onNavigateT
       )}
 
       {/* Totais */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <StatCard icon={<MousePointerClick className="w-4 h-4" />} label="Cliques nos links" value={fmtInt(clicksTotal)} accent="text-amber-400" loading={false} />
         <StatCard icon={<ShoppingCart className="w-4 h-4" />} label="Pedidos" value={fmtInt(t?.orders || 0)} accent="text-blue-400" loading={loading} />
         <StatCard icon={<DollarSign className="w-4 h-4" />} label="Vendas" value={fmtMoney(t?.sales || 0)} accent="text-white" loading={loading} />
         <StatCard icon={<Wallet className="w-4 h-4" />} label="Comissão" value={fmtMoney(t?.commission || 0)} accent="text-emerald-400" loading={loading} />
