@@ -6,16 +6,51 @@ export interface UploadResult {
   url: string;
 }
 
-function fileToBase64(file: File): Promise<string> {
+function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const s = String(reader.result || '');
-      resolve(s.includes(',') ? s.split(',')[1] : s); // sem o prefixo data:...
-    };
+    reader.onload = () => resolve(String(reader.result || ''));
     reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Não foi possível processar a imagem.'));
+    img.src = src;
+  });
+}
+
+/**
+ * Redimensiona (máx. maxDim px) e comprime a imagem no navegador antes de enviar,
+ * deixando o upload rápido e a imagem leve para carregar. Preserva transparência
+ * usando WebP quando suportado; senão cai para JPEG. Retorna base64 sem prefixo.
+ */
+async function compressToBase64(file: File, maxDim = 1200, quality = 0.85): Promise<string> {
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    const img = await loadImage(dataUrl);
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      const s = maxDim / Math.max(width, height);
+      width = Math.round(width * s);
+      height = Math.round(height * s);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl.split(',')[1];
+    ctx.drawImage(img, 0, 0, width, height);
+    let out = canvas.toDataURL('image/webp', quality);
+    if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/jpeg', quality);
+    return out.split(',')[1];
+  } catch {
+    const dataUrl = await fileToDataUrl(file);
+    return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+  }
 }
 
 let cachedKey: string | null = null;
@@ -53,7 +88,7 @@ export async function uploadBioImage(
     throw new Error('Upload não configurado. Cole a URL de uma imagem, ou peça para configurar a chave IMGBB_API_KEY no servidor.');
   }
 
-  const base64 = await fileToBase64(file);
+  const base64 = await compressToBase64(file);
   const form = new FormData();
   form.append('image', base64);
 

@@ -140,6 +140,34 @@ function radiusOf(shape: BioButtonShape): string {
 function avatarRadiusOf(shape: BioAvatarShape): string {
   return shape === 'square' ? '14px' : shape === 'rounded' ? '28px' : shape === 'squircle' ? '32%' : '9999px';
 }
+function hexA(hex: string, a: number): string {
+  const h = (hex || '').replace('#', '');
+  if (h.length !== 6 && h.length !== 3) return `rgba(37,99,235,${a})`;
+  const f = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  return `rgba(${parseInt(f.slice(0, 2), 16)},${parseInt(f.slice(2, 4), 16)},${parseInt(f.slice(4, 6), 16)},${a})`;
+}
+// Estilo aproximado de um card para o seletor visual
+function stylePreview(style: BioButtonStyle, t: BioTheme): React.CSSProperties {
+  const r = radiusOf(t.buttonShape);
+  switch (style) {
+    case 'outline': return { borderRadius: r, background: 'transparent', border: `2px solid ${t.buttonColor}` };
+    case 'soft': return { borderRadius: r, background: hexA(t.buttonColor, 0.18), border: `1px solid ${hexA(t.buttonColor, 0.35)}` };
+    case 'glass': return { borderRadius: r, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.3)' };
+    case 'hard': return { borderRadius: r, background: t.buttonColor, border: '2px solid #0a0a0a', boxShadow: '3px 3px 0 #0a0a0a' };
+    case 'neumorph': return { borderRadius: r, background: t.buttonColor, boxShadow: '2px 2px 5px rgba(0,0,0,0.5), -2px -2px 5px rgba(255,255,255,0.08)' };
+    case 'gradient': return { borderRadius: r, backgroundImage: `linear-gradient(135deg, ${t.buttonColor}, ${t.buttonColor2 || t.buttonColor})` };
+    case 'fill':
+    default: return { borderRadius: r, background: t.buttonColor };
+  }
+}
+// Proporções de banner (altura calculada para a largura ~448px do conteúdo)
+const BANNER_RATIOS: { label: string; h: number }[] = [
+  { label: '4:1', h: 112 },
+  { label: '3:1', h: 150 },
+  { label: '2.5:1', h: 180 },
+  { label: '2:1', h: 224 },
+  { label: '16:9', h: 252 },
+];
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 type SubTab = 'content' | 'appearance' | 'profile';
@@ -215,7 +243,10 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
   const [socials, setSocials] = useState<BioSocial[]>([]);
 
   const [subTab, setSubTab] = useState<SubTab>('content');
+  const [appMode, setAppMode] = useState<'temas' | 'custom'>('temas');
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editingSocialId, setEditingSocialId] = useState<string | null>(null);
+  const [confirmSocialId, setConfirmSocialId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -390,7 +421,7 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
   useEffect(() => () => endDrag(), [endDrag]);
 
   // Redes sociais
-  const addSocial = () => setSocials((prev) => [...prev, { id: genId(), platform: 'instagram', url: '' }]);
+  const addSocial = () => { const id = genId(); setSocials((prev) => [...prev, { id, platform: 'instagram', url: '' }]); setEditingSocialId(id); };
   const updateSocial = (id: string, patch: Partial<BioSocial>) => setSocials((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const removeSocial = (id: string) => setSocials((prev) => prev.filter((s) => s.id !== id));
 
@@ -546,6 +577,16 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
                                 <ImageField label="Ícone" compact value={block.iconImage} onChange={(url) => updateBlock(block.id, { iconImage: url })} uid={uid} kind="icon" onError={(m) => setToast({ type: 'err', msg: m })} />
                               )}
                             </div>
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <label className={labelCls + ' mb-0'}>Cores só deste botão</label>
+                                {(block.buttonColor || block.buttonTextColor) && <button type="button" onClick={() => updateBlock(block.id, { buttonColor: undefined, buttonTextColor: undefined })} className="text-[11px] text-[#93a0b5] hover:text-white">Usar cores do tema</button>}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                <ColorField label="Fundo" value={block.buttonColor || ''} onChange={(v) => updateBlock(block.id, { buttonColor: v })} />
+                                <ColorField label="Texto" value={block.buttonTextColor || ''} onChange={(v) => updateBlock(block.id, { buttonTextColor: v })} />
+                              </div>
+                            </div>
                           </>
                         )}
                         {block.type === 'section' && (
@@ -576,9 +617,15 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
         {/* ─── APARÊNCIA ─── */}
         {subTab === 'appearance' && (
           <div className="space-y-5">
-            {/* Temas */}
+            <div className="flex gap-1 bg-[#0b0e15] border border-[#1e2636] rounded-xl p-1">
+              {(['temas', 'custom'] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setAppMode(m)} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${appMode === m ? 'bg-blue-600 text-white' : 'text-[#93a0b5] hover:text-white'}`}>{m === 'temas' ? 'Temas prontos' : 'Personalizado'}</button>
+              ))}
+            </div>
+
+            {appMode === 'temas' && (
             <div className={cardCls}>
-              <label className={labelCls}>Temas prontos</label>
+              <p className="text-xs text-[#93a0b5] mb-3">Escolha um tema pronto — aplica cores, fundo, botões e fonte de uma vez. Para editar cada detalhe do seu jeito, use <b className="text-[#eef2f9]">Personalizado</b>.</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {THEME_PRESETS.map((p) => (
                   <button key={p.name} onClick={() => setTheme(p.theme)} type="button" className="relative h-16 rounded-xl border border-[#1e2636] hover:border-blue-500/60 overflow-hidden transition-colors" style={{ background: p.theme.bgValue }}>
@@ -588,7 +635,9 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
                 ))}
               </div>
             </div>
+            )}
 
+            {appMode === 'custom' && (<>
             {/* Fundo */}
             <div className={cardCls + ' space-y-3'}>
               <label className={labelCls}>Fundo</label>
@@ -608,7 +657,14 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
             <div className={cardCls + ' space-y-4'}>
               <div>
                 <label className={labelCls}>Estilo do card</label>
-                <div className="flex flex-wrap gap-2">{STYLE_OPTIONS.map((s) => <button key={s.value} type="button" onClick={() => setTF('buttonStyle', s.value)} className={chip(theme.buttonStyle === s.value)}>{s.label}</button>)}</div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {STYLE_OPTIONS.map((s) => (
+                    <button key={s.value} type="button" onClick={() => setTF('buttonStyle', s.value)} className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-colors ${theme.buttonStyle === s.value ? 'border-blue-500 bg-blue-500/10' : 'border-[#1e2636] hover:border-[#2a3550]'}`}>
+                      <span className="w-full h-6 flex items-center justify-center text-[9px] font-bold" style={{ ...stylePreview(s.value, theme), color: theme.buttonTextColor }}>Aa</span>
+                      <span className={`text-[10px] font-bold ${theme.buttonStyle === s.value ? 'text-blue-300' : 'text-[#93a0b5]'}`}>{s.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className={labelCls}>Formato do card</label>
@@ -657,8 +713,17 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Slider label="Tamanho do avatar" value={theme.avatarSize ?? 96} min={56} max={140} onChange={(n) => setTF('avatarSize', n)} />
-                <Slider label="Altura do banner" value={theme.bannerHeight ?? 112} min={60} max={220} onChange={(n) => setTF('bannerHeight', n)} />
+                <Slider label="Tamanho do avatar" value={theme.avatarSize ?? 96} min={56} max={160} onChange={(n) => setTF('avatarSize', n)} />
+                <Slider label="Altura do banner" value={theme.bannerHeight ?? 112} min={60} max={320} onChange={(n) => setTF('bannerHeight', n)} />
+              </div>
+              <div>
+                <label className={labelCls}>Proporção do banner</label>
+                <div className="flex flex-wrap gap-2">
+                  {BANNER_RATIOS.map((r) => (
+                    <button key={r.label} type="button" onClick={() => setTF('bannerHeight', r.h)} className={chip((theme.bannerHeight ?? 112) === r.h)}>{r.label}</button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[#4b5872] mt-1.5">A largura acompanha a página; ajuste a altura ou escolha uma proporção.</p>
               </div>
             </div>
 
@@ -677,6 +742,7 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
                 <Slider label="Tamanho da descrição" value={theme.bioSize ?? 14} min={11} max={22} onChange={(n) => setTF('bioSize', n)} />
               </div>
             </div>
+            </>)}
           </div>
         )}
 
@@ -698,16 +764,41 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
               </div>
               <p className="text-[11px] text-[#4b5872]">Ícones que aparecem abaixo do seu nome (Instagram, TikTok, WhatsApp...).</p>
               {socials.length === 0 && <p className="text-center text-xs text-[#4b5872] py-2">Nenhuma rede adicionada.</p>}
-              {socials.map((s) => (
-                <div key={s.id} className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-[#151a26] border border-[#1e2636] flex items-center justify-center text-[#eef2f9] shrink-0">{renderBuiltinIcon(s.platform, 16, 'currentColor')}</span>
-                  <select value={s.platform} onChange={(e) => updateSocial(s.id, { platform: e.target.value })} className="bg-[#0b0e15] border border-[#1e2636] rounded-lg px-2 py-2 text-xs text-[#eef2f9] shrink-0">
-                    {SOCIAL_PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-                  </select>
-                  <input value={s.url} onChange={(e) => updateSocial(s.id, { url: e.target.value })} placeholder="https://..." className={inputCls + ' flex-1'} />
-                  <button onClick={() => removeSocial(s.id)} className="text-[#4b5872] hover:text-red-400 shrink-0"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              ))}
+              {socials.map((s) => {
+                const editing = editingSocialId === s.id;
+                const label = SOCIAL_PLATFORMS.find((p) => p.key === s.platform)?.label || s.platform;
+                return (
+                  <div key={s.id} className="rounded-xl border border-[#1e2636] bg-[#0b0e15] p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-[#151a26] border border-[#1e2636] flex items-center justify-center text-[#eef2f9] shrink-0">{renderBuiltinIcon(s.platform, 16, 'currentColor')}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-sm font-bold text-[#eef2f9]">{label}</span>
+                        <span className="block text-[11px] text-[#93a0b5] truncate">{s.url || '(sem link)'}</span>
+                      </div>
+                      {!editing && <button onClick={() => setEditingSocialId(s.id)} className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-[#93a0b5] hover:text-white text-xs font-bold"><Pencil className="w-3.5 h-3.5" /> Editar</button>}
+                      <button onClick={() => setConfirmSocialId(confirmSocialId === s.id ? null : s.id)} className="shrink-0 text-[#4b5872] hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                    {editing && (
+                      <div className="mt-2.5 space-y-2 border-t border-[#1e2636] pt-2.5">
+                        <select value={s.platform} onChange={(e) => updateSocial(s.id, { platform: e.target.value })} className="w-full bg-[#0b0e15] border border-[#1e2636] rounded-lg px-2 py-2 text-xs text-[#eef2f9]">
+                          {SOCIAL_PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                        </select>
+                        <input value={s.url} onChange={(e) => updateSocial(s.id, { url: e.target.value })} placeholder="https://..." className={inputCls} />
+                        <button onClick={() => setEditingSocialId(null)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold"><Check className="w-3.5 h-3.5" /> Salvar</button>
+                      </div>
+                    )}
+                    {confirmSocialId === s.id && (
+                      <div className="mt-2.5 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
+                        <p className="text-[11px] text-red-200 mb-2">Remover <b>{label}</b>?</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => { removeSocial(s.id); setConfirmSocialId(null); }} className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold">Sim, remover</button>
+                          <button onClick={() => setConfirmSocialId(null)} className="px-3 py-1 rounded-lg bg-[#151a26] border border-[#1e2636] text-[#eef2f9] text-xs font-bold">Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -718,7 +809,7 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
       {/* Preview */}
       <div className="lg:sticky lg:top-6 h-fit">
         <div className="flex items-center gap-2 mb-2 text-[#93a0b5]"><Eye className="w-4 h-4" /><span className="text-xs font-bold uppercase tracking-wider">Pré-visualização</span></div>
-        <div className="mx-auto w-full max-w-[300px] rounded-[2rem] border-[6px] border-[#1e2636] bg-black overflow-hidden shadow-2xl" style={{ height: 560 }}>
+        <div className="mx-auto w-full max-w-[300px] rounded-[2rem] border-[6px] border-[#1e2636] bg-black overflow-hidden shadow-2xl" style={{ height: 620 }}>
           <div className="w-full h-full overflow-y-auto"><BioContent page={currentPage} /></div>
         </div>
         <p className="text-center text-[11px] text-[#93a0b5] mt-3 font-mono break-all">{shortDomain}/{savedSlug}</p>

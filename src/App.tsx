@@ -78,18 +78,31 @@ export default function App() {
       const firstSegment = parts[0];
 
       if (firstSegment && !validAppTabs.includes(firstSegment)) {
-        setRedirectingState({ status: 'redirecting' });
         const lookupSlug = parts[parts.length - 1];
 
-        // Fallback: se não for link curto, tenta resolver como página de Bio (namespace compartilhado)
-        const tryBioOrError = () => {
-          getDoc(doc(db, 'bioPages', firstSegment)).then((bioSnap) => {
-            if (bioSnap.exists() && bioSnap.data().published !== false) {
-              setPublicBioSlug(firstSegment);
-              setRedirectingState({ status: 'idle' });
+        // Fluxo de link curto (mostra a tela de "Redirecionando" e navega)
+        const resolveShortLink = () => {
+          setRedirectingState({ status: 'redirecting' });
+          getDoc(doc(db, 'shortLinks', lookupSlug)).then((docSnap) => {
+            if (docSnap.exists() && docSnap.data().targetUrl) {
+              const targetUrl = docSnap.data().targetUrl;
+              setRedirectingState({ status: 'redirecting', url: targetUrl });
+              window.location.href = targetUrl;
             } else {
-              setRedirectingState({ status: 'error' });
-              setTimeout(() => { window.location.href = '/'; }, 3500);
+              const fullSlug = parts.join('-');
+              getDoc(doc(db, 'shortLinks', fullSlug)).then((exactSnap) => {
+                if (exactSnap.exists() && exactSnap.data().targetUrl) {
+                  const targetUrl = exactSnap.data().targetUrl;
+                  setRedirectingState({ status: 'redirecting', url: targetUrl });
+                  window.location.href = targetUrl;
+                } else {
+                  setRedirectingState({ status: 'error' });
+                  setTimeout(() => { window.location.href = '/'; }, 3500);
+                }
+              }).catch(() => {
+                setRedirectingState({ status: 'error' });
+                setTimeout(() => { window.location.href = '/'; }, 3500);
+              });
             }
           }).catch(() => {
             setRedirectingState({ status: 'error' });
@@ -97,28 +110,15 @@ export default function App() {
           });
         };
 
-        getDoc(doc(db, 'shortLinks', lookupSlug)).then((docSnap) => {
-          if (docSnap.exists() && docSnap.data().targetUrl) {
-            const targetUrl = docSnap.data().targetUrl;
-            setRedirectingState({ status: 'redirecting', url: targetUrl });
-            window.location.href = targetUrl;
+        // Verifica PRIMEIRO se é uma página de Bio — sem mostrar tela de redirecionamento.
+        getDoc(doc(db, 'bioPages', firstSegment)).then((bioSnap) => {
+          if (bioSnap.exists() && bioSnap.data().published !== false) {
+            setPublicBioSlug(firstSegment);
           } else {
-            // Also try full path slug lookup
-            const fullSlug = parts.join('-');
-            getDoc(doc(db, 'shortLinks', fullSlug)).then((exactSnap) => {
-              if (exactSnap.exists() && exactSnap.data().targetUrl) {
-                const targetUrl = exactSnap.data().targetUrl;
-                setRedirectingState({ status: 'redirecting', url: targetUrl });
-                window.location.href = targetUrl;
-              } else {
-                tryBioOrError();
-              }
-            }).catch(() => {
-              tryBioOrError();
-            });
+            resolveShortLink();
           }
         }).catch(() => {
-          tryBioOrError();
+          resolveShortLink();
         });
       }
     }

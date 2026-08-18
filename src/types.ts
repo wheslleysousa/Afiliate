@@ -385,6 +385,8 @@ export interface BioBlock {
   text?: string;            // parágrafo (type = 'text') ou subtítulo (type = 'section')
   imageUrl?: string;        // imagem (type = 'image')
   videoUrl?: string;        // URL do vídeo (type = 'video', YouTube/Vimeo)
+  buttonColor?: string;     // cor do botão só deste bloco (sobrepõe o tema)
+  buttonTextColor?: string; // cor do texto só deste bloco (sobrepõe o tema)
   active?: boolean;         // se false, não aparece na página pública
   order: number;
 }

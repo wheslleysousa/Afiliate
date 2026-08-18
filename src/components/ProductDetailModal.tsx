@@ -151,7 +151,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     enrichData();
   }, [product.id, product.original_link]);
 
-  // Link de Afiliado com Rastreamento
+  // Link de Afiliado com Rastreamento (usado para compartilhar/copy — formato curto)
   const affiliateLink = buildShareableTrackingLink(
     currentProduct.id,
     currentProduct.original_link,
@@ -159,6 +159,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     keys,
     currentProduct.title
   );
+
+  // Link direto para ABRIR o produto (funciona sempre, sem depender de doc de link curto).
+  // Prioridade: link de afiliado real já gerado (ex.: meli.la) → link direto com tracking → URL original.
+  const directLink =
+    (currentProduct.affiliate_link && /^https?:\/\//i.test(currentProduct.affiliate_link) ? currentProduct.affiliate_link : '') ||
+    buildAffiliateLink(currentProduct.original_link, currentProduct.platform, keys) ||
+    currentProduct.original_link ||
+    '';
 
   // Comissão Estimada com base na categoria e tabela
   const commission = calculateCommission(
@@ -443,7 +451,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     </button>
 
                     <a
-                      href={affiliateLink}
+                      href={directLink}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full sm:w-auto px-4 py-3 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"
@@ -586,7 +594,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </button>
 
                   <a
-                    href={affiliateLink}
+                    href={directLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full sm:w-auto px-4 py-3 rounded-xl bg-[#0e1119] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer"

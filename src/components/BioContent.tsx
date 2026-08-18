@@ -225,9 +225,20 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, getSocial
               );
             }
 
-            // link
+            // link (com possível cor própria do bloco sobrepondo o tema)
             const href = getHref ? getHref(block) : undefined;
-            const textColor = (btnStyle.color as string) || theme.buttonTextColor;
+            const perBlockStyle: React.CSSProperties = { ...btnStyle };
+            if (block.buttonColor) {
+              if (theme.buttonStyle === 'outline' || theme.buttonStyle === 'soft') {
+                perBlockStyle.color = block.buttonColor;
+                perBlockStyle.borderColor = block.buttonColor;
+              } else {
+                perBlockStyle.backgroundColor = block.buttonColor;
+                perBlockStyle.backgroundImage = 'none';
+              }
+            }
+            if (block.buttonTextColor) perBlockStyle.color = block.buttonTextColor;
+            const textColor = (perBlockStyle.color as string) || theme.buttonTextColor;
             const inner = (
               <>
                 <LinkIcon block={block} color={textColor} />
@@ -236,11 +247,11 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, getSocial
             );
             if (href) {
               return (
-                <a key={block.id} href={href} target="_blank" rel="noopener noreferrer nofollow" className={btnCls} style={btnStyle} onClick={() => onLinkClick?.(block)}>{inner}</a>
+                <a key={block.id} href={href} target="_blank" rel="noopener noreferrer nofollow" className={btnCls} style={perBlockStyle} onClick={() => onLinkClick?.(block)}>{inner}</a>
               );
             }
             return (
-              <div key={block.id} className={btnCls + ' cursor-default select-none'} style={btnStyle}>{inner}</div>
+              <div key={block.id} className={btnCls + ' cursor-default select-none'} style={perBlockStyle}>{inner}</div>
             );
           })
         )}
