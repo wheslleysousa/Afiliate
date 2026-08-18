@@ -3103,15 +3103,28 @@ app.post("/api/bio/upload-image", express.text({ limit: "8mb", type: "text/*" })
       return res.status(413).json({ success: false, error: "Imagem muito grande. O limite é 5 MB." });
     }
     const form = new URLSearchParams();
+    form.append("key", key);
     form.append("image", b64);
-    const resp = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(key)}`, {
+    // Cabeçalhos de navegador: sem isso a proteção anti-bot do ImgBB responde
+    // "You have been forbidden to use this website." para requisições de servidor.
+    const resp = await fetch("https://api.imgbb.com/1/upload", {
       method: "POST",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://imgbb.com/",
+      },
       body: form,
     });
-    const json: any = await resp.json().catch(() => null);
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch { /* resposta não-JSON (página de bloqueio) */ }
     const url = json?.data?.url || json?.data?.display_url;
     if (!resp.ok || !url) {
-      return res.status(502).json({ success: false, error: json?.error?.message || "Falha no upload da imagem." });
+      const detail = json?.error?.message || (raw ? raw.slice(0, 160) : "Falha no upload da imagem.");
+      console.error("[Bio Upload] ImgBB falhou:", resp.status, detail);
+      return res.status(502).json({ success: false, error: `Falha no upload (ImgBB): ${detail}` });
     }
     return res.json({ success: true, url });
   } catch (err: any) {
