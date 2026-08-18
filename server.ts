@@ -643,22 +643,12 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
     }
 
     const cleanSubId = subId?.trim().replace(/[^a-zA-Z0-9_-]/g, "");
-    const subIdArg = cleanSubId ? `, subIds: ["${cleanSubId}"]` : "";
-    
-    // Shopee GraphQL API mutation body
+    const subIdsArg = cleanSubId ? `,subIds:[${JSON.stringify(cleanSubId)}]` : "";
+
+    // Mutation CORRETA da Shopee Affiliate Open API: generateShortLink (não generatePromotionLink).
+    // Endpoint que responde 200: /graphql (o /api/v1/graphql retorna 404).
     const mutation = {
-      query: `mutation {
-        generatePromotionLink(originLines: ["${originalUrl}"]${subIdArg}) {
-          errCode
-          errMsg
-          data {
-            promotionLinkList {
-              origin
-              promotionLink
-            }
-          }
-        }
-      }`
+      query: `mutation{generateShortLink(input:{originUrl:${JSON.stringify(originalUrl)}${subIdsArg}}){shortLink}}`
     };
 
     const bodyStr = JSON.stringify(mutation);
@@ -666,7 +656,7 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
     let response;
     try {
       response = await fetchShopeeGraphQLWithSignatureFallback(
-        "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
+        "https://open-api.affiliate.shopee.com.br/graphql",
         finalAppId,
         finalSecret,
         bodyStr
@@ -677,16 +667,12 @@ async function generateShopeePromotionLink(originalUrl: string, appId?: string, 
 
     if (response && response.ok) {
       const result: any = await response.json();
-      const responseData = result?.data?.generatePromotionLink;
-      
-      if (responseData?.errCode === 0 || responseData?.errCode === "0") {
-        const promoList = responseData?.data?.promotionLinkList;
-        if (promoList && promoList.length > 0 && promoList[0]?.promotionLink) {
-          return promoList[0].promotionLink;
-        }
-      } else {
-        console.warn(`[SHOPEE DIAG] Erro retornado pela API Shopee. Código: ${responseData?.errCode}, Mensagem: ${responseData?.errMsg}`);
+      const short = result?.data?.generateShortLink?.shortLink;
+      if (short && typeof short === "string") {
+        return short;
       }
+      const errMsg = Array.isArray(result?.errors) && result.errors.length ? result.errors[0]?.message : JSON.stringify(result);
+      console.warn(`[SHOPEE DIAG] generateShortLink sem link. Resposta: ${errMsg}`);
     } else {
       console.error(`[SHOPEE DIAG] generateShopeePromotionLink resposta HTTP nula ou não ok.`);
     }
