@@ -3231,18 +3231,38 @@ async function extractAmazonAffiliate() {
             : 'Você não está numa página de PRODUTO. Abra um produto da Amazon (URL com /dp/) logado no Associados e tente de novo. (No celular a SiteStripe não existe — use a tag no app.)');
       return diag;
     }
+    // Tag de associado
     const trk = document.querySelector('#amzn-ss-tracking-id');
-    if (trk && trk.value) { diag.trackingId = trk.value; }
-    else { const opt = document.querySelector('#amzn-ss-tracking-id option[selected], #amzn-ss-tracking-id option'); if (opt) diag.trackingId = opt.value || opt.textContent; }
-    const getText = document.querySelector('#amzn-ss-text-get-link, a#amzn-ss-text-get-link, #amzn-ss-text-link a');
-    if (getText) { try { getText.click(); diag.notes.push('cliquei em obter link (texto)'); } catch (e) { diag.notes.push('falha ao clicar get-link: ' + e.message); } await wait(1800); }
-    const ta = document.querySelector('#amzn-ss-text-shortlink-textarea, textarea#amzn-ss-text-shortlink-textarea');
-    if (ta && ta.value && /https?:\/\//.test(ta.value)) diag.shortLink = ta.value.trim();
-    if (!diag.shortLink) {
-      const cands = Array.from(document.querySelectorAll('#amzn-ss-wrap input, #amzn-ss-wrap textarea, input, textarea'));
-      for (const el of cands) { const v = (el.value || '').trim(); if (/https?:\/\/(amzn\.to|link\.amazon|a\.co)\//i.test(v)) { diag.shortLink = v; diag.notes.push('achado via varredura: ' + (el.id || el.name || 'campo')); break; } }
+    if (trk) diag.trackingId = trk.value || (trk.options && trk.selectedIndex >= 0 ? trk.options[trk.selectedIndex].value : null);
+
+    // Garantir que "Encurtar URL" esteja ligado (é o que gera o amzn.to)
+    const shortChk = document.querySelector('#amzn-ss-shorten-url-checkbox, input#amzn-ss-shorten-url, input[name="amzn-ss-shorten-url"]');
+    diag.shortenCheckbox = !!shortChk;
+    if (shortChk && !shortChk.checked) { try { shortChk.click(); diag.notes.push('liguei "Encurtar URL"'); await wait(300); } catch (e) {} }
+
+    // Clicar em "Obter link" (aba Texto) para gerar o link curto
+    const getSelectors = ['#amzn-ss-text-get-link', 'a#amzn-ss-text-get-link', '#amzn-ss-get-link', '#amzn-ss-text-link a', '[data-ss-link-type="text"]'];
+    let clicked = false;
+    for (const s of getSelectors) { const el = document.querySelector(s); if (el) { try { el.click(); clicked = true; diag.notes.push('cliquei: ' + s); } catch (e) {} break; } }
+    if (!clicked) {
+      const btns = Array.from(document.querySelectorAll('#amzn-ss-wrap a, #amzn-ss-wrap button, #amzn-ss-wrap [role="button"]'));
+      const b = btns.find((x) => /obter link|get link|texto|^text$/i.test((x.textContent || '').trim()));
+      if (b) { try { b.click(); clicked = true; diag.notes.push('cliquei por texto: ' + (b.textContent || '').trim().slice(0, 24)); } catch (e) {} }
     }
-    if (!diag.shortLink) diag.error = 'SiteStripe encontrada, mas não consegui ler o link curto automaticamente. Clique manualmente em "Obter link" → "Texto" e tente de novo. Copie o diagnóstico abaixo e me envie.';
+    diag.clickedGetLink = clicked;
+
+    // Ler o link curto (poll por ~4s, pois é gerado via AJAX)
+    const taSel = '#amzn-ss-text-shortlink-textarea, textarea#amzn-ss-text-shortlink-textarea, #amzn-ss-text-shortlink, textarea[id*="shortlink" i], input[id*="shortlink" i]';
+    for (let i = 0; i < 14 && !diag.shortLink; i++) {
+      await wait(300);
+      const ta = document.querySelector(taSel);
+      if (ta && ta.value && /https?:\/\//.test(ta.value)) diag.shortLink = ta.value.trim();
+      if (!diag.shortLink) {
+        const cands = Array.from(document.querySelectorAll('#amzn-ss-wrap input, #amzn-ss-wrap textarea'));
+        for (const el of cands) { const v = (el.value || '').trim(); if (/https?:\/\/(amzn\.to|link\.amazon|a\.co)\//i.test(v)) { diag.shortLink = v; diag.notes.push('achado via varredura: ' + (el.id || el.name || 'campo')); break; } }
+      }
+    }
+    if (!diag.shortLink) diag.error = 'SiteStripe encontrada, mas não consegui ler o link curto. Confirme que está com "Site para computador" ligado no Lemur, numa página de produto, e tente novamente. Copie o diagnóstico abaixo e me envie.';
     return diag;
   } catch (e) { diag.error = 'Exceção: ' + (e && e.message || String(e)); return diag; }
 }
