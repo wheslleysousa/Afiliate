@@ -3539,6 +3539,31 @@ app.post("/api/integrations/extract-metrics", async (req, res) => {
 });
 
 // Shopee Affiliate — relatório dedicado para o Dashboard (agrega o conversionReport)
+// Gera o link de afiliado real da Shopee (s.shopee/shope.ee) via API oficial de Afiliados.
+app.post("/api/shopee/affiliate-link", async (req, res) => {
+  try {
+    const { url, apiKeys, subId } = req.body || {};
+    const keys = apiKeys || {};
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ success: false, error: "URL do produto é obrigatória." });
+    }
+    const sAppId = keys.shopeeAppId || keys.shopeeKey || process.env.SHOPEE_APP_ID;
+    const sSecret = keys.shopeeSecret || process.env.SHOPEE_APP_SECRET || process.env.SHOPEE_SECRET;
+    if (!sAppId || !sSecret) {
+      return res.status(400).json({ success: false, error: "Configure o App ID e o Secret da API de Afiliados da Shopee nas configurações." });
+    }
+    const sub = subId || keys.shopeeTrackingId || "";
+    const link = await generateShopeePromotionLink(url, sAppId, sSecret, sub);
+    if (link) {
+      return res.json({ success: true, link });
+    }
+    return res.status(502).json({ success: false, error: "A Shopee não retornou o link. Verifique as credenciais da API de Afiliados." });
+  } catch (err: any) {
+    console.error("[Shopee Affiliate Link Error]", err);
+    return res.status(500).json({ success: false, error: err?.message || "Erro ao gerar o link de afiliado da Shopee." });
+  }
+});
+
 app.post("/api/shopee/report", async (req, res) => {
   try {
     const { apiKeys } = req.body || {};

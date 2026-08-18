@@ -290,12 +290,70 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
       `;
 
-      card.querySelector('.btn-delete-card').addEventListener('click', () => {
+      card.querySelector('.btn-delete-card').addEventListener('click', (e) => {
+        e.stopPropagation();
         deleteProduct(prod.id);
+      });
+
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', (e) => {
+        if (e.target.closest && e.target.closest('.btn-delete-card')) return;
+        openProductDetail(prod);
       });
 
       historyList.appendChild(card);
     });
+  }
+
+  function openProductDetail(prod) {
+    const prev = document.getElementById('am-detail-overlay');
+    if (prev) prev.remove();
+    const esc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    const pics = (Array.isArray(prod.pictures) && prod.pictures.length ? prod.pictures : [prod.image_url || prod.image]).filter(Boolean);
+    const link = prod.affiliate_link || prod.original_link || prod.link || '';
+    const rowsData = [
+      ['Plataforma', prod.platform],
+      ['Preço (à vista/Pix)', prod.price_to || prod.pix_price],
+      ['Preço antigo', prod.price_from],
+      ['Parcelado', prod.installments],
+      ['Desconto', (prod.discount_pct || prod.discountPercent) ? ((prod.discount_pct || prod.discountPercent) + '%') : ''],
+      ['Avaliação', prod.stars || prod.rating],
+      ['Nº de avaliações', prod.ratings_count || prod.review_count || prod.reviews_count],
+      ['Vendas', prod.sales_count || prod.sales],
+      ['Frete grátis', (prod.free_shipping || prod.freeShipping) ? 'Sim' : ''],
+      ['Cupom', prod.coupon],
+      ['Categoria', prod.category],
+    ];
+    const rows = rowsData
+      .filter((r) => r[1] !== undefined && r[1] !== null && r[1] !== '')
+      .map((r) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #1e2636;font-size:11px"><span style="color:#93a0b5">${esc(r[0])}</span><span style="color:#eef2f9;text-align:right;font-weight:600">${esc(r[1])}</span></div>`)
+      .join('');
+    const thumbs = pics.slice(0, 6).map((p) => `<img src="${esc(p)}" class="am-detail-thumb" style="width:52px;height:52px;border-radius:8px;object-fit:cover;border:1px solid #1e2636;cursor:pointer"/>`).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'am-detail-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
+    overlay.innerHTML = `
+      <div style="background:#0e1119;border:1px solid #1e2636;border-radius:16px;max-width:340px;width:100%;max-height:92vh;overflow-y:auto;padding:14px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:12px;font-weight:800;color:#fff">Detalhes do produto</span>
+          <button id="am-detail-close" style="background:#151a26;border:1px solid #1e2636;color:#93a0b5;border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:14px">×</button>
+        </div>
+        <img id="am-detail-main" src="${esc(pics[0] || '')}" style="width:100%;height:180px;object-fit:contain;background:#0b0e15;border-radius:12px;border:1px solid #1e2636"/>
+        ${thumbs ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${thumbs}</div>` : ''}
+        <div style="font-size:13px;font-weight:700;color:#eef2f9;margin:10px 0 8px">${esc(prod.title || 'Produto')}</div>
+        <div style="margin-bottom:10px">${rows}</div>
+        <div style="display:flex;gap:8px">
+          ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" style="flex:1;text-align:center;padding:9px;border-radius:10px;background:#2563eb;color:#fff;font-size:11px;font-weight:700;text-decoration:none">Abrir link</a>` : ''}
+          ${link ? `<button id="am-detail-copy" style="padding:9px 12px;border-radius:10px;background:#151a26;border:1px solid #1e2636;color:#eef2f9;font-size:11px;font-weight:700;cursor:pointer">Copiar</button>` : ''}
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#am-detail-close').addEventListener('click', close);
+    const copyBtn = overlay.querySelector('#am-detail-copy');
+    if (copyBtn) copyBtn.addEventListener('click', () => { if (navigator.clipboard) navigator.clipboard.writeText(link); copyBtn.textContent = 'Copiado!'; setTimeout(() => { copyBtn.textContent = 'Copiar'; }, 1500); });
+    overlay.querySelectorAll('.am-detail-thumb').forEach((t) => t.addEventListener('click', () => { const main = overlay.querySelector('#am-detail-main'); if (main) main.src = t.src; }));
   }
 
   function deleteProduct(id) {

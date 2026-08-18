@@ -151,6 +151,32 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     enrichData();
   }, [product.id, product.original_link]);
 
+  // Gera o link de afiliado real da Shopee (s.shopee) automaticamente, via API oficial.
+  useEffect(() => {
+    const p = currentProduct;
+    const plat = (p.platform || '').toLowerCase();
+    if (plat !== 'shopee') return;
+    if (p.affiliate_link && /^https?:\/\//i.test(p.affiliate_link)) return;
+    if (!p.original_link) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/shopee/affiliate-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: p.original_link, apiKeys: keys, subId: keys.shopeeTrackingId }),
+          action: 'Gerar link de afiliado Shopee',
+        });
+        const json = await res.json();
+        if (!cancelled && json?.success && json.link) {
+          setCurrentProduct((prev) => ({ ...prev, affiliate_link: json.link }));
+          try { await setDoc(doc(db, 'products', p.id), { affiliate_link: json.link }, { merge: true }); } catch { /* ignore */ }
+        }
+      } catch { /* silencioso */ }
+    })();
+    return () => { cancelled = true; };
+  }, [currentProduct.id, currentProduct.platform, currentProduct.original_link, currentProduct.affiliate_link]);
+
   // Link de Afiliado com Rastreamento (usado para compartilhar/copy — formato curto)
   const affiliateLink = buildShareableTrackingLink(
     currentProduct.id,
