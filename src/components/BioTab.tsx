@@ -13,6 +13,7 @@ import {
   Loader2, Check, X, Trash2, ArrowUp, ArrowDown, Link2, Type as TypeIcon,
   Copy, ExternalLink, Eye, BarChart2, Sparkles, AlertCircle, Image as ImageIcon,
   Video, AlignLeft, Pencil, Upload, Plus, Palette, LayoutGrid, User, Lock, RotateCcw,
+  GripVertical, Share2, QrCode,
 } from 'lucide-react';
 
 interface BioTabProps {
@@ -201,8 +202,11 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
   const [clicksMap, setClicksMap] = useState<Record<string, { clicks: number }>>({});
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const lastSavedRef = useRef<string>('');
+  const dragIdRef = useRef<string | null>(null);
   const shortDomain = getShortDomain().replace(/^https?:\/\//, '');
 
   const editableSnapshot = useCallback(
@@ -392,6 +396,42 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
       return arr.map((b, i) => ({ ...b, order: i }));
     });
 
+  // ── Arrastar para reordenar (funciona no toque via Pointer Events) ───────────
+  const reorderTo = (id: string, overId: string) =>
+    setBlocks((prev) => {
+      const from = prev.findIndex((b) => b.id === id);
+      const to = prev.findIndex((b) => b.id === overId);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const arr = [...prev];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      return arr.map((b, i) => ({ ...b, order: i }));
+    });
+  const handleDragMove = useCallback((e: PointerEvent) => {
+    const id = dragIdRef.current;
+    if (!id) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null;
+    const card = el?.closest('[data-block-id]');
+    const overId = card?.getAttribute('data-block-id');
+    if (overId && overId !== id) reorderTo(id, overId);
+  }, []);
+  const endDrag = useCallback(() => {
+    dragIdRef.current = null;
+    setDragId(null);
+    window.removeEventListener('pointermove', handleDragMove);
+    window.removeEventListener('pointerup', endDrag);
+    window.removeEventListener('pointercancel', endDrag);
+  }, [handleDragMove]);
+  const startDrag = (e: React.PointerEvent, id: string) => {
+    e.preventDefault();
+    dragIdRef.current = id;
+    setDragId(id);
+    window.addEventListener('pointermove', handleDragMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+  };
+  useEffect(() => () => endDrag(), [endDrag]);
+
   // ── Página atual (preview + save) ────────────────────────────────────────────
   const currentPage: BioPage = useMemo(() => ({
     slug: savedSlug || sanitizeSlug(slug),
@@ -408,6 +448,14 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
     () => setToast({ type: 'ok', msg: 'Link copiado!' }),
     () => setToast({ type: 'err', msg: 'Falha ao copiar.' }),
   );
+  const shareUrl = async () => {
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try { await (navigator as any).share({ title: displayName || 'Meu link', text: bio || 'Confira meus links', url: fullPublicUrl }); } catch { /* cancelado */ }
+    } else {
+      copyUrl();
+    }
+  };
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(fullPublicUrl)}`;
 
   const setThemeField = <K extends keyof BioTheme>(k: K, v: BioTheme[K]) => setTheme((t) => ({ ...t, [k]: v }));
   const applyPalette = (p: typeof PALETTE_PRESETS[number]) =>
@@ -488,10 +536,18 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3">
+            <button onClick={shareUrl} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors"><Share2 className="w-3.5 h-3.5" /> Compartilhar</button>
             <button onClick={copyUrl} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] text-xs font-bold transition-colors"><Copy className="w-3.5 h-3.5" /> Copiar</button>
+            <button onClick={() => setShowQr((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] text-xs font-bold transition-colors"><QrCode className="w-3.5 h-3.5" /> QR Code</button>
             <a href={fullPublicUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] text-xs font-bold transition-colors"><ExternalLink className="w-3.5 h-3.5" /> Abrir</a>
             <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-bold transition-colors ml-auto"><RotateCcw className="w-3.5 h-3.5" /> Excluir e recomeçar</button>
           </div>
+          {showQr && (
+            <div className="mt-3 flex flex-col items-center gap-2 p-4 rounded-xl bg-[#0b0e15] border border-[#1e2636]">
+              <img src={qrSrc} alt="QR Code do seu link" width={200} height={200} className="rounded-lg bg-white p-2" />
+              <p className="text-[11px] text-[#93a0b5] text-center">Aponte a câmera para abrir <span className="font-mono text-blue-400">{shortDomain}/{savedSlug}</span></p>
+            </div>
+          )}
           {confirmDelete && (
             <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-xs text-red-200 mb-2">Isso apaga a bio inteira e libera o link <b>{savedSlug}</b>. Não dá pra desfazer.</p>
@@ -538,12 +594,13 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
                   : (block.title || '(sem título)');
 
                 return (
-                  <div key={block.id} className="rounded-xl border border-[#1e2636] bg-[#0b0e15]">
+                  <div key={block.id} data-block-id={block.id} className={`rounded-xl border bg-[#0b0e15] transition-shadow ${dragId === block.id ? 'border-blue-500 ring-2 ring-blue-500/50 opacity-90' : 'border-[#1e2636]'}`}>
                     {/* Cabeçalho do card (sempre visível) */}
                     <div className="flex items-center gap-2 p-3">
-                      <div className="flex flex-col gap-0.5">
-                        <button onClick={() => moveBlock(block.id, -1)} disabled={idx === 0} className="text-[#4b5872] hover:text-white disabled:opacity-30"><ArrowUp className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => moveBlock(block.id, 1)} disabled={idx === blocks.length - 1} className="text-[#4b5872] hover:text-white disabled:opacity-30"><ArrowDown className="w-3.5 h-3.5" /></button>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <button onPointerDown={(e) => startDrag(e, block.id)} title="Arraste para mover" style={{ touchAction: 'none' }} className="cursor-grab active:cursor-grabbing text-[#4b5872] hover:text-white"><GripVertical className="w-4 h-4" /></button>
+                        <button onClick={() => moveBlock(block.id, -1)} disabled={idx === 0} className="text-[#4b5872] hover:text-white disabled:opacity-30"><ArrowUp className="w-3 h-3" /></button>
+                        <button onClick={() => moveBlock(block.id, 1)} disabled={idx === blocks.length - 1} className="text-[#4b5872] hover:text-white disabled:opacity-30"><ArrowDown className="w-3 h-3" /></button>
                       </div>
                       <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${meta.color}`}>{meta.icon}{meta.label}</span>
                       <span className="flex-1 truncate text-sm text-[#eef2f9] font-medium">{summary}</span>
