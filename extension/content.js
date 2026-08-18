@@ -3235,36 +3235,67 @@ async function extractAmazonAffiliate() {
     const trk = document.querySelector('#amzn-ss-tracking-id');
     if (trk) diag.trackingId = trk.value || (trk.options && trk.selectedIndex >= 0 ? trk.options[trk.selectedIndex].value : null);
 
-    // Garantir que "Encurtar URL" esteja ligado (é o que gera o amzn.to)
-    const shortChk = document.querySelector('#amzn-ss-shorten-url-checkbox, input#amzn-ss-shorten-url, input[name="amzn-ss-shorten-url"]');
-    diag.shortenCheckbox = !!shortChk;
-    if (shortChk && !shortChk.checked) { try { shortChk.click(); diag.notes.push('liguei "Encurtar URL"'); await wait(300); } catch (e) {} }
+    // NÃO clicamos em "Texto do link" (ele navega e troca a página). Em vez disso,
+    // procuramos o link curto (amzn.to / link.amazon) já visível no painel que VOCÊ abriu.
+    const findShort = () => {
+      // 1) campos de formulário (textarea/input) da SiteStripe
+      const fields = Array.from(document.querySelectorAll('textarea, input'));
+      for (const el of fields) { const v = (el.value || '').trim(); const m = v.match(/https?:\/\/(?:amzn\.to|link\.amazon)\/\S+/i); if (m) return m[0]; }
+      // 2) links e textos dentro da barra SiteStripe
+      const nodes = Array.from(document.querySelectorAll('[id^="amzn-ss"] a, [id^="amzn-ss"] textarea, [id^="amzn-ss"] input, [id^="amzn-ss"] span, [id*="shortlink" i]'));
+      for (const el of nodes) { const v = (el.value || el.getAttribute?.('href') || el.textContent || '').trim(); const m = v.match(/https?:\/\/(?:amzn\.to|link\.amazon)\/\S+/i); if (m) return m[0]; }
+      return null;
+    };
 
-    // Clicar em "Obter link" (aba Texto) para gerar o link curto
-    const getSelectors = ['#amzn-ss-text-get-link', 'a#amzn-ss-text-get-link', '#amzn-ss-get-link', '#amzn-ss-text-link a', '[data-ss-link-type="text"]'];
-    let clicked = false;
-    for (const s of getSelectors) { const el = document.querySelector(s); if (el) { try { el.click(); clicked = true; diag.notes.push('cliquei: ' + s); } catch (e) {} break; } }
-    if (!clicked) {
-      const btns = Array.from(document.querySelectorAll('#amzn-ss-wrap a, #amzn-ss-wrap button, #amzn-ss-wrap [role="button"]'));
-      const b = btns.find((x) => /obter link|get link|texto|^text$/i.test((x.textContent || '').trim()));
-      if (b) { try { b.click(); clicked = true; diag.notes.push('cliquei por texto: ' + (b.textContent || '').trim().slice(0, 24)); } catch (e) {} }
-    }
-    diag.clickedGetLink = clicked;
+    // Poll por ~4.5s (você pode ter acabado de abrir o painel "Texto do link")
+    for (let i = 0; i < 15 && !diag.shortLink; i++) { diag.shortLink = findShort(); if (!diag.shortLink) await wait(300); }
 
-    // Ler o link curto (poll por ~4s, pois é gerado via AJAX)
-    const taSel = '#amzn-ss-text-shortlink-textarea, textarea#amzn-ss-text-shortlink-textarea, #amzn-ss-text-shortlink, textarea[id*="shortlink" i], input[id*="shortlink" i]';
-    for (let i = 0; i < 14 && !diag.shortLink; i++) {
-      await wait(300);
-      const ta = document.querySelector(taSel);
-      if (ta && ta.value && /https?:\/\//.test(ta.value)) diag.shortLink = ta.value.trim();
-      if (!diag.shortLink) {
-        const cands = Array.from(document.querySelectorAll('#amzn-ss-wrap input, #amzn-ss-wrap textarea'));
-        for (const el of cands) { const v = (el.value || '').trim(); if (/https?:\/\/(amzn\.to|link\.amazon|a\.co)\//i.test(v)) { diag.shortLink = v; diag.notes.push('achado via varredura: ' + (el.id || el.name || 'campo')); break; } }
-      }
-    }
-    if (!diag.shortLink) diag.error = 'SiteStripe encontrada, mas não consegui ler o link curto. Confirme que está com "Site para computador" ligado no Lemur, numa página de produto, e tente novamente. Copie o diagnóstico abaixo e me envie.';
+    // Despeja a estrutura da SiteStripe para eu refinar os seletores, se preciso
+    try {
+      diag.dump = Array.from(document.querySelectorAll('[id^="amzn-ss"]')).slice(0, 45).map((n) => ({
+        id: n.id, tag: n.tagName,
+        val: (n.value || '').slice(0, 90),
+        href: (n.getAttribute && n.getAttribute('href')) || '',
+        txt: (n.textContent || '').trim().slice(0, 40),
+      }));
+    } catch (e) {}
+
+    if (!diag.shortLink) diag.error = 'A SiteStripe carregou, mas o link curto ainda não estava visível. FAÇA ASSIM: 1) na barra SiteStripe (topo), toque em "Texto do link" para ABRIR o painel que mostra o link curto (amzn.to); 2) SEM fechar esse painel, toque em "Extrair link de afiliado". (A extensão não clica mais sozinha para não trocar de página.) Se ainda não pegar, toque em "Copiar resultado" e me envie.';
     return diag;
   } catch (e) { diag.error = 'Exceção: ' + (e && e.message || String(e)); return diag; }
+}
+
+async function extractMLAffiliateDiag() {
+  const diag = { platform: 'mercadolivre', url: window.location.href, csrf: false, tagsStatus: null, tags: 0, linkStatus: null, shortLink: null };
+  try {
+    const base = 'https://www.mercadolivre.com.br';
+    const api = '/affiliate-program/api/v2/stripe/user';
+    const cleanUrl = window.location.origin + window.location.pathname;
+    let csrf = null;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) csrf = meta.getAttribute('content');
+    if (!csrf) { const m = document.cookie.match(/_csrf=([^;]+)/); if (m) csrf = decodeURIComponent(m[1]); }
+    diag.csrf = !!csrf;
+    const headers = { 'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json' };
+    if (csrf) headers['x-csrf-token'] = csrf;
+    const tagsRes = await fetch(`${base}${api}/tags`, { method: 'GET', credentials: 'include', headers });
+    diag.tagsStatus = tagsRes.status;
+    if (tagsRes.ok) {
+      const d = await tagsRes.json().catch(() => null);
+      const tags = (d && (d.tags || d)) || [];
+      diag.tags = Array.isArray(tags) ? tags.length : 0;
+      if (Array.isArray(tags) && tags.length) {
+        const tagId = tags[0].id || tags[0];
+        const linkRes = await fetch(`${base}${api}/links`, { method: 'POST', credentials: 'include', headers, body: JSON.stringify({ url: cleanUrl, tag_id: tagId }) });
+        diag.linkStatus = linkRes.status;
+        if (linkRes.ok) { const ld = await linkRes.json().catch(() => null); diag.shortLink = (ld && (ld.short_url || ld.short_link || ld.url)) || null; }
+        else { diag.linkBody = (await linkRes.text().catch(() => '')).slice(0, 200); }
+      }
+    } else {
+      diag.tagsBody = (await tagsRes.text().catch(() => '')).slice(0, 200);
+    }
+  } catch (e) { diag.error = e && e.message || String(e); }
+  return diag;
 }
 
 async function extractAffiliateLinkFlow() {
@@ -3272,9 +3303,11 @@ async function extractAffiliateLinkFlow() {
   showAffiliateResult('Extraindo...', null, '<div style="padding:16px;text-align:center;color:#93a0b5">Extraindo link de afiliado, aguarde...</div>', '');
   try {
     if (platform === 'mercadolivre') {
-      const link = await generateMercadoLivreAffiliateLink(window.location.href);
-      if (link) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(link)}</a>`, link);
-      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Confira: 1) você está logado no <b>Mercado Livre Afiliados</b>; 2) está numa página de <b>PRODUTO</b> (não na home). Abra um produto e tente de novo. Copie e me envie:</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">ML: falha — sem sessão/afiliado, sem tag, CSRF ausente, ou pagina inicial.\nURL: ${escapeHtmlAff(window.location.href)}</pre>`, 'ML falha; URL: ' + window.location.href);
+      const r = await extractMLAffiliateDiag();
+      const raw = JSON.stringify(r, null, 2);
+      const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
+      if (r.shortLink) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(r.shortLink)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.shortLink)}</a>${diagBlock}`, r.shortLink);
+      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Confira se você está logado e <b>inscrito no Mercado Livre Afiliados</b>. O diagnóstico abaixo mostra o motivo (status da API, tags encontradas). Copie e me envie:</p>${diagBlock}`, raw);
       return;
     }
     if (platform === 'amazon') {
