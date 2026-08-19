@@ -430,7 +430,44 @@ async function _mlGenerateInPage(originalUrl) {
   } catch (e) { return { success: false, error: e && e.message || String(e), diag }; }
 }
 
+// Gera o link curto de afiliado da Amazon via API interna da SiteStripe
+// (getStoreTagMap + getShortUrl). Roda no MAIN world de uma aba amazon.com.br
+// logada no Associados. Funciona no mobile (não depende da barra SiteStripe).
+async function _amazonGenerateInPage(productUrl) {
+  const MP = '526970'; // marketplaceId da Amazon.com.br
+  const TAG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*-\d{2}$/; // ex.: wheslleysousa-20
+  function findTag(node, depth) {
+    if (depth > 5 || node == null) return null;
+    if (typeof node === 'string') { const v = node.trim(); return TAG_RE.test(v) ? v : null; }
+    if (Array.isArray(node)) { for (const i of node) { const t = findTag(i, depth + 1); if (t) return t; } return null; }
+    if (typeof node === 'object') { for (const k of Object.keys(node)) { const t = findTag(node[k], depth + 1); if (t) return t; } return null; }
+    return null;
+  }
+  try {
+    const tagResp = await fetch('https://www.amazon.com.br/associates/sitestripe/getStoreTagMap?marketplaceId=' + MP, { headers: { accept: 'application/json', 'x-requested-with': 'XMLHttpRequest' }, credentials: 'include' });
+    if (!tagResp.ok) return { success: false, error: 'Erro ao obter a tag: HTTP ' + tagResp.status + '. Confirme que está logado no Amazon Associados.' };
+    const tagData = await tagResp.json().catch(() => null);
+    let tag = findTag(tagData, 0);
+    if (!tag || !TAG_RE.test(String(tag).trim())) return { success: false, error: 'Tag de associado válida não encontrada (formato "algo-20"). Você tem uma loja aprovada no Associados Amazon?' };
+    tag = String(tag).trim();
+    const longUrl = productUrl + (productUrl.includes('?') ? '&' : '?') + 'linkCode=sl2&tag=' + encodeURIComponent(tag);
+    const shortResp = await fetch('https://www.amazon.com.br/associates/sitestripe/getShortUrl?longUrl=' + encodeURIComponent(longUrl) + '&marketplaceId=' + MP, { headers: { accept: 'application/json', 'x-requested-with': 'XMLHttpRequest' }, credentials: 'include' });
+    if (!shortResp.ok) return { success: false, error: 'Erro ao gerar o link curto: HTTP ' + shortResp.status, tag, longUrl };
+    const shortData = await shortResp.json().catch(() => null);
+    const shortUrl = shortData && (shortData.shortUrl || shortData.short_url || shortData.shortenedUrl);
+    return { success: true, short_link: shortUrl || longUrl, tag, shortened: !!shortUrl };
+  } catch (e) { return { success: false, error: e && e.message || String(e) }; }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'GENERATE_AMAZON_LINK') {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }
+    chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: _amazonGenerateInPage, args: [msg.url || ''] })
+      .then((results) => sendResponse(results && results[0] ? results[0].result : { success: false, error: 'Sem resultado da injeção.' }))
+      .catch((e) => sendResponse({ success: false, error: e && e.message || String(e) }));
+    return true;
+  }
   if (msg.action === 'GENERATE_ML_LINK') {
     const tabId = sender.tab && sender.tab.id;
     if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }

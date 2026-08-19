@@ -3315,11 +3315,15 @@ async function extractAffiliateLinkFlow() {
       return;
     }
     if (platform === 'amazon') {
-      const r = await extractAmazonAffiliate();
+      // Via API interna da Amazon (getStoreTagMap + getShortUrl) no MAIN world — funciona no mobile
+      const r = await new Promise((resolve) => {
+        try { chrome.runtime.sendMessage({ action: 'GENERATE_AMAZON_LINK', url: window.location.href.split('#')[0] }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta do background' })); }
+        catch (e) { resolve({ success: false, error: e && e.message || String(e) }); }
+      });
       const raw = JSON.stringify(r, null, 2);
       const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
-      if (r.shortLink) showAffiliateResult('Amazon ✓', true, `<p>Link de afiliado (SiteStripe):</p><a href="${escapeHtmlAff(r.shortLink)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.shortLink)}</a>${r.trackingId ? `<p style="margin-top:8px">Tag de associado: <b>${escapeHtmlAff(r.trackingId)}</b></p>` : ''}${diagBlock}`, raw);
-      else showAffiliateResult('Amazon ✗', false, `<p>${escapeHtmlAff(r.error || 'Não consegui extrair o link.')}</p>${diagBlock}`, raw);
+      if (r && r.success && r.short_link) showAffiliateResult('Amazon ✓', true, `<p>Link de afiliado:</p><a href="${escapeHtmlAff(r.short_link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.short_link)}</a>${r.tag ? `<p style="margin-top:8px">Tag de associado: <b>${escapeHtmlAff(r.tag)}</b></p>` : ''}${r.shortened === false ? '<p style="font-size:10px;color:#f59e0b;margin-top:6px">(Link longo — a Amazon não encurtou; mesmo assim é afiliado e paga comissão.)</p>' : ''}${diagBlock}`, r.short_link);
+      else showAffiliateResult('Amazon ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Não consegui gerar o link.')} Confirme que está logado no <b>Amazon Associados</b> nesta aba.</p>${diagBlock}`, raw);
       return;
     }
     if (platform === 'shopee') { showAffiliateResult('Shopee', false, `<p>Na Shopee o link de afiliado (s.shopee) é gerado <b>automaticamente no app</b> pela API oficial — basta configurar o App ID e o Secret nas Configurações. Não precisa extrair aqui.</p>`, 'shopee via API'); return; }
