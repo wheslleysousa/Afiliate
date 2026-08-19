@@ -394,7 +394,56 @@ async function syncProductToFirestore(product, uid, idToken) {
 /* ═══════════════════════════════════════
    MESSAGE LISTENER (mantido do original)
    ═══════════════════════════════════════ */
+// Executado no MAIN world da aba (contexto real da página) — é assim que o
+// Achadinho consegue chamar a API de afiliados do Mercado Livre com sucesso.
+async function _mlGenerateInPage(originalUrl) {
+  const BASE = 'https://www.mercadolivre.com.br';
+  const API = '/affiliate-program/api/v2/stripe/user';
+  const diag = { csrf: false, tagsStatus: null, tags: 0, linkStatus: null };
+  function getCsrf() {
+    const m = document.querySelector('meta[name="csrf-token"]'); if (m) return m.getAttribute('content');
+    const scripts = document.querySelectorAll('script:not([src])');
+    for (const s of scripts) { const t = s.textContent || ''; let x = t.match(/csrfToken['":\s]+['"]([^'"]+)['"]/); if (x) return x[1]; x = t.match(/_csrf['":\s]+['"]([^'"]+)['"]/); if (x) return x[1]; }
+    const c = document.cookie.match(/_csrf=([^;]+)/); if (c) return decodeURIComponent(c[1]);
+    return null;
+  }
+  try {
+    const csrf = getCsrf(); diag.csrf = !!csrf;
+    const headers = { 'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json' };
+    if (csrf) headers['x-csrf-token'] = csrf;
+    const tagsRes = await fetch(`${BASE}${API}/tags`, { method: 'GET', credentials: 'include', headers });
+    diag.tagsStatus = tagsRes.status;
+    if (!tagsRes.ok) { const b = await tagsRes.text().catch(() => ''); return { success: false, error: 'Você precisa estar logado no Mercado Livre Afiliados (status ' + tagsRes.status + ').', diag, body: b.slice(0, 160) }; }
+    const td = await tagsRes.json().catch(() => null);
+    const tags = (td && (td.tags || td)) || [];
+    diag.tags = Array.isArray(tags) ? tags.length : 0;
+    if (!Array.isArray(tags) || !tags.length) return { success: false, error: 'Nenhuma tag de afiliado encontrada. Ative sua conta no programa de Afiliados do Mercado Livre.', diag };
+    const tagId = tags[0].id || tags[0];
+    const cleanUrl = String(originalUrl || '').split('#')[0];
+    const linkRes = await fetch(`${BASE}${API}/links`, { method: 'POST', credentials: 'include', headers, body: JSON.stringify({ url: cleanUrl, tag_id: tagId }) });
+    diag.linkStatus = linkRes.status;
+    if (!linkRes.ok) { const b = await linkRes.text().catch(() => ''); return { success: false, error: 'Erro ao gerar link: HTTP ' + linkRes.status, diag, body: b.slice(0, 160) }; }
+    const ld = await linkRes.json().catch(() => null);
+    const short = ld && (ld.short_url || ld.short_link || ld.url);
+    if (short) return { success: true, short_link: short, diag };
+    return { success: false, error: 'A API respondeu, mas sem short link.', diag, data: ld };
+  } catch (e) { return { success: false, error: e && e.message || String(e), diag }; }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'GENERATE_ML_LINK') {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }
+    chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: _mlGenerateInPage,
+      args: [msg.url || ''],
+    }).then((results) => {
+      sendResponse(results && results[0] ? results[0].result : { success: false, error: 'Sem resultado da injeção.' });
+    }).catch((e) => sendResponse({ success: false, error: e && e.message || String(e) }));
+    return true; // async
+  }
   if (msg.action === 'EXPORT_TO_AFILIATE') {
     // Agora faz sync real em vez de só logar
     chrome.storage.local.get(['affiliateMinerState'], async (res) => {

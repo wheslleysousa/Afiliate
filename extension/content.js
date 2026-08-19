@@ -3303,11 +3303,15 @@ async function extractAffiliateLinkFlow() {
   showAffiliateResult('Extraindo...', null, '<div style="padding:16px;text-align:center;color:#93a0b5">Extraindo link de afiliado, aguarde...</div>', '');
   try {
     if (platform === 'mercadolivre') {
-      const r = await extractMLAffiliateDiag();
+      // Roda no MAIN world via background (contexto real da página) — método do Achadinho
+      const r = await new Promise((resolve) => {
+        try { chrome.runtime.sendMessage({ action: 'GENERATE_ML_LINK', url: window.location.href }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta do background' })); }
+        catch (e) { resolve({ success: false, error: e && e.message || String(e) }); }
+      });
       const raw = JSON.stringify(r, null, 2);
       const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
-      if (r.shortLink) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(r.shortLink)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.shortLink)}</a>${diagBlock}`, r.shortLink);
-      else showAffiliateResult('Mercado Livre ✗', false, `<p>Não consegui extrair. Confira se você está logado e <b>inscrito no Mercado Livre Afiliados</b>. O diagnóstico abaixo mostra o motivo (status da API, tags encontradas). Copie e me envie:</p>${diagBlock}`, raw);
+      if (r && r.success && r.short_link) showAffiliateResult('Mercado Livre ✓', true, `<p>Link de afiliado extraído:</p><a href="${escapeHtmlAff(r.short_link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.short_link)}</a>${diagBlock}`, r.short_link);
+      else showAffiliateResult('Mercado Livre ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Não consegui extrair.')} Confira se está logado e <b>inscrito no Mercado Livre Afiliados</b>.</p>${diagBlock}`, raw);
       return;
     }
     if (platform === 'amazon') {
@@ -3337,7 +3341,16 @@ async function processAndFilterProduct(product, manual = false) {
   // Link de afiliado REAL do Mercado Livre (meli.la) via sessão logada — aditivo e seguro
   try {
     if (product && product.platform === 'mercadolivre' && !product.affiliate_link) {
-      const mlAff = await generateMercadoLivreAffiliateLink(product.original_link || product.link);
+      // Tenta pelo MAIN world (background) — método confiável do Achadinho; cai para o isolado se falhar
+      let mlAff = null;
+      try {
+        const r = await new Promise((resolve) => {
+          try { chrome.runtime.sendMessage({ action: 'GENERATE_ML_LINK', url: product.original_link || product.link }, (resp) => resolve(resp || null)); }
+          catch (e) { resolve(null); }
+        });
+        if (r && r.success && r.short_link) mlAff = r.short_link;
+      } catch (e) { /* ignore */ }
+      if (!mlAff) mlAff = await generateMercadoLivreAffiliateLink(product.original_link || product.link);
       if (mlAff) product.affiliate_link = mlAff;
     }
   } catch (e) { /* mantém sem link de afiliado */ }
