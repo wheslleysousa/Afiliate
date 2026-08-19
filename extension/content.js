@@ -3336,6 +3336,76 @@ async function extractAffiliateLinkFlow() {
   }
 }
 
+// ─── Extração de CUPONS ───────────────────────────────────────────────────────
+async function extractMLCoupons() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const txt = (el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
+  const result = { platform: 'mercadolivre', coupons: [], pages: 0, error: null };
+  try {
+    if (!/\/afiliados\/coupons/i.test(location.pathname + location.href)) {
+      result.error = 'Abra a página de cupons de afiliado do Mercado Livre e tente de novo.';
+      return result;
+    }
+    const tab = document.querySelector('#coupons-tabs-tab-1');
+    if (tab && tab.getAttribute('aria-selected') !== 'true') { try { tab.click(); await sleep(1300); } catch (e) {} }
+
+    const parseDiscount = (raw) => {
+      if (!raw) return { discountType: null, discountValue: null };
+      const pct = raw.match(/(\d{1,3})\s*%/);
+      if (pct) { const v = parseInt(pct[1], 10); if (v >= 1 && v <= 100) return { discountType: 'percent', discountValue: v }; }
+      const money = raw.match(/R\$\s*([\d.]+(?:,\d{2})?)/i);
+      if (money) return { discountType: 'fixed', discountValue: parseFloat(money[1].replace(/\./g, '').replace(',', '.')) };
+      return { discountType: null, discountValue: null };
+    };
+    const isDisabled = (card) => {
+      const badge = card.querySelector('[class*="__badge"] .andes-badge__content') || card.querySelector('.andes-badge__content');
+      if (badge && /inativo|expirado/i.test(txt(badge))) return true;
+      return /inativo|expirado/i.test(txt(card));
+    };
+
+    const seen = new Set();
+    let page = 0;
+    while (page < 30) {
+      page++;
+      await sleep(700);
+      const cards = Array.from(document.querySelectorAll('.generated-coupon-item'));
+      for (const card of cards) {
+        const codeEl = card.querySelector('[class*="__inner-content"] b') || card.querySelector('b');
+        const code = txt(codeEl).replace(/^#/, '').trim();
+        if (!code || seen.has(code)) continue;
+        seen.add(code);
+        const discountRaw = txt(card.querySelector('[class*="__inner-details-title"]')) || null;
+        const d = parseDiscount(discountRaw);
+        const linkEl = card.querySelector('[class*="__category-link"] a[href], a[class*="__link"][href]');
+        result.coupons.push({
+          platform: 'mercadolivre', code, discountRaw,
+          discountType: d.discountType, discountValue: d.discountValue,
+          expirationRaw: txt(card.querySelector('[class*="__expiration"]')) || null,
+          category: txt(card.querySelector('[class*="__category"]:not([class*="__category-link"])')) || null,
+          productsUrl: linkEl ? linkEl.href : null,
+          expired: isDisabled(card),
+          rawText: txt(card).slice(0, 400),
+        });
+      }
+      const next = document.querySelector('.andes-pagination [data-andes-pagination-control="next"], nav[aria-label*="agina" i] a[data-andes-pagination-control="next"]');
+      const li = next && next.closest('li');
+      const disabled = next && (next.getAttribute('aria-disabled') === 'true' || (li && /disabled/.test(li.className)));
+      if (!next || disabled) break;
+      try { next.click(); await sleep(1600); } catch (e) { break; }
+    }
+    result.pages = page;
+    return result;
+  } catch (e) { result.error = (e && e.message) || String(e); return result; }
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.action === 'RUN_COUPON_EXTRACTION') {
+    extractMLCoupons().then(sendResponse).catch((e) => sendResponse({ coupons: [], error: (e && e.message) || String(e) }));
+    return true;
+  }
+  return false;
+});
+
 async function processAndFilterProduct(product, manual = false) {
   if (!product || !product.title) {
     if (manual) showToast('❌ Erro ao extrair dados do produto. Tente novamente.', true);

@@ -472,7 +472,64 @@ async function _amazonGenerateInPage(productUrl) {
   } catch (e) { return { success: false, error: e && e.message || String(e) }; }
 }
 
+async function syncCouponToFirestore(coupon, uid, idToken) {
+  const code = String(coupon.code || '').trim();
+  if (!code) return;
+  const platform = coupon.platform || 'mercadolivre';
+  const id = `${platform}_${code}`.replace(/[^A-Za-z0-9_-]/g, '_');
+  const now = new Date().toISOString();
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` };
+  const doc = {
+    id, platform, code,
+    discountRaw: coupon.discountRaw || null,
+    discountType: coupon.discountType || null,
+    discountValue: coupon.discountValue != null ? coupon.discountValue : null,
+    category: coupon.category || null,
+    expirationRaw: coupon.expirationRaw || null,
+    validUntil: coupon.validUntil || null,
+    productsUrl: coupon.productsUrl || null,
+    rawText: coupon.rawText || null,
+    expired: !!coupon.expired,
+    ownerUid: uid,
+    updatedAt: now,
+    createdAt: now,
+  };
+  await fetch(`${FS_BASE}/users/${uid}/coupons/${id}`, {
+    method: 'PATCH', headers, body: JSON.stringify({ fields: objToFs(doc) }),
+  });
+}
+
+const COUPON_URLS = {
+  mercadolivre: 'https://www.mercadolivre.com.br/afiliados/coupons#hub',
+};
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'EXTRACT_COUPONS') {
+    const platform = msg.platform || 'mercadolivre';
+    const url = COUPON_URLS[platform];
+    if (!url) { sendResponse({ success: false, error: 'Extração de cupons ainda não disponível para esta plataforma.' }); return true; }
+    (async () => {
+      try {
+        const state = (await chrome.storage.local.get(['affiliateMinerState'])).affiliateMinerState;
+        if (!state || !state.uid || !state.idToken) { sendResponse({ success: false, error: 'Faça login no app pela extensão antes de extrair cupons.' }); return; }
+        const tab = await chrome.tabs.create({ url, active: true });
+        await new Promise((resolve) => {
+          const listener = (tabId, info) => { if (tabId === tab.id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
+          chrome.tabs.onUpdated.addListener(listener);
+          setTimeout(resolve, 15000);
+        });
+        await new Promise((r) => setTimeout(r, 2500));
+        let res;
+        try { res = await chrome.tabs.sendMessage(tab.id, { action: 'RUN_COUPON_EXTRACTION' }); }
+        catch (e) { res = { coupons: [], error: 'Não consegui ler a página de cupons (' + e.message + '). Confirme que está logado no Mercado Livre Afiliados.' }; }
+        const coupons = (res && res.coupons) || [];
+        let synced = 0;
+        for (const c of coupons) { try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {} }
+        sendResponse({ success: true, found: coupons.length, synced, error: (res && res.error) || null });
+      } catch (e) { sendResponse({ success: false, error: (e && e.message) || String(e) }); }
+    })();
+    return true;
+  }
   if (msg.action === 'GENERATE_AMAZON_LINK') {
     const tabId = sender.tab && sender.tab.id;
     if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }

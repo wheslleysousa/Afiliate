@@ -345,8 +345,30 @@ export type AppTab =
   | "extension"
   | "url-shortener"
   | "bio"
+  | "coupons"
   | "settings"
   | "api-docs";
+
+// ─── Cupons (extraídos pela extensão) ───────────────────────────────────────
+export interface Coupon {
+  id: string;               // `${platform}_${code}`
+  platform: string;         // 'mercadolivre' | 'shopee' | 'amazon' ...
+  code: string;
+  discountRaw?: string | null;   // "R$ 20 OFF" / "15% OFF"
+  discountType?: "percent" | "fixed" | null;
+  discountValue?: number | null;
+  description?: string | null;
+  category?: string | null;
+  minValue?: number | null;      // valor mínimo de compra
+  expirationRaw?: string | null; // "Vence em 18 de agosto"
+  validUntil?: string | null;    // ISO, se conhecido
+  productsUrl?: string | null;   // "Ver produtos" do cupom
+  rawText?: string | null;
+  ownerUid?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  expired?: boolean;
+}
 
 // ─── Link in Bio (mini-site do afiliado, estilo Linktree) ───────────────────
 

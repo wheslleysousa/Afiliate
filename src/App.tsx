@@ -14,6 +14,7 @@ import { ExtensionTab } from './components/ExtensionTab';
 import { UrlShortenerTab } from './components/UrlShortenerTab';
 import { BioTab } from './components/BioTab';
 import { PublicBioPage } from './components/PublicBioPage';
+import { CouponsTab } from './components/CouponsTab';
 import { ProjectsTab } from './components/ProjectsTab';
 import { TimezoneModal } from './components/TimezoneModal';
 import { ApiDocsModal } from './components/ApiDocsModal';
@@ -74,7 +75,7 @@ export default function App() {
     const path = window.location.pathname;
     if (path !== '/' && path !== '') {
       const parts = path.replace(/^\//, '').split('?')[0].split('/').filter(Boolean);
-      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'bio', 'settings', 'api-docs'];
+      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'bio', 'coupons', 'settings', 'api-docs'];
       const firstSegment = parts[0];
 
       if (firstSegment && !validAppTabs.includes(firstSegment)) {
@@ -1066,6 +1067,7 @@ export default function App() {
                 {activeTab === 'extension' && 'Extensão'}
                 {activeTab === 'url-shortener' && 'Encurtador de Links'}
                 {activeTab === 'bio' && 'Link in Bio'}
+                {activeTab === 'coupons' && 'Cupons'}
                 {activeTab === 'settings' && 'Configurações'}
                 {activeTab === 'api-docs' && 'Documentação API'}
               </span>
@@ -1260,6 +1262,12 @@ export default function App() {
           {activeTab === 'bio' && (
             <ErrorBoundary isTabLevel title="Erro ao carregar Link in Bio">
               <BioTab user={currentUser} uid={currentUser?.id} />
+            </ErrorBoundary>
+          )}
+
+          {activeTab === 'coupons' && (
+            <ErrorBoundary isTabLevel title="Erro ao carregar Cupons">
+              <CouponsTab uid={currentUser?.id} onNavigateToExtension={() => setActiveTab('extension')} />
             </ErrorBoundary>
           )}
 

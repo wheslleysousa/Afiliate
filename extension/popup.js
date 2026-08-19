@@ -60,6 +60,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendAll        = document.getElementById('btn-send-all');
   const btnSendText       = document.getElementById('btn-send-text');
 
+  // ── Extração de cupons ──
+  const btnExtractCouponsML = document.getElementById('btn-extract-coupons-ml');
+  const couponsStatus       = document.getElementById('coupons-status');
+  const couponsText         = document.getElementById('btn-coupons-text');
+  if (btnExtractCouponsML) {
+    btnExtractCouponsML.addEventListener('click', () => {
+      if (!state.isLoggedIn) { if (couponsStatus) couponsStatus.textContent = 'Faça login primeiro.'; return; }
+      btnExtractCouponsML.disabled = true;
+      if (couponsText) couponsText.textContent = 'Extraindo... (aguarde a aba abrir)';
+      if (couponsStatus) couponsStatus.textContent = '';
+      chrome.runtime.sendMessage({ action: 'EXTRACT_COUPONS', platform: 'mercadolivre' }, (resp) => {
+        btnExtractCouponsML.disabled = false;
+        if (couponsText) couponsText.textContent = 'Extrair cupons do Mercado Livre';
+        if (!resp) { if (couponsStatus) couponsStatus.textContent = 'Sem resposta. Tente de novo.'; return; }
+        if (resp.success) {
+          if (couponsStatus) couponsStatus.textContent = `✅ ${resp.synced}/${resp.found} cupons enviados ao app.` + (resp.error ? ` (${resp.error})` : '');
+        } else {
+          if (couponsStatus) couponsStatus.textContent = '❌ ' + (resp.error || 'Falha ao extrair.');
+        }
+      });
+    });
+  }
+
   const btnShowDiagModal  = document.getElementById('btn-show-diag-modal');
   const modalErrorReport  = document.getElementById('modal-error-report');
   const btnCloseErrorModal= document.getElementById('btn-close-error-modal');
