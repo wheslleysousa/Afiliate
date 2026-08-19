@@ -353,11 +353,12 @@ export type AppTab =
 export interface Coupon {
   id: string;               // `${platform}_${code}`
   platform: string;         // 'mercadolivre' | 'shopee' | 'amazon' ...
-  code: string;
+  code?: string | null;     // pode ser null em cupons que só ativam ("Ativar")
   discountRaw?: string | null;   // "R$ 20 OFF" / "15% OFF"
   discountType?: "percent" | "fixed" | null;
   discountValue?: number | null;
   description?: string | null;
+  conditions?: string | null;    // regras/condições do cupom
   category?: string | null;
   minValue?: number | null;      // valor mínimo de compra
   expirationRaw?: string | null; // "Vence em 18 de agosto"

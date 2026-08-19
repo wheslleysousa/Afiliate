@@ -472,18 +472,28 @@ async function _amazonGenerateInPage(productUrl) {
   } catch (e) { return { success: false, error: e && e.message || String(e) }; }
 }
 
+function _couponHash(s) {
+  let h = 5381; s = String(s || '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 async function syncCouponToFirestore(coupon, uid, idToken) {
   const code = String(coupon.code || '').trim();
-  if (!code) return;
+  // Precisa de código OU de algum desconto reconhecido para valer a pena salvar
+  if (!code && !coupon.discountRaw) return;
   const platform = coupon.platform || 'mercadolivre';
-  const id = `${platform}_${code}`.replace(/[^A-Za-z0-9_-]/g, '_');
+  const idSeed = code || _couponHash((coupon.discountRaw || '') + '|' + (coupon.rawText || ''));
+  const id = `${platform}_${idSeed}`.replace(/[^A-Za-z0-9_-]/g, '_');
   const now = new Date().toISOString();
   const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` };
   const doc = {
-    id, platform, code,
+    id, platform, code: code || null,
     discountRaw: coupon.discountRaw || null,
     discountType: coupon.discountType || null,
     discountValue: coupon.discountValue != null ? coupon.discountValue : null,
+    minValue: coupon.minValue != null ? coupon.minValue : null,
+    conditions: coupon.conditions || null,
     category: coupon.category || null,
     expirationRaw: coupon.expirationRaw || null,
     validUntil: coupon.validUntil || null,
@@ -500,7 +510,8 @@ async function syncCouponToFirestore(coupon, uid, idToken) {
 }
 
 const COUPON_URLS = {
-  mercadolivre: 'https://www.mercadolivre.com.br/afiliados/coupons#hub',
+  // Cupons DISPONÍVEIS para usar (não os "meus cupons" criados por mim)
+  mercadolivre: 'https://www.mercadolivre.com.br/cupons',
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -521,7 +532,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await new Promise((r) => setTimeout(r, 2500));
         let res;
         try { res = await chrome.tabs.sendMessage(tab.id, { action: 'RUN_COUPON_EXTRACTION' }); }
-        catch (e) { res = { coupons: [], error: 'Não consegui ler a página de cupons (' + e.message + '). Confirme que está logado no Mercado Livre Afiliados.' }; }
+        catch (e) { res = { coupons: [], error: 'Não consegui ler a página de cupons (' + e.message + '). Confirme que está logado no Mercado Livre.' }; }
         const coupons = (res && res.coupons) || [];
         let synced = 0;
         for (const c of coupons) { try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {} }

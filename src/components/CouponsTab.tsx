@@ -131,12 +131,19 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
                 {c.category ? <div className="text-xs text-[#93a0b5] mt-0.5">{c.category}</div> : null}
                 {c.minValue ? <div className="text-[11px] text-[#93a0b5] mt-1">Mín. R$ {c.minValue}</div> : null}
                 {c.expirationRaw ? <div className="text-[11px] text-[#93a0b5] mt-1">{c.expirationRaw}</div> : null}
+                {c.conditions ? <div className="text-[11px] text-[#7c8aa3] mt-1 line-clamp-3" title={c.conditions}>{c.conditions}</div> : null}
 
                 <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => copyCode(c.code)} className="flex-1 font-mono text-sm font-bold text-emerald-300 bg-[#0e1119] border border-dashed border-emerald-500/40 rounded-lg py-2 hover:bg-emerald-500/10 transition-colors">
-                    {copied === c.code ? 'Copiado!' : c.code}
-                  </button>
-                  {c.productsUrl ? (
+                  {c.code ? (
+                    <button onClick={() => copyCode(c.code!)} className="flex-1 font-mono text-sm font-bold text-emerald-300 bg-[#0e1119] border border-dashed border-emerald-500/40 rounded-lg py-2 hover:bg-emerald-500/10 transition-colors">
+                      {copied === c.code ? 'Copiado!' : c.code}
+                    </button>
+                  ) : c.productsUrl ? (
+                    <a href={c.productsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-sm font-bold text-emerald-300 bg-[#0e1119] border border-dashed border-emerald-500/40 rounded-lg py-2 hover:bg-emerald-500/10 transition-colors">Ativar cupom</a>
+                  ) : (
+                    <span className="flex-1 text-center text-sm font-semibold text-[#93a0b5] bg-[#0e1119] border border-dashed border-[#1e2636] rounded-lg py-2">Sem código</span>
+                  )}
+                  {c.productsUrl && c.code ? (
                     <a href={c.productsUrl} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-blue-400" title="Ver produtos"><ExternalLink className="w-4 h-4" /></a>
                   ) : null}
                   <button onClick={() => removeCoupon(c.id)} className="p-2 rounded-lg text-[#4b5872] hover:text-red-400" title="Remover"><Trash2 className="w-4 h-4" /></button>
