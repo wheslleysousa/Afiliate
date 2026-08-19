@@ -354,6 +354,7 @@ export interface Coupon {
   id: string;               // `${platform}_${code}`
   platform: string;         // 'mercadolivre' | 'shopee' | 'amazon' ...
   code?: string | null;     // pode ser null em cupons que só ativam ("Ativar")
+  couponId?: string | null; // ID do cupom (ex.: "14040912" no Mercado Livre)
   discountRaw?: string | null;   // "R$ 20 OFF" / "15% OFF"
   discountType?: "percent" | "fixed" | null;
   discountValue?: number | null;
@@ -361,7 +362,9 @@ export interface Coupon {
   conditions?: string | null;    // regras/condições do cupom
   category?: string | null;
   minValue?: number | null;      // valor mínimo de compra
+  maxDiscount?: number | null;   // desconto máximo (limite de R$)
   expirationRaw?: string | null; // "Vence em 18 de agosto"
+  validFrom?: string | null;     // ISO, início da validade
   validUntil?: string | null;    // ISO, se conhecido
   productsUrl?: string | null;   // "Ver produtos" do cupom
   rawText?: string | null;

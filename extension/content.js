@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.3.5 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.3.6 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.5'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.6'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3354,7 +3354,7 @@ async function extractCouponsFlow() {
     showAffiliateResult('Cupons', false, `<p>A extração de cupons ainda não está disponível para <b>${escapeHtmlAff(NAMES[platform] || platform)}</b>. Por enquanto só o <b>Mercado Livre</b> é suportado — abra uma página do Mercado Livre e toque em "Extrair cupons".</p>`, '');
     return;
   }
-  showAffiliateResult('Extraindo cupons…', null, `<div style="padding:16px;text-align:center;color:#93a0b5">Abrindo a página de <b>cupons disponíveis</b> do ${escapeHtmlAff(NAMES[platform] || platform)} e lendo todos (condições, validade e valor mínimo), passando por todas as páginas até o final. Isso pode levar alguns segundos — não feche a aba que abrir.</div>`, '');
+  showAffiliateResult('Extraindo cupons…', null, `<div style="padding:16px;text-align:center;color:#93a0b5">Abrindo a página de <b>cupons disponíveis</b> do ${escapeHtmlAff(NAMES[platform] || platform)} e lendo cada cupom (ID, condições, validade e valor mínimo), passando por todas as páginas até o final. Cada cupom é <b>enviado ao app na hora</b>, então nada se perde. Você pode tocar em <b>⏸ Pausar e enviar</b> na aba que abrir; da próxima vez, a extração <b>continua de onde parou</b>. Não feche a aba enquanto roda.</div>`, '');
   try {
     const r = await new Promise((resolve) => {
       try { chrome.runtime.sendMessage({ action: 'EXTRACT_COUPONS', platform }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta do background' })); }
@@ -3363,10 +3363,13 @@ async function extractCouponsFlow() {
     const raw = JSON.stringify(r, null, 2);
     const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande se algo der errado):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
     if (r && r.success) {
-      const found = r.found || 0;
       const synced = r.synced || 0;
       const warn = r.error ? `<p style="font-size:11px;color:#f59e0b;margin-top:6px">Aviso: ${escapeHtmlAff(r.error)}</p>` : '';
-      showAffiliateResult('Cupons ✓', true, `<p><b>${found}</b> cupom(ns) encontrado(s) e <b>${synced}</b> enviado(s) para o app.</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Abra a aba <b>Cupons</b> no app para vê-los. Cupons expirados são marcados automaticamente.</p>${warn}${diagBlock}`, raw);
+      if (r.paused) {
+        showAffiliateResult('Cupons ⏸', true, `<p>Extração <b>pausada</b>. <b>${synced}</b> cupom(ns) já foram enviados para o app${r.estTotal ? ` (de ~${r.estTotal})` : ''}.</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Toque em <b>Extrair cupons</b> de novo para <b>continuar de onde parou</b>.</p>${warn}${diagBlock}`, raw);
+      } else {
+        showAffiliateResult('Cupons ✓', true, `<p><b>${synced}</b> cupom(ns) extraído(s) e enviado(s) para o app${r.pages ? ` em ${r.pages} páginas` : ''}.</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Abra a aba <b>Cupons</b> no app para vê-los. Cupons expirados são marcados automaticamente.</p>${warn}${diagBlock}`, raw);
+      }
     } else {
       showAffiliateResult('Cupons ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Não consegui extrair os cupons.')}</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Confirme que está <b>logado no Mercado Livre</b> nesta conta e que a página de cupons abriu normalmente.</p>${diagBlock}`, raw);
     }
@@ -3390,8 +3393,13 @@ function showCouponProgress(text, count, estTotal) {
     box = document.createElement('div');
     box.id = 'am-coupon-progress';
     box.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;background:#0e1119;border:1px solid #f59e0b;border-radius:14px;padding:10px 16px;color:#eef2f9;font-family:system-ui,sans-serif;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;max-width:94vw;flex-wrap:wrap;justify-content:center';
-    box.innerHTML = '<span style="font-size:16px">🎟️</span><span id="am-coupon-progress-text"></span><span id="am-coupon-progress-count" style="background:#f59e0b;color:#1a1a1a;border-radius:10px;padding:2px 8px;font-weight:900"></span>';
+    box.innerHTML = '<span style="font-size:16px">🎟️</span><span id="am-coupon-progress-text"></span><span id="am-coupon-progress-count" style="background:#f59e0b;color:#1a1a1a;border-radius:10px;padding:2px 8px;font-weight:900"></span><button id="am-coupon-pause" style="background:#ef4444;color:#fff;border:none;border-radius:9px;padding:4px 10px;font-weight:800;cursor:pointer;font-size:12px">⏸ Pausar e enviar</button>';
     document.body.appendChild(box);
+    const pauseBtn = box.querySelector('#am-coupon-pause');
+    if (pauseBtn) pauseBtn.onclick = () => {
+      pauseBtn.disabled = true; pauseBtn.textContent = 'Pausando…';
+      try { chrome.runtime.sendMessage({ action: 'PAUSE_COUPONS' }); } catch (e) {}
+    };
   }
   const t = box.querySelector('#am-coupon-progress-text'); if (t) t.textContent = text || '';
   const c = box.querySelector('#am-coupon-progress-count');
@@ -3526,61 +3534,85 @@ async function extractCouponCard(card) {
   const limitRaw = (full.match(/limite\s+de\s+R\$\s*([\d.]+(?:,\d{2})?)/i) || [null, null])[1];
   const expirationRaw = (full.match(/vence(?:\s+em)?\s+([^·\n]{2,40})/i) || [null, null])[1] || null;
 
-  // Entra no cupom: clica no botão de ação (Aplicar/Conferir/Ver) para abrir o
-  // modal de detalhes e ler o CÓDIGO + condições/validade completas. Depois fecha.
-  let code = null, modalText = '', modalExpiration = null;
+  // Abre as INFORMAÇÕES do cupom clicando no "i" (ⓘ) — NÃO clica em Aplicar/Conferir
+  // (esses aplicam o cupom e navegam para os produtos, quebrando a raspagem).
+  // O modal do ⓘ traz "ID 14040912 - Cupom válido ... de 01/08/2026 a 31/08/2026 ...".
+  let couponId = null, modalText = '', modalStart = null, modalEnd = null, maxDiscountRaw = null;
   try {
-    // Só clica em <button>/[role=button] (não em <a href>) para não navegar e quebrar a raspagem
-    const trigger = Array.from(card.querySelectorAll('button,[role="button"]'))
-      .find((b) => /^(conferir|aplicar|ver\s+cupom|resgatar|usar|ativar|ver)\b/i.test(_cpTxt(b)) && b.offsetParent !== null);
-    if (trigger) {
-      try { trigger.scrollIntoView({ block: 'center' }); } catch (e) {}
-      await sleep(120);
+    const actionRe = /^(aplicar|conferir|ver\s+cupom|resgatar|usar|ativar|ver|copiar)/i;
+    let infoTrigger = card.querySelector('[aria-label*="informa" i], [aria-label*="mais informa" i], .andes-tooltip__trigger, [class*="tooltip__trigger" i], button[class*="info" i], [data-testid*="info" i]');
+    if (!infoTrigger) {
+      // procura o iconezinho "i" (curto, não é o botão de ação)
+      const clickables = Array.from(card.querySelectorAll('button,[role="button"],a,svg,[class*="info" i]'));
+      infoTrigger = clickables.find((el) => { const t = _cpTxt(el); return !actionRe.test(t) && t.length <= 2; }) || null;
+    }
+    const clickEl = infoTrigger ? (infoTrigger.closest('button,[role="button"],a,[class*="tooltip" i]') || infoTrigger) : null;
+    if (clickEl) {
+      try { clickEl.scrollIntoView({ block: 'center' }); } catch (e) {}
+      await sleep(130);
       const beforeUrl = location.href;
-      trigger.click();
-      // espera o modal aparecer (até ~3s)
+      try { clickEl.click(); } catch (e) {}
       let modal = null;
-      for (let i = 0; i < 14 && location.href === beforeUrl; i++) { await sleep(230); modal = findOpenModal(); if (modal) break; }
+      for (let i = 0; i < 16 && location.href === beforeUrl; i++) {
+        await sleep(220);
+        modal = findOpenModal() || document.querySelector('[role="tooltip"], .andes-tooltip__content, [class*="tooltip__content" i]');
+        if (modal && /v[aá]lido|\bID\s*\d|cupom/i.test(_cpTxt(modal))) break;
+      }
       if (modal) {
         modalText = _cpTxt(modal);
-        code = readCouponCodeFrom(modal);
-        modalExpiration = (modalText.match(/(?:v[aá]lido|válida|vence|expira|at[eé]|termina)[^\d]{0,30}?(\d{1,2}\s*[\/.]\s*\d{1,2}(?:\s*[\/.]\s*\d{2,4})?)/i) || modalText.match(/(\d{1,2}\s*de\s*[a-zç]{3,})/i) || [null, null])[1] || null;
+        couponId = (modalText.match(/\bID\s*(\d{4,})/i) || [null, null])[1];
+        const range = modalText.match(/de\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:a|at[eé])\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+        if (range) { modalStart = range[1]; modalEnd = range[2]; }
+        else { modalEnd = (modalText.match(/at[eé]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) || [null, null])[1]; }
+        maxDiscountRaw = (modalText.match(/m[aá]ximo\s+de\s+desconto\s+de\s+R\$\s*([\d.]+(?:,\d{2})?)/i) || [null, null])[1] || limitRaw;
       }
       closeOpenModal();
-      await sleep(220);
+      await sleep(200);
     }
   } catch (e) {}
 
   const lowStock = /est[aá]\s+esgotando/i.test(full);
-  const expired = /esgotado|expirado|encerrado|indispon[ií]vel/i.test(full + ' ' + modalText) && !lowStock;
+  const expired = /esgotado|expirado|encerrado|indispon[ií]vel/i.test(full) && !lowStock;
   const linkEl = card.closest('a[href]') || card.querySelector('a[href]');
-  const expirationFinal = expirationRaw || modalExpiration;
+  const expirationFinal = modalEnd || expirationRaw;
+  const maxDiscount = maxDiscountRaw ? parseFloat(maxDiscountRaw.replace(/\./g, '').replace(',', '.')) : null;
 
   const conditions = [subtitle, minValueRaw ? ('Compra mínima R$ ' + minValueRaw) : null, limitRaw ? ('Limite de R$ ' + limitRaw) : null, lowStock ? 'Está esgotando' : null, (modalText || '').slice(0, 400)].filter(Boolean).join(' · ') || null;
 
   return {
     platform: 'mercadolivre',
-    code: code || null,
+    code: null,
+    couponId: couponId || null,
     discountRaw: discountRaw || null,
     discountType, discountValue,
     minValue,
+    maxDiscount,
     conditions,
     category,
     expirationRaw: expirationFinal,
+    validFrom: parseCouponDate(modalStart),
     validUntil: parseCouponDate(expirationFinal),
     productsUrl: linkEl ? linkEl.href : null,
     expired,
-    rawText: (full + (modalText ? ' || ' + modalText : '')).slice(0, 600),
+    rawText: (full + (modalText ? ' || ' + modalText : '')).slice(0, 700),
   };
+}
+
+// Detecta o total de cupons pelo cabeçalho "2715 Cupons" da página "Todos os cupons"
+function detectTotalCoupons() {
+  const m = (document.body.innerText || '').match(/([\d.]{1,7})\s*cupons\b/i);
+  if (m) { const n = parseInt(m[1].replace(/\./g, ''), 10); if (n > 0 && n < 1000000) return n; }
+  return null;
 }
 
 async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages, estTotal) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const result = { coupons: [], nextHref: null, totalPages: null, pageNum, error: null };
+  const result = { coupons: [], nextHref: null, totalPages: null, totalCoupons: null, pageNum, error: null };
   try {
     result.totalPages = detectTotalPages() || knownTotalPages || null;
+    result.totalCoupons = detectTotalCoupons() || null;
     const label = (p) => `Página ${pageNum}${result.totalPages ? '/' + result.totalPages : ''} — ${p}`;
-    showCouponProgress(label('carregando…'), runningTotal, estTotal);
+    showCouponProgress(label('carregando…'), runningTotal, result.totalCoupons || estTotal);
 
     // Rola a página para o usuário ver e para carregar tudo
     for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await sleep(110); }
@@ -3588,18 +3620,19 @@ async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages, estTotal
 
     const cards = collectCouponCards();
     result.totalPages = detectTotalPages() || result.totalPages;
+    result.totalCoupons = detectTotalCoupons() || result.totalCoupons;
     result.nextHref = detectNextHref();
-    // Estimativa dinâmica se o background ainda não passou uma
-    const est = estTotal || (result.totalPages && cards.length ? result.totalPages * cards.length : null);
+    // Total exato (cabeçalho) tem prioridade; senão estimativa páginas × cards
+    const est = result.totalCoupons || estTotal || (result.totalPages && cards.length ? result.totalPages * cards.length : null);
 
     let i = 0;
     for (const card of cards) {
       i++;
       try { card.scrollIntoView({ block: 'center' }); } catch (e) {}
-      showCouponProgress(label(`abrindo cupom ${i}/${cards.length} (lendo código)`), runningTotal + result.coupons.length, est);
+      showCouponProgress(label(`abrindo cupom ${i}/${cards.length} (lendo info)`), runningTotal + result.coupons.length, est);
       await sleep(90);
       const c = await extractCouponCard(card);
-      if (c && (c.discountRaw || c.code)) result.coupons.push(c);
+      if (c && (c.discountRaw || c.code || c.couponId)) result.coupons.push(c);
     }
     showCouponProgress(label(`${result.coupons.length} nesta página`), runningTotal + result.coupons.length, est);
     if (result.coupons.length === 0) {
@@ -3620,8 +3653,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.action === 'COUPON_DONE') {
+    const box = document.getElementById('am-coupon-progress'); const pb = box && box.querySelector('#am-coupon-pause'); if (pb) pb.remove();
     showCouponProgress(`✅ Concluído: ${msg.found} cupons extraídos (${msg.pages} páginas) — enviados ao app`, msg.synced);
-    setTimeout(() => { const b = document.getElementById('am-coupon-progress'); if (b) b.remove(); }, 12000);
+    setTimeout(() => { const b = document.getElementById('am-coupon-progress'); if (b) b.remove(); }, 15000);
+    try { sendResponse({ ok: true }); } catch (e) {}
+    return true;
+  }
+  if (msg && msg.action === 'COUPON_PAUSED') {
+    const box = document.getElementById('am-coupon-progress'); const pb = box && box.querySelector('#am-coupon-pause'); if (pb) pb.remove();
+    showCouponProgress(`⏸ Pausado: ${msg.synced} cupons já enviados ao app. Toque em "Extrair cupons" de novo para continuar de onde parou.`, msg.synced, msg.estTotal);
+    setTimeout(() => { const b = document.getElementById('am-coupon-progress'); if (b) b.remove(); }, 20000);
     try { sendResponse({ ok: true }); } catch (e) {}
     return true;
   }
@@ -3842,7 +3883,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.5';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.6';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `

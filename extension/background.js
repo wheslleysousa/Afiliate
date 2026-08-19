@@ -480,22 +480,26 @@ function _couponHash(s) {
 
 async function syncCouponToFirestore(coupon, uid, idToken) {
   const code = String(coupon.code || '').trim();
-  // Precisa de código OU de algum desconto reconhecido para valer a pena salvar
-  if (!code && !coupon.discountRaw) return;
+  const couponId = String(coupon.couponId || '').trim();
+  // Precisa de ID/código OU de algum desconto reconhecido para valer a pena salvar
+  if (!code && !couponId && !coupon.discountRaw) return;
   const platform = coupon.platform || 'mercadolivre';
-  const idSeed = code || _couponHash((coupon.discountRaw || '') + '|' + (coupon.rawText || ''));
+  const idSeed = couponId || code || _couponHash((coupon.discountRaw || '') + '|' + (coupon.rawText || ''));
   const id = `${platform}_${idSeed}`.replace(/[^A-Za-z0-9_-]/g, '_');
   const now = new Date().toISOString();
   const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` };
   const doc = {
     id, platform, code: code || null,
+    couponId: couponId || null,
     discountRaw: coupon.discountRaw || null,
     discountType: coupon.discountType || null,
     discountValue: coupon.discountValue != null ? coupon.discountValue : null,
     minValue: coupon.minValue != null ? coupon.minValue : null,
+    maxDiscount: coupon.maxDiscount != null ? coupon.maxDiscount : null,
     conditions: coupon.conditions || null,
     category: coupon.category || null,
     expirationRaw: coupon.expirationRaw || null,
+    validFrom: coupon.validFrom || null,
     validUntil: coupon.validUntil || null,
     productsUrl: coupon.productsUrl || null,
     rawText: coupon.rawText || null,
@@ -538,46 +542,63 @@ async function _scrapeCouponPage(tabId, payload) {
   return null;
 }
 
+let _couponAbort = false;
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'PAUSE_COUPONS') { _couponAbort = true; sendResponse({ ok: true }); return true; }
   if (msg.action === 'EXTRACT_COUPONS') {
     const platform = msg.platform || 'mercadolivre';
     const url = COUPON_URLS[platform];
     if (!url) { sendResponse({ success: false, error: 'Extração de cupons ainda não disponível para esta plataforma.' }); return true; }
     (async () => {
       try {
+        _couponAbort = false;
         const state = (await chrome.storage.local.get(['affiliateMinerState'])).affiliateMinerState;
         if (!state || !state.uid || !state.idToken) { sendResponse({ success: false, error: 'Faça login no app pela extensão antes de extrair cupons.' }); return; }
 
-        // Passo 1: abre o hub de cupons (onde aparecem todos)
-        const entry = COUPON_ENTRY_URLS[platform];
-        const tab = await chrome.tabs.create({ url: entry || url, active: true });
+        // Retoma de onde parou (se houver progresso pausado recente, < 6h) — a menos que peça reinício
+        const prev = (await chrome.storage.local.get('couponResume')).couponResume;
+        const canResume = !msg.fresh && prev && prev.url && prev.platform === platform && (Date.now() - (prev.ts || 0) < 6 * 3600 * 1000);
+        let startUrl = canResume ? prev.url : url;
+        let synced = canResume ? (prev.synced || 0) : 0;
+        let page = canResume ? (prev.page || 0) : 0;
+        let totalPages = canResume ? (prev.totalPages || null) : null;
+        let totalCoupons = canResume ? (prev.totalCoupons || null) : null;
+
+        const tab = await chrome.tabs.create({ url: canResume ? startUrl : (COUPON_ENTRY_URLS[platform] || url), active: true });
         await _waitTabComplete(tab.id, 25000);
         await _sleep(2500);
-        // Passo 2: navega para a página "ver todos" (paginada) que é onde raspamos
-        if (entry) {
+        if (!canResume && COUPON_ENTRY_URLS[platform]) {
+          // Passo 2: do hub para a página "ver todos" (paginada)
           await chrome.tabs.update(tab.id, { url });
           await _waitTabComplete(tab.id, 25000);
           await _sleep(2800);
         }
 
-        const all = new Map();          // dedupe por código ou hash
-        let page = 0, nextUrl = url, totalPages = null, estTotal = null, perPage = 0, lastError = null;
-        const MAX_PAGES = 200;
+        const seen = new Set();
+        let nextUrl = startUrl, estTotal = totalCoupons, perPage = 0, lastError = null, paused = false;
+        const MAX_PAGES = 300;
 
         while (nextUrl && page < MAX_PAGES) {
+          if (_couponAbort) { paused = true; break; }
           page++;
-          const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: all.size, totalPages, estTotal });
+          const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: synced, totalPages, estTotal });
           if (!res) { lastError = 'Não consegui ler a página ' + page + '. Confirme que está logado no Mercado Livre.'; break; }
           if (res.totalPages) totalPages = res.totalPages;
+          if (res.totalCoupons) { totalCoupons = res.totalCoupons; estTotal = res.totalCoupons; }
+          // Envia CADA cupom desta página IMEDIATAMENTE (nada se perde se pausar/cair)
           for (const c of (res.coupons || [])) {
-            const key = c.code ? ('c:' + c.code)
+            const key = c.couponId ? ('id:' + c.couponId) : c.code ? ('c:' + c.code)
               : ('h:' + _couponHash((c.discountRaw || '') + '|' + (c.conditions || '') + '|' + (c.expirationRaw || '')));
-            if (!all.has(key)) all.set(key, c);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {}
           }
-          // Estimativa de total de cupons = páginas × cupons por página (da 1ª página)
-          if (page === 1) perPage = (res.coupons || []).length || perPage;
-          if (totalPages && perPage) estTotal = totalPages * perPage;
+          if (page === 1 && !estTotal) { perPage = (res.coupons || []).length || perPage; if (totalPages && perPage) estTotal = totalPages * perPage; }
           nextUrl = res.nextHref || null;
+          // Salva o ponto de retomada a cada página
+          await chrome.storage.local.set({ couponResume: { url: nextUrl, synced, page, totalPages, totalCoupons, platform, ts: Date.now() } });
+          if (_couponAbort) { paused = true; break; }
           if (nextUrl) {
             await chrome.tabs.update(tab.id, { url: nextUrl });
             await _waitTabComplete(tab.id, 25000);
@@ -585,11 +606,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           }
         }
 
-        const coupons = Array.from(all.values());
-        let synced = 0;
-        for (const c of coupons) { try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {} }
-        try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_DONE', found: coupons.length, synced, pages: page }); } catch (e) {}
-        sendResponse({ success: true, found: coupons.length, synced, pages: page, totalPages, error: lastError });
+        if (paused) {
+          try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_PAUSED', synced, pages: page, estTotal }); } catch (e) {}
+          sendResponse({ success: true, paused: true, found: synced, synced, pages: page, totalPages, estTotal, error: lastError });
+        } else {
+          // Terminou tudo (ou parou por erro): limpa o ponto de retomada
+          await chrome.storage.local.remove('couponResume');
+          try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_DONE', found: synced, synced, pages: page }); } catch (e) {}
+          sendResponse({ success: true, found: synced, synced, pages: page, totalPages, estTotal, error: lastError });
+        }
       } catch (e) { sendResponse({ success: false, error: (e && e.message) || String(e) }); }
     })();
     return true;

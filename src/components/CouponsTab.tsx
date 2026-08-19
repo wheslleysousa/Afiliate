@@ -56,7 +56,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
       .filter((c) => {
         if (!search.trim()) return true;
         const s = search.toLowerCase();
-        return (c.code || '').toLowerCase().includes(s) || (c.category || '').toLowerCase().includes(s) || (c.discountRaw || '').toLowerCase().includes(s);
+        return (c.code || '').toLowerCase().includes(s) || (c.couponId || '').toLowerCase().includes(s) || (c.category || '').toLowerCase().includes(s) || (c.discountRaw || '').toLowerCase().includes(s) || (c.conditions || '').toLowerCase().includes(s);
       })
       .sort((a, b) => (isExpired(a) === isExpired(b) ? 0 : isExpired(a) ? 1 : -1));
   }, [coupons, platform, showExpired, search]);
@@ -139,9 +139,9 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
                       {copied === c.code ? 'Copiado!' : c.code}
                     </button>
                   ) : c.productsUrl ? (
-                    <a href={c.productsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-sm font-bold text-emerald-300 bg-[#0e1119] border border-dashed border-emerald-500/40 rounded-lg py-2 hover:bg-emerald-500/10 transition-colors">Ativar cupom</a>
+                    <a href={c.productsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-sm font-bold text-emerald-300 bg-[#0e1119] border border-dashed border-emerald-500/40 rounded-lg py-2 hover:bg-emerald-500/10 transition-colors">{c.couponId ? `Ativar cupom #${c.couponId}` : 'Ativar cupom'}</a>
                   ) : (
-                    <span className="flex-1 text-center text-sm font-semibold text-[#93a0b5] bg-[#0e1119] border border-dashed border-[#1e2636] rounded-lg py-2">Sem código</span>
+                    <span className="flex-1 text-center text-sm font-semibold text-[#93a0b5] bg-[#0e1119] border border-dashed border-[#1e2636] rounded-lg py-2">{c.couponId ? `Cupom #${c.couponId}` : 'Sem código'}</span>
                   )}
                   {c.productsUrl && c.code ? (
                     <a href={c.productsUrl} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-blue-400" title="Ver produtos"><ExternalLink className="w-4 h-4" /></a>
