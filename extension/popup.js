@@ -1,5 +1,5 @@
-/* Affiliate Miner Popup JS v2.0.0
-   MUDANÇAS vs v1.0.7:
+/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.3.1)
+   MUDANÇAS recentes:
    - Login agora usa Firebase Auth real (REST API)
    - "Enviar Todos" agora sincroniza com Firestore real
    - Logout limpa tokens de autenticação
@@ -15,6 +15,11 @@ const APP_URL           = 'https://afiliate.onrender.com';
 const FS_BASE           = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/${FIREBASE_DATABASE}/documents`;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Versão dinâmica (sempre igual ao manifest)
+  try {
+    const vb = document.getElementById('v-badge');
+    if (vb && chrome.runtime && chrome.runtime.getManifest) vb.textContent = 'v' + chrome.runtime.getManifest().version;
+  } catch (e) {}
   // ── Elements (idêntico ao original) ──────────────────────
   const screenLoading  = document.getElementById('screen-loading');
   const screenLogin    = document.getElementById('screen-login');
@@ -60,28 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendAll        = document.getElementById('btn-send-all');
   const btnSendText       = document.getElementById('btn-send-text');
 
-  // ── Extração de cupons ──
-  const btnExtractCouponsML = document.getElementById('btn-extract-coupons-ml');
-  const couponsStatus       = document.getElementById('coupons-status');
-  const couponsText         = document.getElementById('btn-coupons-text');
-  if (btnExtractCouponsML) {
-    btnExtractCouponsML.addEventListener('click', () => {
-      if (!state.isLoggedIn) { if (couponsStatus) couponsStatus.textContent = 'Faça login primeiro.'; return; }
-      btnExtractCouponsML.disabled = true;
-      if (couponsText) couponsText.textContent = 'Extraindo... (aguarde a aba abrir)';
-      if (couponsStatus) couponsStatus.textContent = '';
-      chrome.runtime.sendMessage({ action: 'EXTRACT_COUPONS', platform: 'mercadolivre' }, (resp) => {
-        btnExtractCouponsML.disabled = false;
-        if (couponsText) couponsText.textContent = 'Extrair cupons do Mercado Livre';
-        if (!resp) { if (couponsStatus) couponsStatus.textContent = 'Sem resposta. Tente de novo.'; return; }
-        if (resp.success) {
-          if (couponsStatus) couponsStatus.textContent = `✅ ${resp.synced}/${resp.found} cupons enviados ao app.` + (resp.error ? ` (${resp.error})` : '');
-        } else {
-          if (couponsStatus) couponsStatus.textContent = '❌ ' + (resp.error || 'Falha ao extrair.');
-        }
-      });
-    });
-  }
+  // Cupons: a extração agora é feita pelo botão único "Extrair cupons" do painel
+  // flutuante na loja (content.js), abaixo de "Extrair link de afiliado".
 
   const btnShowDiagModal  = document.getElementById('btn-show-diag-modal');
   const modalErrorReport  = document.getElementById('modal-error-report');
@@ -919,7 +904,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
-    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v1.0.4
+    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.1';
+    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v${amVer}
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})
 **Autenticado**: ${state.isLoggedIn ? 'Sim' : 'Não'}

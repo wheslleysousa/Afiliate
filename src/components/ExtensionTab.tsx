@@ -23,6 +23,10 @@ import {
   Globe
 } from 'lucide-react';
 
+// Versão da extensão — deve ser IDÊNTICA ao manifest.json da extensão.
+// Atualize apenas aqui e todos os textos da página são sincronizados.
+const EXT_VERSION = '1.3.1';
+
 export const ExtensionTab: React.FC = () => {
   const [activeShowcase, setActiveShowcase] = useState<'amazon' | 'shopee' | 'filters' | 'toasts'>('amazon');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -39,7 +43,7 @@ export const ExtensionTab: React.FC = () => {
     <div className="space-y-12 max-w-5xl mx-auto animate-fadeIn pb-20 text-[#eef2f9] font-sans">
 
       {/* ───────────────────────────────────────────────────────────────────────
-          1. ATENÇÃO (ATTENTION) - HERO SECTION v1.1.1
+          1. ATENÇÃO (ATTENTION) - HERO SECTION v{EXT_VERSION}
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#0e1119] via-[#07090f] to-[#07090f] border border-[#1e2636] p-8 sm:p-12 shadow-2xl">
         {/* Subtle Background Glow Accent */}
@@ -51,7 +55,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>AFFILIATE MINER v1.1.1 • EXTENSÃO OFICIAL</span>
+              <span>AFFILIATE MINER v{EXT_VERSION} • EXTENSÃO OFICIAL</span>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -69,7 +73,7 @@ export const ExtensionTab: React.FC = () => {
 
           {/* Direct Sales Copy Subheadline */}
           <p className="text-sm sm:text-base text-[#93a0b5] leading-relaxed">
-            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v1.1.1</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
+            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Affiliate Miner v{EXT_VERSION}</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
           </p>
 
           {/* Primary & Secondary Call to Action */}
@@ -79,7 +83,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30 hover:scale-[1.01] active:scale-[0.99] transition-all group cursor-pointer"
             >
               <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-              <span>Baixar Extensão Grátis (.zip) — v1.1.1</span>
+              <span>Baixar Extensão Grátis (.zip) — v{EXT_VERSION}</span>
             </button>
 
             <a
@@ -111,7 +115,7 @@ export const ExtensionTab: React.FC = () => {
 
 
       {/* ───────────────────────────────────────────────────────────────────────
-          2. INTERESSE (INTEREST) - NOVIDADES DA VERSÃO v1.0.9 & RECURSOS CHAVE
+          2. INTERESSE (INTEREST) - NOVIDADES DA VERSÃO v{EXT_VERSION} & RECURSOS CHAVE
          ─────────────────────────────────────────────────────────────────────── */}
       <section className="space-y-8">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
@@ -119,7 +123,7 @@ export const ExtensionTab: React.FC = () => {
             Tecnologia de Alta Performance
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            O que torna o Affiliate Miner v1.1.1 imbatível?
+            O que torna o Affiliate Miner v{EXT_VERSION} imbatível?
           </h2>
           <p className="text-xs sm:text-sm text-[#93a0b5]">
             Projetado para eliminar gargalos operacionais e maximizar a taxa de conversão dos seus links.
@@ -259,7 +263,7 @@ export const ExtensionTab: React.FC = () => {
                     {/* Injected Button Highlight */}
                     <div className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30">
                       <Zap className="w-4 h-4 fill-current text-amber-300" />
-                      <span>⚡ Minerar Este Produto (v1.0.4)</span>
+                      <span>⚡ Minerar Este Produto (v{EXT_VERSION})</span>
                     </div>
                   </div>
                 </div>
@@ -427,7 +431,7 @@ export const ExtensionTab: React.FC = () => {
             A Escolha Estratégica dos Afiliados de Elite
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            Trabalhar Manualmente x Usar o Affiliate Miner v1.0.4
+            Trabalhar Manualmente x Usar o Affiliate Miner v{EXT_VERSION}
           </h2>
         </div>
 
@@ -463,7 +467,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm uppercase">
               <CheckCircle2 className="w-5 h-5" />
-              <span>Com o Affiliate Miner v1.0.4</span>
+              <span>Com o Affiliate Miner v{EXT_VERSION}</span>
             </div>
 
             <ul className="space-y-3 text-xs text-[#eef2f9] font-medium">
@@ -502,7 +506,7 @@ export const ExtensionTab: React.FC = () => {
             <div className="text-[11px] text-[#93a0b5] mt-1 font-medium">Amazon, ML, Shopee, Ali, Shein</div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-400">v1.1.1</div>
+            <div className="text-2xl sm:text-3xl font-black text-amber-400">v{EXT_VERSION}</div>
             <div className="text-[11px] text-[#93a0b5] mt-1 font-medium">Versão Mais Recente e Estável</div>
           </div>
         </div>
@@ -523,7 +527,7 @@ export const ExtensionTab: React.FC = () => {
               Pronto para Começar a Minerar?
             </h2>
             <p className="text-xs sm:text-sm text-[#93a0b5]">
-              Faça o download do pacote descompactado da extensão <strong>v1.1.1</strong> e instale em menos de 1 minuto no seu navegador.
+              Faça o download do pacote descompactado da extensão <strong>v{EXT_VERSION}</strong> e instale em menos de 1 minuto no seu navegador.
             </p>
           </div>
 
@@ -533,7 +537,7 @@ export const ExtensionTab: React.FC = () => {
               className="px-10 py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base flex items-center justify-center gap-3 shadow-2xl shadow-emerald-600/35 hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               <Download className="w-6 h-6" />
-              <span>Baixar Extensão (.zip) — v1.1.1</span>
+              <span>Baixar Extensão (.zip) — v{EXT_VERSION}</span>
             </button>
           </div>
         </div>
@@ -557,7 +561,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Faça o Download do .ZIP:</span>
               </div>
               <p className="text-[#93a0b5] pl-8">
-                Clique no botão verde <strong className="text-emerald-400">"Baixar Extensão (.zip)"</strong> para salvar o pacote v1.1.1 no seu computador.
+                Clique no botão verde <strong className="text-emerald-400">"Baixar Extensão (.zip)"</strong> para salvar o pacote v{EXT_VERSION} no seu computador.
               </p>
             </li>
 
@@ -597,7 +601,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Carregue sem Compactar:</span>
               </div>
               <p className="text-[#93a0b5] pl-8">
-                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v1.1.1 estará ativo.
+                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Affiliate Miner v{EXT_VERSION} estará ativo.
               </p>
             </li>
           </ol>
@@ -626,7 +630,7 @@ export const ExtensionTab: React.FC = () => {
               },
               {
                 q: "Preciso pagar algo para usar a extensão?",
-                a: "Não. A extensão Affiliate Miner v1.1.1 é 100% gratuita para todos os usuários da plataforma."
+                a: `Não. A extensão Affiliate Miner v${EXT_VERSION} é 100% gratuita para todos os usuários da plataforma.`
               }
             ].map((item, idx) => (
               <div key={idx} className="bg-[#151a26] border border-[#1e2636] rounded-xl overflow-hidden">

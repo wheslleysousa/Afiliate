@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.0.9 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.3.1 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -695,6 +695,10 @@ function renderDraggableOverlay() {
           🔗 Extrair link de afiliado
         </button>
 
+        <button id="am-btn-extract-coupons" class="am-btn-search" style="margin-top:8px;background:linear-gradient(135deg,#f59e0b,#d97706)">
+          🎟️ Extrair cupons
+        </button>
+
         <!-- Auto Mine Control Card -->
         <div class="am-control-bar">
           <div>
@@ -836,6 +840,11 @@ function bindOverlayListeners(overlay) {
   const btnExtractAff = overlay.querySelector('#am-btn-extract-aff');
   if (btnExtractAff) {
     btnExtractAff.onclick = () => extractAffiliateLinkFlow();
+  }
+
+  const btnExtractCoupons = overlay.querySelector('#am-btn-extract-coupons');
+  if (btnExtractCoupons) {
+    btnExtractCoupons.onclick = () => extractCouponsFlow();
   }
 
   ['ml', 'shopee', 'amazon', 'shein', 'aliexpress', 'tiktok'].forEach(mkt => {
@@ -3336,6 +3345,36 @@ async function extractAffiliateLinkFlow() {
   }
 }
 
+// Botão genérico "Extrair cupons" do painel — detecta a plataforma sozinho
+async function extractCouponsFlow() {
+  const platform = getPlatformKey();
+  const NAMES = { mercadolivre: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', tiktokshop: 'TikTok Shop', aliexpress: 'AliExpress', shein: 'Shein' };
+  const SUPPORTED = ['mercadolivre'];
+  if (!SUPPORTED.includes(platform)) {
+    showAffiliateResult('Cupons', false, `<p>A extração de cupons ainda não está disponível para <b>${escapeHtmlAff(NAMES[platform] || platform)}</b>. Por enquanto só o <b>Mercado Livre</b> é suportado — abra uma página do Mercado Livre e toque em "Extrair cupons".</p>`, '');
+    return;
+  }
+  showAffiliateResult('Extraindo cupons…', null, `<div style="padding:16px;text-align:center;color:#93a0b5">Abrindo a página de cupons do ${escapeHtmlAff(NAMES[platform] || platform)} e lendo todos os cupons. Isso pode levar alguns segundos — não feche a aba que abrir.</div>`, '');
+  try {
+    const r = await new Promise((resolve) => {
+      try { chrome.runtime.sendMessage({ action: 'EXTRACT_COUPONS', platform }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta do background' })); }
+      catch (e) { resolve({ success: false, error: (e && e.message) || String(e) }); }
+    });
+    const raw = JSON.stringify(r, null, 2);
+    const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande se algo der errado):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
+    if (r && r.success) {
+      const found = r.found || 0;
+      const synced = r.synced || 0;
+      const warn = r.error ? `<p style="font-size:11px;color:#f59e0b;margin-top:6px">Aviso: ${escapeHtmlAff(r.error)}</p>` : '';
+      showAffiliateResult('Cupons ✓', true, `<p><b>${found}</b> cupom(ns) encontrado(s) e <b>${synced}</b> enviado(s) para o app.</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Abra a aba <b>Cupons</b> no app para vê-los. Cupons expirados são marcados automaticamente.</p>${warn}${diagBlock}`, raw);
+    } else {
+      showAffiliateResult('Cupons ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Não consegui extrair os cupons.')}</p><p style="font-size:11px;color:#93a0b5;margin-top:6px">Confirme que está logado no <b>Mercado Livre Afiliados</b> nesta conta.</p>${diagBlock}`, raw);
+    }
+  } catch (e) {
+    showAffiliateResult('Erro', false, `<p>Erro inesperado: ${escapeHtmlAff((e && e.message) || String(e))}</p>`, String((e && e.stack) || e));
+  }
+}
+
 // ─── Extração de CUPONS ───────────────────────────────────────────────────────
 async function extractMLCoupons() {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -3620,7 +3659,8 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const report = `### ⚠️ Diagnóstico - Affiliate Miner v1.0.9\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.1';
+  const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `
     <div class="am-err-box">
