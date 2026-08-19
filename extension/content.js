@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.3.3 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.3.4 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.3'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.4'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3384,17 +3384,22 @@ async function extractCouponsFlow() {
 
 function _cpTxt(el) { return ((el && el.textContent) || '').replace(/\s+/g, ' ').trim(); }
 
-function showCouponProgress(text, count) {
+function showCouponProgress(text, count, estTotal) {
   let box = document.getElementById('am-coupon-progress');
   if (!box) {
     box = document.createElement('div');
     box.id = 'am-coupon-progress';
-    box.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;background:#0e1119;border:1px solid #f59e0b;border-radius:14px;padding:10px 16px;color:#eef2f9;font-family:system-ui,sans-serif;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;max-width:92vw';
+    box.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;background:#0e1119;border:1px solid #f59e0b;border-radius:14px;padding:10px 16px;color:#eef2f9;font-family:system-ui,sans-serif;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;max-width:94vw;flex-wrap:wrap;justify-content:center';
     box.innerHTML = '<span style="font-size:16px">🎟️</span><span id="am-coupon-progress-text"></span><span id="am-coupon-progress-count" style="background:#f59e0b;color:#1a1a1a;border-radius:10px;padding:2px 8px;font-weight:900"></span>';
     document.body.appendChild(box);
   }
   const t = box.querySelector('#am-coupon-progress-text'); if (t) t.textContent = text || '';
-  const c = box.querySelector('#am-coupon-progress-count'); if (c) c.textContent = (count != null ? count + ' cupons' : '');
+  const c = box.querySelector('#am-coupon-progress-count');
+  if (c) {
+    if (count == null) c.textContent = '';
+    else if (estTotal) { const falta = Math.max(0, estTotal - count); c.textContent = `${count} de ~${estTotal} · faltam ~${falta}`; }
+    else c.textContent = count + ' cupons';
+  }
 }
 
 function detectTotalPages() {
@@ -3527,13 +3532,13 @@ async function extractCouponCard(card) {
   };
 }
 
-async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages) {
+async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages, estTotal) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const result = { coupons: [], nextHref: null, totalPages: null, pageNum, error: null };
   try {
     result.totalPages = detectTotalPages() || knownTotalPages || null;
     const label = (p) => `Página ${pageNum}${result.totalPages ? '/' + result.totalPages : ''} — ${p}`;
-    showCouponProgress(label('carregando…'), runningTotal);
+    showCouponProgress(label('carregando…'), runningTotal, estTotal);
 
     // Rola a página para o usuário ver e para carregar tudo
     for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await sleep(110); }
@@ -3542,17 +3547,19 @@ async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages) {
     const cards = collectCouponCards();
     result.totalPages = detectTotalPages() || result.totalPages;
     result.nextHref = detectNextHref();
+    // Estimativa dinâmica se o background ainda não passou uma
+    const est = estTotal || (result.totalPages && cards.length ? result.totalPages * cards.length : null);
 
     let i = 0;
     for (const card of cards) {
       i++;
       try { card.scrollIntoView({ block: 'center' }); } catch (e) {}
-      showCouponProgress(label(`lendo cupom ${i}/${cards.length}`), runningTotal + result.coupons.length);
+      showCouponProgress(label(`lendo cupom ${i}/${cards.length}`), runningTotal + result.coupons.length, est);
       await sleep(90);
       const c = await extractCouponCard(card);
       if (c && (c.discountRaw || c.code)) result.coupons.push(c);
     }
-    showCouponProgress(label(`${result.coupons.length} nesta página`), runningTotal + result.coupons.length);
+    showCouponProgress(label(`${result.coupons.length} nesta página`), runningTotal + result.coupons.length, est);
     if (result.coupons.length === 0) {
       result.debug = {
         url: location.href,
@@ -3565,7 +3572,7 @@ async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages) {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.action === 'SCRAPE_COUPON_PAGE') {
-    scrapeCouponPage(msg.pageNum || 1, msg.runningTotal || 0, msg.totalPages || null)
+    scrapeCouponPage(msg.pageNum || 1, msg.runningTotal || 0, msg.totalPages || null, msg.estTotal || null)
       .then(sendResponse)
       .catch((e) => sendResponse({ coupons: [], error: (e && e.message) || String(e) }));
     return true;
@@ -3793,7 +3800,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.3';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.4';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `

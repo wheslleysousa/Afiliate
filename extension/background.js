@@ -509,8 +509,12 @@ async function syncCouponToFirestore(coupon, uid, idToken) {
   });
 }
 
+const COUPON_ENTRY_URLS = {
+  // 1º: hub onde aparecem TODOS os cupons (agrupados)
+  mercadolivre: 'https://www.mercadolivre.com.br/cupons?source_page=mperfil#nav-header',
+};
 const COUPON_URLS = {
-  // Página "ver todos" os cupons DISPONÍVEIS, com paginação numerada (1..N)
+  // 2º: "ver todos" com paginação numerada (1..N) — é aqui que raspamos
   mercadolivre: 'https://www.mercadolivre.com.br/cupons/filter?all=true&source_page=int_view_all',
 };
 
@@ -543,17 +547,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       try {
         const state = (await chrome.storage.local.get(['affiliateMinerState'])).affiliateMinerState;
         if (!state || !state.uid || !state.idToken) { sendResponse({ success: false, error: 'Faça login no app pela extensão antes de extrair cupons.' }); return; }
-        const tab = await chrome.tabs.create({ url, active: true });
+
+        // Passo 1: abre o hub de cupons (onde aparecem todos)
+        const entry = COUPON_ENTRY_URLS[platform];
+        const tab = await chrome.tabs.create({ url: entry || url, active: true });
         await _waitTabComplete(tab.id, 25000);
-        await _sleep(2800);
+        await _sleep(2500);
+        // Passo 2: navega para a página "ver todos" (paginada) que é onde raspamos
+        if (entry) {
+          await chrome.tabs.update(tab.id, { url });
+          await _waitTabComplete(tab.id, 25000);
+          await _sleep(2800);
+        }
 
         const all = new Map();          // dedupe por código ou hash
-        let page = 0, nextUrl = url, totalPages = null, lastError = null;
+        let page = 0, nextUrl = url, totalPages = null, estTotal = null, perPage = 0, lastError = null;
         const MAX_PAGES = 200;
 
         while (nextUrl && page < MAX_PAGES) {
           page++;
-          const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: all.size, totalPages });
+          const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: all.size, totalPages, estTotal });
           if (!res) { lastError = 'Não consegui ler a página ' + page + '. Confirme que está logado no Mercado Livre.'; break; }
           if (res.totalPages) totalPages = res.totalPages;
           for (const c of (res.coupons || [])) {
@@ -561,6 +574,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               : ('h:' + _couponHash((c.discountRaw || '') + '|' + (c.conditions || '') + '|' + (c.expirationRaw || '')));
             if (!all.has(key)) all.set(key, c);
           }
+          // Estimativa de total de cupons = páginas × cupons por página (da 1ª página)
+          if (page === 1) perPage = (res.coupons || []).length || perPage;
+          if (totalPages && perPage) estTotal = totalPages * perPage;
           nextUrl = res.nextHref || null;
           if (nextUrl) {
             await chrome.tabs.update(tab.id, { url: nextUrl });
