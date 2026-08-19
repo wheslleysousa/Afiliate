@@ -252,6 +252,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         shipping: currentProduct.shipping || null,
         platform: currentProduct.platform,
         original_link: currentProduct.original_link,
+        affiliate_link: myShopeeLink || currentProduct.affiliate_link || undefined,
         image_url: currentProduct.image_url || '',
       };
       const formatted = applyTemplate(activeTemplate.template, prodData, shareLink, commissionRates);

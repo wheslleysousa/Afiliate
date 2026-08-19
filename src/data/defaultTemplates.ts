@@ -339,8 +339,11 @@ export function applyTemplate(
   else if (rawPlatform.includes('aliexpress')) storeName = 'AliExpress';
   else if (rawPlatform.includes('shein')) storeName = 'Shein';
 
-  // 8. Link
-  const targetLink = affiliateLink || product.affiliate_link || product.original_link || '';
+  // 8. Link — prioriza o link de afiliado CURTO já salvo no produto (meli.la,
+  // amzn.to, s.shopee gerado pela extensão) sobre o link reconstruído.
+  const savedShort = (product.affiliate_link || '').trim();
+  const isRealAffiliateShort = /^https?:\/\//i.test(savedShort) && /(meli\.la|amzn\.to|link\.amazon|shope\.ee|s\.shopee|shp\.ee|awin1\.com)/i.test(savedShort);
+  const targetLink = (isRealAffiliateShort ? savedShort : '') || affiliateLink || savedShort || product.original_link || '';
 
   // 9. Estrelas e Vendas
   const starsStr = product.stars ? `⭐ ${product.stars}` : '';
@@ -473,9 +476,11 @@ export function applyTemplate(
     '{DISCOUNT_PERCENT}': discountText,
   };
 
-  // Substituir variáveis
-  for (const [key, val] of Object.entries(replacements)) {
-    text = text.replaceAll(key, val);
+  // Substituir variáveis — chaves mais longas primeiro (ex.: {{titulo}} antes de
+  // {titulo}), senão a chave simples come o miolo e sobra {valor} com as chaves duplas.
+  const orderedKeys = Object.keys(replacements).sort((a, b) => b.length - a.length);
+  for (const key of orderedKeys) {
+    text = text.replaceAll(key, replacements[key]);
   }
 
   // Limpar linhas onde variáveis vazias deixaram símbolos órfãos
