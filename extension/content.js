@@ -3168,16 +3168,18 @@ async function generateMercadoLivreAffiliateLink(productUrl) {
     const tagsData = await tagsRes.json();
     const tags = tagsData.tags || tagsData;
     if (!Array.isArray(tags) || tags.length === 0) return null;
-    const tagId = tags[0].id || tags[0];
+    const affiliateTag = typeof tags[0] === 'object' ? (tags[0].tag || tags[0].name || tags[0].id) : tags[0];
+    if (!affiliateTag) return null;
 
-    // 2) Gerar o short link de afiliado
-    const linkRes = await fetch(`${base}${api}/links`, {
+    // 2) Gerar o short link de afiliado (endpoint createLink, campo "tag")
+    const linkRes = await fetch(`${base}/affiliate-program/api/v2/affiliates/createLink`, {
       method: 'POST', credentials: 'include', headers,
-      body: JSON.stringify({ url: productUrl, tag_id: tagId })
+      body: JSON.stringify({ urls: [String(productUrl).split('#')[0]], tag: affiliateTag })
     });
     if (!linkRes.ok) return null;
     const linkData = await linkRes.json();
-    const short = linkData.short_url || linkData.short_link || linkData.url || null;
+    const r0 = (linkData.urls && linkData.urls[0]) || {};
+    const short = r0.short_url || r0.short_link || null;
 
     // Só aceitar short link de afiliado meli.la (o que atribui comissão)
     if (short && short.startsWith('https://meli.la/')) return short;

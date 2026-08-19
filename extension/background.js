@@ -409,8 +409,8 @@ async function _mlGenerateInPage(originalUrl) {
   }
   try {
     const csrf = getCsrf(); diag.csrf = !!csrf;
-    const headers = { 'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json' };
-    if (csrf) headers['x-csrf-token'] = csrf;
+    if (!csrf) return { success: false, error: 'Token CSRF não encontrado. Recarregue a página do produto e tente de novo.', diag };
+    const headers = { 'Accept': 'application/json, text/plain, */*', 'Content-Type': 'application/json', 'x-csrf-token': csrf };
     const tagsRes = await fetch(`${BASE}${API}/tags`, { method: 'GET', credentials: 'include', headers });
     diag.tagsStatus = tagsRes.status;
     if (!tagsRes.ok) { const b = await tagsRes.text().catch(() => ''); return { success: false, error: 'Você precisa estar logado no Mercado Livre Afiliados (status ' + tagsRes.status + ').', diag, body: b.slice(0, 160) }; }
@@ -418,15 +418,28 @@ async function _mlGenerateInPage(originalUrl) {
     const tags = (td && (td.tags || td)) || [];
     diag.tags = Array.isArray(tags) ? tags.length : 0;
     if (!Array.isArray(tags) || !tags.length) return { success: false, error: 'Nenhuma tag de afiliado encontrada. Ative sua conta no programa de Afiliados do Mercado Livre.', diag };
-    const tagId = tags[0].id || tags[0];
+    // A tag correta é a STRING (tags[0].tag), não o id. Enviar no campo "tag".
+    const affiliateTag = typeof tags[0] === 'object' ? (tags[0].tag || tags[0].name || tags[0].id) : tags[0];
+    diag.tag = affiliateTag || null;
+    if (!affiliateTag) return { success: false, error: 'Tag encontrada, mas vazia.', diag, data: tags[0] };
     const cleanUrl = String(originalUrl || '').split('#')[0];
-    const linkRes = await fetch(`${BASE}${API}/links`, { method: 'POST', credentials: 'include', headers, body: JSON.stringify({ url: cleanUrl, tag_id: tagId }) });
+    // Endpoint correto (igual ao Achadinho): createLink com { urls:[...], tag }
+    const linkRes = await fetch(`${BASE}/affiliate-program/api/v2/affiliates/createLink`, {
+      method: 'POST', credentials: 'include', headers,
+      body: JSON.stringify({ urls: [cleanUrl], tag: affiliateTag }),
+    });
     diag.linkStatus = linkRes.status;
     if (!linkRes.ok) { const b = await linkRes.text().catch(() => ''); return { success: false, error: 'Erro ao gerar link: HTTP ' + linkRes.status, diag, body: b.slice(0, 160) }; }
     const ld = await linkRes.json().catch(() => null);
-    const short = ld && (ld.short_url || ld.short_link || ld.url);
-    if (short) return { success: true, short_link: short, diag };
-    return { success: false, error: 'A API respondeu, mas sem short link.', diag, data: ld };
+    const arr = ld && ld.urls;
+    if (Array.isArray(arr) && arr.length) {
+      const r0 = arr[0] || {};
+      if (r0.error_code === 111) return { success: false, error: 'Este produto não é permitido no programa de afiliados (erro 111).', diag };
+      const short = r0.short_url || r0.short_link;
+      if (short && String(short).startsWith('https://meli.la/')) return { success: true, short_link: short, tag: affiliateTag, diag };
+      return { success: false, error: 'A API não retornou um short link meli.la válido.', diag, data: r0 };
+    }
+    return { success: false, error: 'Resposta inesperada da API do Mercado Livre.', diag, data: ld };
   } catch (e) { return { success: false, error: e && e.message || String(e), diag }; }
 }
 
