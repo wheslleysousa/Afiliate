@@ -907,6 +907,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                           Sua conta oficial no {plat.title} está autenticada e autorizada no aplicativo.
                         </p>
 
+                        {plat.id === 'awin' && (
+                          <div className="space-y-2 p-2.5 bg-[#0e1119] border border-purple-500/30 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={handleTestAwin}
+                              disabled={awinTest.loading || !keys.awinPublisherId || !keys.awinApiToken}
+                              className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+                            >
+                              {awinTest.loading ? 'Testando...' : 'Testar conexão Awin'}
+                            </button>
+                            {awinTest.ok === true && (
+                              <div className="text-[10px] text-emerald-400 font-bold">
+                                ✓ {awinTest.msg}
+                                {awinTest.stores.length > 0 && (
+                                  <div className="mt-1 max-h-28 overflow-y-auto text-[#93a0b5] font-normal">
+                                    {awinTest.stores.map((s) => <div key={s.id}>• {s.name} <span className="text-[#4b5872]">(#{s.id})</span></div>)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {awinTest.ok === false && <p className="text-[10px] text-red-400 font-bold">✗ {awinTest.msg}</p>}
+                            <p className="text-[9px] text-[#4b5872]">Publisher ID: <span className="font-mono text-[#93a0b5]">{(keys.awinPublisherId as string) || '—'}</span>. Lojas "Pendente" na Awin só pagam comissão após aprovadas.</p>
+                          </div>
+                        )}
+
                         {plat.id === 'mercadolivre' && (keys.mercadoLivreNickname || keys.mercadoLivreUserId) && (
                           <div className="p-2.5 bg-[#0e1119] border border-emerald-500/30 rounded-xl space-y-1 my-1.5">
                             <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
