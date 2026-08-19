@@ -315,3 +315,19 @@ export async function shortenLinkWithTinyUrl(longUrl: string): Promise<string> {
 }
 
 
+
+/**
+ * Monta o link de afiliado da Awin (deep link) — funciona para qualquer loja
+ * aprovada, trocando apenas o awinaffid (Publisher ID) por usuário.
+ * Ex.: https://www.awin1.com/cread.php?awinmid=MID&awinaffid=SEU_ID&ued=URL&clickref=SUBID
+ */
+export function buildAwinLink(
+  awinmid: string | number,
+  awinaffid: string | number,
+  destUrl: string,
+  subid?: string
+): string {
+  if (!awinmid || !awinaffid || !destUrl) return destUrl || '';
+  const base = `https://www.awin1.com/cread.php?awinmid=${encodeURIComponent(String(awinmid))}&awinaffid=${encodeURIComponent(String(awinaffid))}&ued=${encodeURIComponent(destUrl)}`;
+  return subid ? `${base}&clickref=${encodeURIComponent(subid)}` : base;
+}

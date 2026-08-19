@@ -46,6 +46,10 @@ export interface ApiKeysConfig {
   tiktokshopNickname?: string;
   tiktokshopEmail?: string;
 
+  // Awin (rede de afiliados — Kabum, Natura, Boticário, etc.)
+  awinPublisherId?: string;   // Seu Publisher ID (awinaffid)
+  awinApiToken?: string;      // API token (OAuth2 Bearer) do painel Awin
+
   // Customização de Link Encurtado
   customShortDomain?: string; // Ex: https://lkrm.site
   customShortPrefix?: string; // Ex: radardeofertas

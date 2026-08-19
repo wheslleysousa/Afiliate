@@ -532,6 +532,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 colorTitle: 'text-blue-400',
               },
               {
+                id: 'awin',
+                title: 'Awin (Kabum, Natura, Boticário...)',
+                emoji: '🟣',
+                badge: 'Publisher ID + API Token',
+                fieldKey: 'awinPublisherId' as keyof ApiKeysConfig,
+                apiKeyField: 'awinApiToken' as keyof ApiKeysConfig,
+                placeholder: 'Seu Publisher ID da Awin (ex: 1234567)',
+                colorBorder: 'border-purple-500/30 focus:border-purple-500',
+                colorBadge: 'bg-purple-400/10 text-purple-300 border-purple-400/20',
+                colorTitle: 'text-purple-400',
+              },
+              {
                 id: 'aliexpress',
                 title: 'AliExpress Afiliados',
                 emoji: '🌐',

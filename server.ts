@@ -3126,6 +3126,28 @@ app.post("/api/bio/upload-image", express.text({ limit: "8mb", type: "text/*" })
   }
 });
 
+// Awin — testar conexão e listar as lojas (advertisers) em que o usuário está aprovado.
+app.post("/api/awin/test", async (req, res) => {
+  try {
+    const { publisherId, apiToken } = req.body || {};
+    const pid = (publisherId || process.env.AWIN_PUBLISHER_ID || "").toString().trim();
+    const token = (apiToken || process.env.AWIN_API_TOKEN || "").toString().trim();
+    if (!pid || !token) return res.status(400).json({ success: false, error: "Informe o Publisher ID e o API Token da Awin." });
+    const url = `https://api.awin.com/publishers/${encodeURIComponent(pid)}/programmes?relationship=joined`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    const txt = await r.text();
+    if (!r.ok) return res.status(502).json({ success: false, error: `A Awin retornou HTTP ${r.status}. Confira o Publisher ID e o token.`, detail: txt.slice(0, 200) });
+    let data: any = null; try { data = JSON.parse(txt); } catch { /* ignore */ }
+    const list = Array.isArray(data) ? data : (data?.programmes || []);
+    const advertisers = list
+      .map((p: any) => ({ id: p.id || p.advertiserId || p.programmeInfo?.id, name: p.name || p.programmeInfo?.name || p.displayName }))
+      .filter((a: any) => a.id);
+    return res.json({ success: true, count: advertisers.length, advertisers });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, error: e?.message || "Erro ao consultar a Awin." });
+  }
+});
+
 // Endpoint to fetch real-time click statistics from server
 app.get("/api/analytics/clicks", (req, res) => {
   res.json({
