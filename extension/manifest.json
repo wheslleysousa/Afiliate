@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Affiliate Miner v1.3.4",
-  "version": "1.3.4",
+  "name": "Affiliate Miner v1.3.5",
+  "version": "1.3.5",
   "description": "Minerador inteligente de produtos afiliados — sincroniza automaticamente com o Afiliate.",
   "icons": {
     "16":  "icons/icon16.png",

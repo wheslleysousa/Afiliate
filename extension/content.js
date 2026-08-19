@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.3.4 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.3.5 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.4'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.5'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3470,6 +3470,40 @@ function parseCouponDate(raw) {
   return null;
 }
 
+// Lê o código do cupom de um escopo (modal/card): elemento próprio, botão "Copiar" ou regex
+function readCouponCodeFrom(scope) {
+  if (!scope) return null;
+  const el = scope.querySelector('[class*="coupon-code" i], [class*="couponCode" i], [class*="code__" i], [class*="__code" i], [data-testid*="code" i], input[readonly]');
+  if (el) { const v = ((el.value || _cpTxt(el)) || '').replace(/^#/, '').trim(); if (/^[A-Z0-9][A-Z0-9._-]{3,23}$/i.test(v)) return v; }
+  const copyBtn = Array.from(scope.querySelectorAll('button,a,[role="button"]')).find((b) => /copiar(\s+c[oó]digo)?/i.test(_cpTxt(b)));
+  if (copyBtn) {
+    const cont = copyBtn.closest('div,section,li,article') || copyBtn.parentElement;
+    const m = _cpTxt(cont).match(/\b([A-Z0-9]{4,20})\b/);
+    if (m && !/^(APLICAR|CONFERIR|COPIAR|CUPOM|OFF)$/i.test(m[1])) return m[1];
+  }
+  const t = _cpTxt(scope);
+  let m = t.match(/c[oó]digo[:\s]*([A-Z0-9][A-Z0-9._-]{3,23})/i);
+  if (m) return m[1];
+  m = t.match(/\b([A-Z]{2,}[A-Z0-9]{2,})\b/);
+  if (m && !/^(APLICAR|CONFERIR|COPIAR|CUPOM|VENCE|LIMITE|COMPRA)/i.test(m[1])) return m[1];
+  return null;
+}
+
+function findOpenModal() {
+  const sel = '.andes-modal--active, .andes-modal[open], .andes-modal__scroll, [role="dialog"], [class*="modal__content" i], [class*="modal--open" i], [class*="modal--active" i]';
+  const cands = Array.from(document.querySelectorAll(sel)).filter((el) => el.offsetParent !== null && _cpTxt(el).length > 20);
+  return cands.length ? cands[cands.length - 1] : null;
+}
+
+function closeOpenModal() {
+  const modal = findOpenModal();
+  if (!modal) { try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (e) {} return; }
+  const close = modal.querySelector('.andes-modal__close, [aria-label*="fechar" i], [aria-label*="close" i], button[class*="close" i]')
+    || document.querySelector('.andes-modal__close, [aria-label*="fechar" i]');
+  if (close) { try { close.click(); return; } catch (e) {} }
+  try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (e) {}
+}
+
 async function extractCouponCard(card) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const full = _cpTxt(card);
@@ -3492,43 +3526,51 @@ async function extractCouponCard(card) {
   const limitRaw = (full.match(/limite\s+de\s+R\$\s*([\d.]+(?:,\d{2})?)/i) || [null, null])[1];
   const expirationRaw = (full.match(/vence(?:\s+em)?\s+([^·\n]{2,40})/i) || [null, null])[1] || null;
 
-  // Clica no "i" (mais informações) para abrir/ler as condições completas
-  let tipText = '';
+  // Entra no cupom: clica no botão de ação (Aplicar/Conferir/Ver) para abrir o
+  // modal de detalhes e ler o CÓDIGO + condições/validade completas. Depois fecha.
+  let code = null, modalText = '', modalExpiration = null;
   try {
-    const info = card.querySelector('[aria-label*="informa" i], [aria-label*="mais" i], button[class*="tooltip" i], [data-testid*="tooltip" i], [class*="tooltip__trigger" i], button svg[class*="info" i]');
-    const infoBtn = info ? (info.closest('button,[role="button"],a') || info) : null;
-    if (infoBtn) {
-      infoBtn.scrollIntoView({ block: 'center' });
-      infoBtn.click();
-      await sleep(550);
-      const tip = document.querySelector('[role="tooltip"], .andes-tooltip__content, [class*="tooltip__content" i], .andes-popover__content, [class*="popover__content" i]');
-      tipText = _cpTxt(tip);
-      // fecha o tooltip
-      try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); } catch (e) {}
-      try { infoBtn.click(); } catch (e) {}
+    // Só clica em <button>/[role=button] (não em <a href>) para não navegar e quebrar a raspagem
+    const trigger = Array.from(card.querySelectorAll('button,[role="button"]'))
+      .find((b) => /^(conferir|aplicar|ver\s+cupom|resgatar|usar|ativar|ver)\b/i.test(_cpTxt(b)) && b.offsetParent !== null);
+    if (trigger) {
+      try { trigger.scrollIntoView({ block: 'center' }); } catch (e) {}
       await sleep(120);
+      const beforeUrl = location.href;
+      trigger.click();
+      // espera o modal aparecer (até ~3s)
+      let modal = null;
+      for (let i = 0; i < 14 && location.href === beforeUrl; i++) { await sleep(230); modal = findOpenModal(); if (modal) break; }
+      if (modal) {
+        modalText = _cpTxt(modal);
+        code = readCouponCodeFrom(modal);
+        modalExpiration = (modalText.match(/(?:v[aá]lido|válida|vence|expira|at[eé]|termina)[^\d]{0,30}?(\d{1,2}\s*[\/.]\s*\d{1,2}(?:\s*[\/.]\s*\d{2,4})?)/i) || modalText.match(/(\d{1,2}\s*de\s*[a-zç]{3,})/i) || [null, null])[1] || null;
+      }
+      closeOpenModal();
+      await sleep(220);
     }
   } catch (e) {}
 
   const lowStock = /est[aá]\s+esgotando/i.test(full);
-  const expired = /esgotado|expirado|encerrado|indispon[ií]vel/i.test(full) && !lowStock;
+  const expired = /esgotado|expirado|encerrado|indispon[ií]vel/i.test(full + ' ' + modalText) && !lowStock;
   const linkEl = card.closest('a[href]') || card.querySelector('a[href]');
+  const expirationFinal = expirationRaw || modalExpiration;
 
-  const conditions = [subtitle, minValueRaw ? ('Compra mínima R$ ' + minValueRaw) : null, limitRaw ? ('Limite de R$ ' + limitRaw) : null, lowStock ? 'Está esgotando' : null, tipText].filter(Boolean).join(' · ') || null;
+  const conditions = [subtitle, minValueRaw ? ('Compra mínima R$ ' + minValueRaw) : null, limitRaw ? ('Limite de R$ ' + limitRaw) : null, lowStock ? 'Está esgotando' : null, (modalText || '').slice(0, 400)].filter(Boolean).join(' · ') || null;
 
   return {
     platform: 'mercadolivre',
-    code: null,
+    code: code || null,
     discountRaw: discountRaw || null,
     discountType, discountValue,
     minValue,
     conditions,
     category,
-    expirationRaw,
-    validUntil: parseCouponDate(expirationRaw),
+    expirationRaw: expirationFinal,
+    validUntil: parseCouponDate(expirationFinal),
     productsUrl: linkEl ? linkEl.href : null,
     expired,
-    rawText: full.slice(0, 500),
+    rawText: (full + (modalText ? ' || ' + modalText : '')).slice(0, 600),
   };
 }
 
@@ -3554,7 +3596,7 @@ async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages, estTotal
     for (const card of cards) {
       i++;
       try { card.scrollIntoView({ block: 'center' }); } catch (e) {}
-      showCouponProgress(label(`lendo cupom ${i}/${cards.length}`), runningTotal + result.coupons.length, est);
+      showCouponProgress(label(`abrindo cupom ${i}/${cards.length} (lendo código)`), runningTotal + result.coupons.length, est);
       await sleep(90);
       const c = await extractCouponCard(card);
       if (c && (c.discountRaw || c.code)) result.coupons.push(c);
@@ -3800,7 +3842,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.4';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.5';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `
