@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.3.2 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.3.3 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.2'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.3'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3375,165 +3375,205 @@ async function extractCouponsFlow() {
   }
 }
 
-// ─── Extração de CUPONS (genérica, página de cupons DISPONÍVEIS) ───────────────
-// Funciona em https://www.mercadolivre.com.br/cupons (e em qualquer página de
-// cupons): lê desconto, condições/regras, validade, valor mínimo e categoria de
-// cada cupom, expande "Ver condições" quando existir, e pagina até o FINAL
-// (botão "próxima", "carregar mais" ou scroll infinito), independente do layout.
-async function extractMLCoupons() {
+// ─── Extração de CUPONS (página "ver todos", paginada) ─────────────────────────
+// A paginação é dirigida pelo background (ele navega página a página e chama
+// SCRAPE_COUPON_PAGE em cada uma), então a extração sobrevive à navegação.
+// Aqui: raspa UMA página, clica no "i" (mais informações) de cada cupom para ler
+// as condições, mostra um contador de progresso na tela e devolve o link da
+// próxima página (Próximo) para o background seguir até o fim.
+
+function _cpTxt(el) { return ((el && el.textContent) || '').replace(/\s+/g, ' ').trim(); }
+
+function showCouponProgress(text, count) {
+  let box = document.getElementById('am-coupon-progress');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'am-coupon-progress';
+    box.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;background:#0e1119;border:1px solid #f59e0b;border-radius:14px;padding:10px 16px;color:#eef2f9;font-family:system-ui,sans-serif;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;max-width:92vw';
+    box.innerHTML = '<span style="font-size:16px">🎟️</span><span id="am-coupon-progress-text"></span><span id="am-coupon-progress-count" style="background:#f59e0b;color:#1a1a1a;border-radius:10px;padding:2px 8px;font-weight:900"></span>';
+    document.body.appendChild(box);
+  }
+  const t = box.querySelector('#am-coupon-progress-text'); if (t) t.textContent = text || '';
+  const c = box.querySelector('#am-coupon-progress-count'); if (c) c.textContent = (count != null ? count + ' cupons' : '');
+}
+
+function detectTotalPages() {
+  let max = null;
+  document.querySelectorAll('.andes-pagination a, nav[aria-label*="agina" i] a, .andes-pagination button, [class*="pagination"] a, [class*="pagination"] button').forEach((a) => {
+    const n = parseInt(_cpTxt(a), 10);
+    if (!isNaN(n) && n > 0 && n < 100000) { if (max == null || n > max) max = n; }
+  });
+  return max;
+}
+
+function detectNextHref() {
+  // 1) controle "próximo" da andes-pagination
+  const ctrl = document.querySelector('.andes-pagination__button--next a[href], a.andes-pagination__link[rel="next"], a[rel="next"][href], .andes-pagination [data-andes-pagination-control="next"] a[href]');
+  if (ctrl) {
+    const li = ctrl.closest('li');
+    const disabled = ctrl.getAttribute('aria-disabled') === 'true' || (li && /disabled/i.test(li.className || ''));
+    if (!disabled && ctrl.href) return ctrl.href;
+  }
+  // 2) âncora cujo texto é "Próximo"/"Seguinte"/"Next"
+  const byText = Array.from(document.querySelectorAll('a[href]')).find((a) => /^(pr[oó]ximo|seguinte|next)\b/i.test(_cpTxt(a)));
+  if (byText) {
+    const li = byText.closest('li');
+    if (!(li && /disabled/i.test(li.className || '')) && byText.getAttribute('aria-disabled') !== 'true') return byText.href;
+  }
+  // 3) página atual + 1 (âncora numerada)
+  const current = document.querySelector('.andes-pagination__button--current, [aria-current="page"], .andes-pagination__link--current');
+  const curN = current ? parseInt(_cpTxt(current), 10) : NaN;
+  if (!isNaN(curN)) {
+    const nextA = Array.from(document.querySelectorAll('a[href]')).find((a) => parseInt(_cpTxt(a), 10) === curN + 1);
+    if (nextA && nextA.href) return nextA.href;
+  }
+  return null;
+}
+
+function collectCouponCards() {
+  const isCardText = (t) => /(\d{1,3}\s*%|R\$\s*[\d.]+)/.test(t) && /(compra\s+m[ií]nima|limite\s+de|vence|em\s+produtos|internacional|sem\s+compra)/i.test(t);
+  const set = new Set();
+  // Ancora nos botões de ação de cada cupom e sobe até o container do card
+  const actions = Array.from(document.querySelectorAll('a,button,[role="button"]'))
+    .filter((b) => /^(aplicar|conferir|ativar|resgatar|ver\s+cupom|usar)\b/i.test(_cpTxt(b)));
+  for (const a of actions) {
+    let el = a;
+    for (let up = 0; up < 9 && el; up++) {
+      el = el.parentElement;
+      if (el && isCardText(_cpTxt(el)) && _cpTxt(el).length < 600) { set.add(el); break; }
+    }
+  }
+  // Fallback: qualquer container pequeno com cara de cupom
+  if (set.size < 2) {
+    Array.from(document.querySelectorAll('div,li,article,section')).forEach((el) => {
+      const t = _cpTxt(el);
+      if (t.length > 12 && t.length < 600 && isCardText(t)) set.add(el);
+    });
+  }
+  // Remove ancestrais que contêm outros cards (mantém o menor container)
+  const arr = Array.from(set);
+  return arr.filter((el) => !arr.some((other) => other !== el && el.contains(other)));
+}
+
+const _CP_MONTHS = { jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11 };
+function parseCouponDate(raw) {
+  if (!raw) return null;
+  let m = raw.match(/(\d{1,2})\s*[\/.]\s*(\d{1,2})(?:\s*[\/.]\s*(\d{2,4}))?/);
+  if (m) { const d = +m[1], mo = +m[2] - 1, y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear(); const dt = new Date(y, mo, d, 23, 59, 59); return isNaN(dt) ? null : dt.toISOString(); }
+  m = raw.match(/(\d{1,2})\s*de\s*([a-zç]{3,})/i);
+  if (m) { const mo = _CP_MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo != null) { let y = new Date().getFullYear(); const dt = new Date(y, mo, +m[1], 23, 59, 59); if (dt.getTime() < Date.now() - 86400000) dt.setFullYear(y + 1); return isNaN(dt) ? null : dt.toISOString(); } }
+  return null;
+}
+
+async function extractCouponCard(card) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const txt = (el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
-  const result = { platform: 'mercadolivre', coupons: [], pages: 0, error: null, debug: {} };
+  const full = _cpTxt(card);
 
-  const MONTHS = { jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11 };
-  const parseBrDate = (raw) => {
-    if (!raw) return null;
-    let m = raw.match(/(\d{1,2})\s*[\/.]\s*(\d{1,2})(?:\s*[\/.]\s*(\d{2,4}))?/);
-    if (m) { const d = +m[1], mo = +m[2] - 1, y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear(); const dt = new Date(y, mo, d, 23, 59, 59); return isNaN(dt) ? null : dt.toISOString(); }
-    m = raw.match(/(\d{1,2})\s*de\s*([a-zç]{3,})/i);
-    if (m) { const mo = MONTHS[m[2].slice(0,3).toLowerCase()]; if (mo != null) { const dt = new Date(new Date().getFullYear(), mo, +m[1], 23, 59, 59); return isNaN(dt) ? null : dt.toISOString(); } }
-    return null;
-  };
-  const parseDiscount = (raw) => {
-    if (!raw) return { discountType: null, discountValue: null };
-    const pct = raw.match(/(\d{1,3})\s*%/);
-    if (pct) { const v = parseInt(pct[1], 10); if (v >= 1 && v <= 100) return { discountType: 'percent', discountValue: v }; }
-    const money = raw.match(/R\$\s*([\d.]+(?:,\d{2})?)/i);
-    if (money) return { discountType: 'fixed', discountValue: parseFloat(money[1].replace(/\./g, '').replace(',', '.')) };
-    return { discountType: null, discountValue: null };
-  };
-  const parseMoney = (raw, re) => { const m = raw && raw.match(re); return m ? parseFloat(m[1].replace(/\./g, '').replace(',', '.')) : null; };
+  // Título do desconto (primeira linha em destaque): "R$ 400 OFF em Informática", "10% OFF EM MODA"...
+  const titleEl = card.querySelector('h1,h2,h3,h4,[class*="title" i],b,strong');
+  const titleTxt = _cpTxt(titleEl) || (full.match(/(R\$\s*[\d.]+\s*off[^·\n]*|\d{1,3}\s*%\s*off[^·\n]*|\d{1,3}\s*%[^·\n]*)/i) || [''])[0];
+  const discountRaw = (titleTxt.match(/(R\$\s*[\d.]+\s*off|\d{1,3}\s*%\s*off|\d{1,3}\s*%|R\$\s*[\d.]+)/i) || [null])[0];
+  let discountType = null, discountValue = null;
+  const pct = (discountRaw || '').match(/(\d{1,3})\s*%/);
+  if (pct) { discountType = 'percent'; discountValue = +pct[1]; }
+  else { const mm = (discountRaw || '').match(/R\$\s*([\d.]+(?:,\d{2})?)/i); if (mm) { discountType = 'fixed'; discountValue = parseFloat(mm[1].replace(/\./g, '').replace(',', '.')); } }
 
-  // Junta candidatos a "card de cupom" por vários seletores + heurística por token de desconto
-  const collectCards = () => {
-    const set = new Set();
-    const bySelector = document.querySelectorAll([
-      '.generated-coupon-item',
-      '[class*="coupon-item"]', '[class*="couponItem"]',
-      '[class*="coupon-card"]', '[class*="couponCard"]',
-      '[data-testid*="coupon" i]', '[id*="coupon" i][class]',
-      'li[class*="coupon" i]', 'div[class*="cupom" i]', 'article[class*="coupon" i]',
-      '.andes-card',
-    ].join(','));
-    bySelector.forEach((el) => set.add(el));
-    // Heurística: elemento pequeno que contém "% OFF" / "cupom" / "de desconto" e um botão/código
-    if (set.size < 2) {
-      const all = Array.from(document.querySelectorAll('div,li,article,section'));
-      for (const el of all) {
-        const t = txt(el);
-        if (t.length < 8 || t.length > 900) continue;
-        if (!/(\d{1,3}\s*%|R\$\s*[\d.]+(?:,\d{2})?\s*(?:off|de\s+desconto)|cupom|cupon)/i.test(t)) continue;
-        // evita pegar containers grandes: precisa ter no máx. ~1 sub-elemento com o mesmo token
-        const inner = el.querySelectorAll('div,li,article,section');
-        let innerWithToken = 0;
-        inner.forEach((c) => { if (/(\d{1,3}\s*%|de\s+desconto|cupom)/i.test(txt(c))) innerWithToken++; });
-        if (innerWithToken <= 3) set.add(el);
-      }
-    }
-    return Array.from(set);
-  };
+  // "Em produtos de X" / "Em produtos selecionados" → loja/categoria
+  const subtitle = (full.match(/em\s+produtos\s+(?:de\s+)?[^·\n]{0,60}/i) || [null])[0];
+  const category = (titleTxt.match(/\b(?:em|de)\s+([A-Za-zÀ-ú][\w\s&-]{2,40})$/) || [null, null])[1] || (subtitle || '').replace(/^em\s+produtos\s+(?:de\s+)?/i, '').trim() || null;
 
-  const keyOf = (card, code) => (code && code.length >= 3) ? ('c:' + code) : ('t:' + txt(card).slice(0, 120));
+  const minValueRaw = (full.match(/compra\s+m[ií]nima[^\d]{0,6}R\$\s*([\d.]+(?:,\d{2})?)/i) || [null, null])[1];
+  const minValue = minValueRaw ? parseFloat(minValueRaw.replace(/\./g, '').replace(',', '.')) : null;
+  const limitRaw = (full.match(/limite\s+de\s+R\$\s*([\d.]+(?:,\d{2})?)/i) || [null, null])[1];
+  const expirationRaw = (full.match(/vence(?:\s+em)?\s+([^·\n]{2,40})/i) || [null, null])[1] || null;
 
-  const extractCard = async (card) => {
-    // tenta expandir condições/detalhes (só leitura — não cria cupom)
-    try {
-      const toggle = Array.from(card.querySelectorAll('a,button,[role="button"]'))
-        .find((b) => /ver\s+condi|condi[cç][oõ]es|detalhe|regras|termos/i.test(txt(b)));
-      if (toggle) { toggle.click(); await sleep(500); }
-    } catch (e) {}
-
-    const codeEl = card.querySelector('[class*="code" i], [data-testid*="code" i], [class*="__inner-content"] b, b, code');
-    let code = txt(codeEl).replace(/^#/, '').trim();
-    if (!(code && /[A-Z0-9]{4,}/i.test(code) && code.length <= 24)) {
-      const m = txt(card).match(/\b(?:cupom|c[oó]digo)[:\s]*([A-Z0-9]{4,20})\b/i) || txt(card).match(/\b([A-Z][A-Z0-9]{4,15})\b/);
-      code = m ? m[1] : '';
-    }
-    const full = txt(card);
-    const discountRaw = (full.match(/(\d{1,3}\s*%(?:\s*(?:off|de\s+desconto))?)/i) || full.match(/(R\$\s*[\d.]+(?:,\d{2})?\s*(?:off|de\s+desconto))/i) || [null])[0];
-    const d = parseDiscount(discountRaw);
-    const condEl = card.querySelector('[class*="condi" i], [class*="terms" i], [class*="rules" i], [class*="detail" i]');
-    const conditions = (txt(condEl) || full).slice(0, 600);
-    const expirationRaw = (full.match(/(?:v[aá]lido|válida|expira|at[eé]|termina)[^.]{0,40}?(\d{1,2}\s*[\/.]\s*\d{1,2}(?:\s*[\/.]\s*\d{2,4})?)/i) || full.match(/(\d{1,2}\s*de\s*[a-zç]{3,})/i) || [null, null])[1] || null;
-    const linkEl = card.querySelector('a[href*="mercadolivre"], a[href*="/cupons"], a[href*="produtos"], a[href]');
-    const catEl = card.querySelector('[class*="categor" i], [class*="store" i], [class*="loja" i]');
-    return {
-      platform: 'mercadolivre',
-      code: code || null,
-      discountRaw: discountRaw || null,
-      discountType: d.discountType, discountValue: d.discountValue,
-      minValue: parseMoney(full, /(?:compra\s+m[ií]nima|a\s+partir\s+de|m[ií]nimo\s+de)\s*(?:de\s*)?R\$\s*([\d.]+,\d{2})/i),
-      conditions,
-      expirationRaw,
-      validUntil: parseBrDate(expirationRaw),
-      category: txt(catEl) || null,
-      productsUrl: linkEl ? linkEl.href : null,
-      expired: /expirado|encerrado|indispon[ií]vel|esgotado/i.test(full),
-      rawText: full.slice(0, 500),
-    };
-  };
-
+  // Clica no "i" (mais informações) para abrir/ler as condições completas
+  let tipText = '';
   try {
-    const seen = new Set();
-    const scrapeVisible = async () => {
-      let added = 0;
-      const cards = collectCards();
-      result.debug.lastCardCount = cards.length;
-      for (const card of cards) {
-        const quickCode = txt(card.querySelector('[class*="code" i], b, code')).replace(/^#/, '').trim();
-        const k = keyOf(card, quickCode);
-        if (seen.has(k)) continue;
-        seen.add(k);
-        const c = await extractCard(card);
-        // ignora cards vazios (sem desconto e sem código)
-        if (!c.discountRaw && !c.code) continue;
-        result.coupons.push(c);
-        added++;
-      }
-      return added;
-    };
-
-    let iterations = 0;
-    let stagnant = 0;
-    while (iterations < 60 && stagnant < 3) {
-      iterations++;
-      await sleep(700);
-      const added = await scrapeVisible();
-      result.pages = iterations;
-
-      // 1) botão de paginação "próxima"
-      const next = document.querySelector('.andes-pagination [data-andes-pagination-control="next"], nav[aria-label*="agina" i] a[data-andes-pagination-control="next"], a[aria-label*="pr[oó]xim" i], button[aria-label*="pr[oó]xim" i]');
-      const nextLi = next && next.closest('li');
-      const nextDisabled = next && (next.getAttribute('aria-disabled') === 'true' || next.disabled || (nextLi && /disabled/.test(nextLi.className)));
-      if (next && !nextDisabled) { try { next.click(); await sleep(1600); stagnant = 0; continue; } catch (e) {} }
-
-      // 2) botão "carregar mais" / "ver mais"
-      const more = Array.from(document.querySelectorAll('button,a,[role="button"]'))
-        .find((b) => /carregar\s+mais|ver\s+mais|mostrar\s+mais|mais\s+cupons|load\s+more/i.test(txt(b)) && b.offsetParent !== null);
-      if (more) { try { more.click(); await sleep(1600); stagnant = 0; continue; } catch (e) {} }
-
-      // 3) scroll infinito: rola até o fim e espera surgir mais conteúdo
-      const beforeH = document.body.scrollHeight;
-      window.scrollTo(0, document.body.scrollHeight);
-      await sleep(1500);
-      const grew = document.body.scrollHeight > beforeH + 40;
-      if (grew || added > 0) { stagnant = 0; } else { stagnant++; }
+    const info = card.querySelector('[aria-label*="informa" i], [aria-label*="mais" i], button[class*="tooltip" i], [data-testid*="tooltip" i], [class*="tooltip__trigger" i], button svg[class*="info" i]');
+    const infoBtn = info ? (info.closest('button,[role="button"],a') || info) : null;
+    if (infoBtn) {
+      infoBtn.scrollIntoView({ block: 'center' });
+      infoBtn.click();
+      await sleep(550);
+      const tip = document.querySelector('[role="tooltip"], .andes-tooltip__content, [class*="tooltip__content" i], .andes-popover__content, [class*="popover__content" i]');
+      tipText = _cpTxt(tip);
+      // fecha o tooltip
+      try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); } catch (e) {}
+      try { infoBtn.click(); } catch (e) {}
+      await sleep(120);
     }
-    result.debug.iterations = iterations;
+  } catch (e) {}
+
+  const lowStock = /est[aá]\s+esgotando/i.test(full);
+  const expired = /esgotado|expirado|encerrado|indispon[ií]vel/i.test(full) && !lowStock;
+  const linkEl = card.closest('a[href]') || card.querySelector('a[href]');
+
+  const conditions = [subtitle, minValueRaw ? ('Compra mínima R$ ' + minValueRaw) : null, limitRaw ? ('Limite de R$ ' + limitRaw) : null, lowStock ? 'Está esgotando' : null, tipText].filter(Boolean).join(' · ') || null;
+
+  return {
+    platform: 'mercadolivre',
+    code: null,
+    discountRaw: discountRaw || null,
+    discountType, discountValue,
+    minValue,
+    conditions,
+    category,
+    expirationRaw,
+    validUntil: parseCouponDate(expirationRaw),
+    productsUrl: linkEl ? linkEl.href : null,
+    expired,
+    rawText: full.slice(0, 500),
+  };
+}
+
+async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const result = { coupons: [], nextHref: null, totalPages: null, pageNum, error: null };
+  try {
+    result.totalPages = detectTotalPages() || knownTotalPages || null;
+    const label = (p) => `Página ${pageNum}${result.totalPages ? '/' + result.totalPages : ''} — ${p}`;
+    showCouponProgress(label('carregando…'), runningTotal);
+
+    // Rola a página para o usuário ver e para carregar tudo
+    for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await sleep(110); }
+    window.scrollTo(0, 0); await sleep(350);
+
+    const cards = collectCouponCards();
+    result.totalPages = detectTotalPages() || result.totalPages;
+    result.nextHref = detectNextHref();
+
+    let i = 0;
+    for (const card of cards) {
+      i++;
+      try { card.scrollIntoView({ block: 'center' }); } catch (e) {}
+      showCouponProgress(label(`lendo cupom ${i}/${cards.length}`), runningTotal + result.coupons.length);
+      await sleep(90);
+      const c = await extractCouponCard(card);
+      if (c && (c.discountRaw || c.code)) result.coupons.push(c);
+    }
+    showCouponProgress(label(`${result.coupons.length} nesta página`), runningTotal + result.coupons.length);
     if (result.coupons.length === 0) {
-      // Ajuda de diagnóstico: amostra de classes de containers para eu refinar seletores
-      result.debug.sampleClasses = Array.from(document.querySelectorAll('[class*="coupon" i], [class*="cupom" i], .andes-card'))
-        .slice(0, 8).map((el) => el.className).filter(Boolean);
-      result.debug.url = location.href;
-      if (!result.error) result.error = 'Nenhum cupom reconhecido nesta página. Toque em "Copiar resultado" e me envie para eu ajustar os seletores.';
+      result.debug = {
+        url: location.href,
+        sampleClasses: Array.from(document.querySelectorAll('[class*="coupon" i], [class*="cupom" i], .andes-card')).slice(0, 6).map((el) => el.className).filter(Boolean),
+      };
     }
     return result;
   } catch (e) { result.error = (e && e.message) || String(e); return result; }
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.action === 'RUN_COUPON_EXTRACTION') {
-    extractMLCoupons().then(sendResponse).catch((e) => sendResponse({ coupons: [], error: (e && e.message) || String(e) }));
+  if (msg && msg.action === 'SCRAPE_COUPON_PAGE') {
+    scrapeCouponPage(msg.pageNum || 1, msg.runningTotal || 0, msg.totalPages || null)
+      .then(sendResponse)
+      .catch((e) => sendResponse({ coupons: [], error: (e && e.message) || String(e) }));
+    return true;
+  }
+  if (msg && msg.action === 'COUPON_DONE') {
+    showCouponProgress(`✅ Concluído: ${msg.found} cupons extraídos (${msg.pages} páginas) — enviados ao app`, msg.synced);
+    setTimeout(() => { const b = document.getElementById('am-coupon-progress'); if (b) b.remove(); }, 12000);
+    try { sendResponse({ ok: true }); } catch (e) {}
     return true;
   }
   return false;
@@ -3753,7 +3793,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.2';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.3';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `

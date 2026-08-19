@@ -510,9 +510,29 @@ async function syncCouponToFirestore(coupon, uid, idToken) {
 }
 
 const COUPON_URLS = {
-  // Cupons DISPONÍVEIS para usar (não os "meus cupons" criados por mim)
-  mercadolivre: 'https://www.mercadolivre.com.br/cupons',
+  // Página "ver todos" os cupons DISPONÍVEIS, com paginação numerada (1..N)
+  mercadolivre: 'https://www.mercadolivre.com.br/cupons/filter?all=true&source_page=int_view_all',
 };
+
+const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function _waitTabComplete(tabId, timeoutMs = 25000) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; try { chrome.tabs.onUpdated.removeListener(listener); } catch (e) {} resolve(); };
+    const listener = (id, info) => { if (id === tabId && info.status === 'complete') finish(); };
+    chrome.tabs.onUpdated.addListener(listener);
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+async function _scrapeCouponPage(tabId, payload) {
+  for (let i = 0; i < 4; i++) {
+    try { const r = await chrome.tabs.sendMessage(tabId, payload); if (r) return r; } catch (e) {}
+    await _sleep(1300);
+  }
+  return null;
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'EXTRACT_COUPONS') {
@@ -524,19 +544,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const state = (await chrome.storage.local.get(['affiliateMinerState'])).affiliateMinerState;
         if (!state || !state.uid || !state.idToken) { sendResponse({ success: false, error: 'Faça login no app pela extensão antes de extrair cupons.' }); return; }
         const tab = await chrome.tabs.create({ url, active: true });
-        await new Promise((resolve) => {
-          const listener = (tabId, info) => { if (tabId === tab.id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
-          chrome.tabs.onUpdated.addListener(listener);
-          setTimeout(resolve, 15000);
-        });
-        await new Promise((r) => setTimeout(r, 2500));
-        let res;
-        try { res = await chrome.tabs.sendMessage(tab.id, { action: 'RUN_COUPON_EXTRACTION' }); }
-        catch (e) { res = { coupons: [], error: 'Não consegui ler a página de cupons (' + e.message + '). Confirme que está logado no Mercado Livre.' }; }
-        const coupons = (res && res.coupons) || [];
+        await _waitTabComplete(tab.id, 25000);
+        await _sleep(2800);
+
+        const all = new Map();          // dedupe por código ou hash
+        let page = 0, nextUrl = url, totalPages = null, lastError = null;
+        const MAX_PAGES = 200;
+
+        while (nextUrl && page < MAX_PAGES) {
+          page++;
+          const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: all.size, totalPages });
+          if (!res) { lastError = 'Não consegui ler a página ' + page + '. Confirme que está logado no Mercado Livre.'; break; }
+          if (res.totalPages) totalPages = res.totalPages;
+          for (const c of (res.coupons || [])) {
+            const key = c.code ? ('c:' + c.code)
+              : ('h:' + _couponHash((c.discountRaw || '') + '|' + (c.conditions || '') + '|' + (c.expirationRaw || '')));
+            if (!all.has(key)) all.set(key, c);
+          }
+          nextUrl = res.nextHref || null;
+          if (nextUrl) {
+            await chrome.tabs.update(tab.id, { url: nextUrl });
+            await _waitTabComplete(tab.id, 25000);
+            await _sleep(1600);
+          }
+        }
+
+        const coupons = Array.from(all.values());
         let synced = 0;
         for (const c of coupons) { try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {} }
-        sendResponse({ success: true, found: coupons.length, synced, error: (res && res.error) || null });
+        try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_DONE', found: coupons.length, synced, pages: page }); } catch (e) {}
+        sendResponse({ success: true, found: coupons.length, synced, pages: page, totalPages, error: lastError });
       } catch (e) { sendResponse({ success: false, error: (e && e.message) || String(e) }); }
     })();
     return true;
