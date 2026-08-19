@@ -435,6 +435,9 @@ export function applyTemplate(
     '{cupomDesconto}': cupomStr,
     '{{cupom}}': cupomStr,
     '{{cupom_desconto}}': cupomStr,
+    '{codigo}': couponCode,
+    '{codigoCupom}': couponCode,
+    '{{codigo}}': couponCode,
 
     // Link de Afiliado
     '{linkAfiliado}': targetLink,

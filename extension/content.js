@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.3.6 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.4.0 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.6'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.0'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3345,14 +3345,77 @@ async function extractAffiliateLinkFlow() {
   }
 }
 
+// Modal de configuração da extração de cupons do Mercado Livre
+// (quantidade a criar + modo: só extrair / criar+extrair / só criar)
+function showMLCouponConfig() {
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+    ov.innerHTML = `
+      <div style="background:#0e1119;border:1px solid #1e2636;border-radius:16px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:18px;color:#eef2f9">
+        <div style="font-size:15px;font-weight:800;margin-bottom:4px">🎟️ Cupons do Mercado Livre</div>
+        <p style="font-size:12px;color:#93a0b5;margin-bottom:12px">Os cupons do hub do ML não têm código digitável — a extensão pode <b>criar cupons de afiliado</b> (com código) e depois extraí-los.</p>
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">Quantos criar?</div>
+        <div id="amc-qty" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+        <input id="amc-qty-custom" type="number" min="1" placeholder="ou digite a quantidade" style="width:100%;box-sizing:border-box;background:#0b0e15;border:1px solid #1e2636;border-radius:9px;padding:8px;color:#eef2f9;font-size:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">O que fazer?</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+          <button data-mode="extract" class="amc-mode" style="text-align:left;padding:10px;border-radius:9px;border:1px solid #1e2636;background:#151a26;color:#eef2f9;font-size:12px;cursor:pointer"><b>Só extrair</b> — lê os cupons/códigos que já existem</button>
+          <button data-mode="create_extract" class="amc-mode" style="text-align:left;padding:10px;border-radius:9px;border:1px solid #2563eb;background:#12203f;color:#eef2f9;font-size:12px;cursor:pointer"><b>Criar e extrair</b> — cria a quantidade acima e depois extrai (recomendado)</button>
+          <button data-mode="create" class="amc-mode" style="text-align:left;padding:10px;border-radius:9px;border:1px solid #1e2636;background:#151a26;color:#eef2f9;font-size:12px;cursor:pointer"><b>Só criar</b> — apenas cria os cupons</button>
+        </div>
+        <div style="background:#2a1a0e;border:1px solid #7c4a13;border-radius:9px;padding:9px;font-size:11px;color:#f59e0b;margin-bottom:12px">⚠️ <b>Atenção:</b> criar cupons em massa é automatizado no site do ML e, em excesso, pode acionar a proteção antifraude e <b>arriscar sua conta</b>. Criamos no máx. ~50/min. Use por sua conta e risco.</div>
+        <div style="display:flex;gap:8px">
+          <button id="amc-cancel" style="flex:1;padding:10px;border-radius:9px;border:1px solid #1e2636;background:#151a26;color:#93a0b5;font-weight:700;cursor:pointer">Cancelar</button>
+          <button id="amc-go" style="flex:2;padding:10px;border-radius:9px;border:none;background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a1a1a;font-weight:800;cursor:pointer">Continuar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    let qty = 20, mode = 'create_extract';
+    const qtyBox = ov.querySelector('#amc-qty');
+    [10, 20, 30, 40, 50, 100, 500, 'todos'].forEach((v) => {
+      const b = document.createElement('button');
+      b.textContent = v === 'todos' ? 'Todos' : v;
+      b.style.cssText = 'padding:6px 10px;border-radius:8px;border:1px solid #1e2636;background:#151a26;color:#eef2f9;font-size:12px;font-weight:700;cursor:pointer';
+      if (v === 20) b.style.borderColor = '#f59e0b';
+      b.onclick = () => { qty = v === 'todos' ? 999999 : v; qtyBox.querySelectorAll('button').forEach((x) => x.style.borderColor = '#1e2636'); b.style.borderColor = '#f59e0b'; const ci = ov.querySelector('#amc-qty-custom'); ci.value = ''; };
+      qtyBox.appendChild(b);
+    });
+    ov.querySelector('#amc-qty-custom').oninput = (e) => { const n = parseInt(e.target.value, 10); if (n > 0) qty = n; };
+    const modeBtns = ov.querySelectorAll('.amc-mode');
+    modeBtns.forEach((b) => b.onclick = () => { mode = b.getAttribute('data-mode'); modeBtns.forEach((x) => x.style.borderColor = '#1e2636'); b.style.borderColor = '#2563eb'; });
+    ov.querySelector('#amc-cancel').onclick = () => { ov.remove(); resolve(null); };
+    ov.querySelector('#amc-go').onclick = () => { ov.remove(); resolve({ quantity: qty, mode }); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) { ov.remove(); resolve(null); } });
+  });
+}
+
 // Botão genérico "Extrair cupons" do painel — detecta a plataforma sozinho
 async function extractCouponsFlow() {
   const platform = getPlatformKey();
   const NAMES = { mercadolivre: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', tiktokshop: 'TikTok Shop', aliexpress: 'AliExpress', shein: 'Shein' };
-  const SUPPORTED = ['mercadolivre'];
+  const SUPPORTED = ['mercadolivre', 'shopee', 'amazon'];
   if (!SUPPORTED.includes(platform)) {
-    showAffiliateResult('Cupons', false, `<p>A extração de cupons ainda não está disponível para <b>${escapeHtmlAff(NAMES[platform] || platform)}</b>. Por enquanto só o <b>Mercado Livre</b> é suportado — abra uma página do Mercado Livre e toque em "Extrair cupons".</p>`, '');
+    showAffiliateResult('Cupons', false, `<p>A extração de cupons ainda não está disponível para <b>${escapeHtmlAff(NAMES[platform] || platform)}</b>. Por enquanto: <b>Mercado Livre</b>, <b>Shopee</b> e <b>Amazon</b>.</p>`, '');
     return;
+  }
+  // Mercado Livre: pergunta se quer criar códigos antes de extrair
+  if (platform === 'mercadolivre') {
+    const cfg = await showMLCouponConfig();
+    if (!cfg) return;
+    if (cfg.mode === 'create' || cfg.mode === 'create_extract') {
+      showAffiliateResult('Criando cupons…', null, `<div style="padding:16px;text-align:center;color:#93a0b5">Abrindo o painel de afiliados e criando até <b>${cfg.quantity >= 999999 ? 'todos' : cfg.quantity}</b> cupom(ns). Você vai ver acontecendo na aba que abrir. Não feche a aba.</div>`, '');
+      const r = await new Promise((resolve) => {
+        try { chrome.runtime.sendMessage({ action: 'CREATE_ML_COUPONS', platform, quantity: cfg.quantity, mode: cfg.mode }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta' })); }
+        catch (e) { resolve({ success: false, error: (e && e.message) || String(e) }); }
+      });
+      const raw = JSON.stringify(r, null, 2);
+      const diag = `<hr style="border-color:#1e2636;margin:10px 0"><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
+      if (r && r.success) showAffiliateResult('Cupons ✓', true, `<p>Criados: <b>${r.created || 0}</b>. Extraídos/enviados: <b>${r.synced || 0}</b>.</p>${diag}`, raw);
+      else showAffiliateResult('Cupons ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Falhou.')}</p>${diag}`, raw);
+      return;
+    }
+    // cfg.mode === 'extract' cai no fluxo de extração normal abaixo
   }
   showAffiliateResult('Extraindo cupons…', null, `<div style="padding:16px;text-align:center;color:#93a0b5">Abrindo a página de <b>cupons disponíveis</b> do ${escapeHtmlAff(NAMES[platform] || platform)} e lendo cada cupom (ID, condições, validade e valor mínimo), passando por todas as páginas até o final. Cada cupom é <b>enviado ao app na hora</b>, então nada se perde. Você pode tocar em <b>⏸ Pausar e enviar</b> na aba que abrir; da próxima vez, a extração <b>continua de onde parou</b>. Não feche a aba enquanto roda.</div>`, '');
   try {
@@ -3645,7 +3708,53 @@ async function scrapeCouponPage(pageNum, runningTotal, knownTotalPages, estTotal
   } catch (e) { result.error = (e && e.message) || String(e); return result; }
 }
 
+// Criação automática de cupons de afiliado no ML (best-effort — depende do HTML
+// do painel; emite diagnóstico se não encontrar os campos, para eu ajustar).
+async function createMLCouponsInPage(quantity) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const result = { created: 0, error: null, debug: {} };
+  const randCode = () => 'AF' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  try {
+    if (!/\/afiliados\/coupons/i.test(location.href)) { result.error = 'Abra o painel de cupons de afiliado do Mercado Livre.'; return result; }
+    const findCreateBtn = () => Array.from(document.querySelectorAll('button,a,[role="button"]'))
+      .find((b) => /criar\s+cupom|novo\s+cupom|gerar\s+cupom|adicionar\s+cupom|criar\s+c[oó]digo|\+\s*cupom/i.test(_cpTxt(b)) && b.offsetParent !== null);
+    const createBtn0 = findCreateBtn();
+    if (!createBtn0) {
+      result.error = 'Não achei o botão de "Criar cupom" no painel. Toque em "Copiar resultado" e me mande para eu ajustar (preciso ver esse painel).';
+      result.debug.buttons = Array.from(document.querySelectorAll('button,a[role="button"],a')).slice(0, 30).map((b) => _cpTxt(b)).filter(Boolean);
+      return result;
+    }
+    const target = Math.min(quantity, 100000);
+    for (let i = 0; i < target; i++) {
+      showCouponProgress(`Criando cupom ${i + 1}/${target >= 100000 ? 'todos' : target}…`, result.created);
+      const btn = findCreateBtn();
+      if (!btn) { result.error = 'Botão de criar sumiu após ' + result.created + ' cupons.'; break; }
+      try { btn.click(); } catch (e) {}
+      // espera o formulário/modal
+      let form = null;
+      for (let k = 0; k < 16; k++) { await sleep(220); form = document.querySelector('form, [role="dialog"], .andes-modal--active, [class*="modal--active" i]'); if (form && form.querySelector('input,textarea')) break; }
+      if (!form) { if (i === 0) { result.error = 'O formulário de criação não abriu. Me mande o "Copiar resultado".'; result.debug.afterClick = document.body.innerText.slice(0, 300); break; } else continue; }
+      // preenche nome/código
+      const nameInput = form.querySelector('input[name*="name" i], input[placeholder*="nome" i], input[type="text"]');
+      if (nameInput) { nameInput.focus(); nameInput.value = randCode(); nameInput.dispatchEvent(new Event('input', { bubbles: true })); nameInput.dispatchEvent(new Event('change', { bubbles: true })); }
+      await sleep(200);
+      // submete
+      const submit = Array.from(form.querySelectorAll('button,[role="button"]')).find((b) => /criar|confirmar|salvar|gerar|aplicar/i.test(_cpTxt(b)) && b.offsetParent !== null && !/cancelar/i.test(_cpTxt(b)));
+      if (submit) { try { submit.click(); result.created++; } catch (e) {} }
+      // fecha eventual modal de sucesso e espera (ritmo ~50/min → ~1.2s)
+      await sleep(1300);
+      closeOpenModal();
+      await sleep(200);
+    }
+    return result;
+  } catch (e) { result.error = (e && e.message) || String(e); return result; }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.action === 'RUN_ML_COUPON_CREATE') {
+    createMLCouponsInPage(msg.quantity || 20).then(sendResponse).catch((e) => sendResponse({ created: 0, error: (e && e.message) || String(e) }));
+    return true;
+  }
   if (msg && msg.action === 'SCRAPE_COUPON_PAGE') {
     scrapeCouponPage(msg.pageNum || 1, msg.runningTotal || 0, msg.totalPages || null, msg.estTotal || null)
       .then(sendResponse)
@@ -3883,7 +3992,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.3.6';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.0';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `

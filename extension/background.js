@@ -549,7 +549,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'EXTRACT_COUPONS') {
     const platform = msg.platform || 'mercadolivre';
     const url = COUPON_URLS[platform];
-    if (!url) { sendResponse({ success: false, error: 'Extração de cupons ainda não disponível para esta plataforma.' }); return true; }
+    // Shopee/Amazon (sem URL fixa conhecida): extrai a ABA ATUAL onde o usuário está
+    // (ele deve estar na página de cupons/vouchers da loja). ML usa a URL do hub.
+    const useCurrentTab = !url && sender.tab && sender.tab.id;
+    if (!url && !useCurrentTab) { sendResponse({ success: false, error: 'Abra a página de cupons desta loja e toque em "Extrair cupons" de novo (extração pela aba atual).' }); return true; }
     (async () => {
       try {
         _couponAbort = false;
@@ -558,17 +561,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         // Retoma de onde parou (se houver progresso pausado recente, < 6h) — a menos que peça reinício
         const prev = (await chrome.storage.local.get('couponResume')).couponResume;
-        const canResume = !msg.fresh && prev && prev.url && prev.platform === platform && (Date.now() - (prev.ts || 0) < 6 * 3600 * 1000);
+        const canResume = !useCurrentTab && !msg.fresh && prev && prev.url && prev.platform === platform && (Date.now() - (prev.ts || 0) < 6 * 3600 * 1000);
         let startUrl = canResume ? prev.url : url;
         let synced = canResume ? (prev.synced || 0) : 0;
         let page = canResume ? (prev.page || 0) : 0;
         let totalPages = canResume ? (prev.totalPages || null) : null;
         let totalCoupons = canResume ? (prev.totalCoupons || null) : null;
 
-        const tab = await chrome.tabs.create({ url: canResume ? startUrl : (COUPON_ENTRY_URLS[platform] || url), active: true });
-        await _waitTabComplete(tab.id, 25000);
-        await _sleep(2500);
-        if (!canResume && COUPON_ENTRY_URLS[platform]) {
+        const tab = useCurrentTab ? { id: sender.tab.id } : await chrome.tabs.create({ url: canResume ? startUrl : (COUPON_ENTRY_URLS[platform] || url), active: true });
+        if (!useCurrentTab) { await _waitTabComplete(tab.id, 25000); await _sleep(2500); }
+        if (!useCurrentTab && !canResume && COUPON_ENTRY_URLS[platform]) {
           // Passo 2: do hub para a página "ver todos" (paginada)
           await chrome.tabs.update(tab.id, { url });
           await _waitTabComplete(tab.id, 25000);
@@ -576,7 +578,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
 
         const seen = new Set();
-        let nextUrl = startUrl, estTotal = totalCoupons, perPage = 0, lastError = null, paused = false;
+        let nextUrl = startUrl || 'current', estTotal = totalCoupons, perPage = 0, lastError = null, paused = false;
         const MAX_PAGES = 300;
 
         while (nextUrl && page < MAX_PAGES) {
@@ -615,6 +617,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_DONE', found: synced, synced, pages: page }); } catch (e) {}
           sendResponse({ success: true, found: synced, synced, pages: page, totalPages, estTotal, error: lastError });
         }
+      } catch (e) { sendResponse({ success: false, error: (e && e.message) || String(e) }); }
+    })();
+    return true;
+  }
+  if (msg.action === 'CREATE_ML_COUPONS') {
+    (async () => {
+      try {
+        _couponAbort = false;
+        const state = (await chrome.storage.local.get(['affiliateMinerState'])).affiliateMinerState;
+        if (!state || !state.uid || !state.idToken) { sendResponse({ success: false, error: 'Faça login no app pela extensão antes de criar cupons.' }); return; }
+        const quantity = Math.max(1, Math.min(100000, msg.quantity || 20));
+        const mode = msg.mode || 'create_extract';
+        const hub = 'https://www.mercadolivre.com.br/afiliados/coupons#hub';
+        const tab = await chrome.tabs.create({ url: hub, active: true });
+        await _waitTabComplete(tab.id, 25000);
+        await _sleep(3000);
+
+        // Criação dirigida pela página (best-effort). Respeita ~50/min lá dentro.
+        let created = 0, createErr = null, createDebug = null;
+        const cr = await _scrapeCouponPage(tab.id, { action: 'RUN_ML_COUPON_CREATE', quantity });
+        if (cr) { created = cr.created || 0; createErr = cr.error || null; createDebug = cr.debug || null; }
+        else createErr = 'Sem resposta da página ao criar cupons.';
+
+        // Extrai (se o modo pedir) — navega para "códigos gerados" e raspa
+        let synced = 0;
+        if (mode === 'create_extract') {
+          await chrome.tabs.update(tab.id, { url: 'https://www.mercadolivre.com.br/afiliados/coupons#hub' });
+          await _waitTabComplete(tab.id, 25000);
+          await _sleep(2500);
+          const seen = new Set();
+          let nextUrl = 'current', page = 0;
+          while (nextUrl && page < 60) {
+            if (_couponAbort) break;
+            page++;
+            const res = await _scrapeCouponPage(tab.id, { action: 'SCRAPE_COUPON_PAGE', pageNum: page, runningTotal: synced, generatedTab: true });
+            if (!res) break;
+            for (const c of (res.coupons || [])) {
+              const key = c.couponId ? ('id:' + c.couponId) : c.code ? ('c:' + c.code) : ('h:' + _couponHash((c.discountRaw || '') + '|' + (c.rawText || '')));
+              if (seen.has(key)) continue;
+              seen.add(key);
+              try { await syncCouponToFirestore(c, state.uid, state.idToken); synced++; } catch (e) {}
+            }
+            nextUrl = res.nextHref || null;
+            if (nextUrl) { await chrome.tabs.update(tab.id, { url: nextUrl }); await _waitTabComplete(tab.id, 25000); await _sleep(1500); }
+          }
+        }
+        try { await chrome.tabs.sendMessage(tab.id, { action: 'COUPON_DONE', found: created, synced, pages: 0 }); } catch (e) {}
+        sendResponse({ success: !createErr || created > 0, created, synced, error: createErr, debug: createDebug });
       } catch (e) { sendResponse({ success: false, error: (e && e.message) || String(e) }); }
     })();
     return true;

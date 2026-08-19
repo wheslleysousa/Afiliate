@@ -36,8 +36,38 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState('all');
   const [search, setSearch] = useState('');
-  const [showExpired, setShowExpired] = useState(false);
+  const [status, setStatus] = useState<'active' | 'expired' | 'all'>('active');
   const [copied, setCopied] = useState<string | null>(null);
+  const [bridgeMsg, setBridgeMsg] = useState<string>('');
+  const [extPresent, setExtPresent] = useState(false);
+
+  // Ponte com a extensão (ela injeta bridge.js no domínio do app)
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d: any = e.data;
+      if (!d) return;
+      if (d.__afiliateExt === true) setExtPresent(true);
+      if (d.__afiliateAck === true) {
+        if (d.ok && d.resp) {
+          setBridgeMsg(d.resp.paused ? `⏸ Pausado: ${d.resp.synced || 0} cupons já enviados.` : `✅ ${d.resp.synced || 0} cupons atualizados na extensão.`);
+        } else {
+          setBridgeMsg(`❌ ${(d.resp && d.resp.error) || 'A extensão não conseguiu extrair. Confirme login na extensão.'}`);
+        }
+        setTimeout(() => setBridgeMsg(''), 12000);
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const updateCoupons = () => {
+    const plat = platform === 'all' ? 'mercadolivre' : platform;
+    setBridgeMsg('Enviando pedido à extensão… a aba da loja vai abrir. Não feche a aba enquanto extrai.');
+    window.postMessage({ __afiliate: true, action: 'EXTRACT_COUPONS', platform: plat }, '*');
+    setTimeout(() => {
+      if (!extPresent) setBridgeMsg('⚠️ Extensão não detectada aqui. Instale/ative a extensão Affiliate Miner e faça login nela — ou abra a loja e use o botão "Extrair cupons" no menu flutuante.');
+    }, 2500);
+  };
 
   useEffect(() => {
     if (!uid) { setLoading(false); return; }
@@ -52,16 +82,17 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
   const filtered = useMemo(() => {
     return coupons
       .filter((c) => (platform === 'all' ? true : c.platform === platform))
-      .filter((c) => (showExpired ? true : !isExpired(c)))
+      .filter((c) => (status === 'all' ? true : status === 'expired' ? isExpired(c) : !isExpired(c)))
       .filter((c) => {
         if (!search.trim()) return true;
         const s = search.toLowerCase();
         return (c.code || '').toLowerCase().includes(s) || (c.couponId || '').toLowerCase().includes(s) || (c.category || '').toLowerCase().includes(s) || (c.discountRaw || '').toLowerCase().includes(s) || (c.conditions || '').toLowerCase().includes(s);
       })
       .sort((a, b) => (isExpired(a) === isExpired(b) ? 0 : isExpired(a) ? 1 : -1));
-  }, [coupons, platform, showExpired, search]);
+  }, [coupons, platform, status, search]);
 
   const activeCount = coupons.filter((c) => !isExpired(c)).length;
+  const expiredCount = coupons.length - activeCount;
 
   const copyCode = (code: string) => {
     navigator.clipboard?.writeText(code);
@@ -83,20 +114,34 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ uid, onNavigateToExtensi
           <h3 className="text-base font-extrabold text-white">Cupons</h3>
           <span className="ml-auto text-xs text-[#93a0b5]"><b className="text-emerald-400">{activeCount}</b> ativos · {coupons.length} no total</span>
         </div>
-        <p className="text-xs text-[#93a0b5]">Cupons extraídos pela extensão. Use a extensão na página de cupons de afiliado de cada loja para extraí-los; eles aparecem aqui e são aplicados automaticamente aos produtos que batem com as regras.</p>
-        <button onClick={onNavigateToExtension} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] text-xs font-bold transition-colors">
-          <Puzzle className="w-3.5 h-3.5 text-blue-400" /> Como extrair cupons
-        </button>
+        <p className="text-xs text-[#93a0b5]">Cupons extraídos pela extensão. Clique em <b className="text-white">Atualizar cupons</b> para a extensão abrir a loja e ler todos ao vivo — eles aparecem aqui e são aplicados automaticamente aos produtos que batem com as regras.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={updateCoupons} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-[#1a1a1a] text-xs font-extrabold transition-colors">
+            <RefreshCw className="w-3.5 h-3.5" /> Atualizar cupons
+          </button>
+          <button onClick={onNavigateToExtension} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#151a26] hover:bg-[#1e2636] border border-[#1e2636] text-[#eef2f9] text-xs font-bold transition-colors">
+            <Puzzle className="w-3.5 h-3.5 text-blue-400" /> Como funciona
+          </button>
+        </div>
+        {bridgeMsg && <div className="mt-2 text-[11px] text-amber-300">{bridgeMsg}</div>}
       </div>
 
-      {/* Filtros */}
+      {/* Status: Ativos / Expirados / Todos */}
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          { k: 'active', label: `Ativos (${activeCount})` },
+          { k: 'expired', label: `Expirados (${expiredCount})` },
+          { k: 'all', label: `Todos (${coupons.length})` },
+        ] as const).map((s) => (
+          <button key={s.k} onClick={() => setStatus(s.k)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${status === s.k ? (s.k === 'expired' ? 'border-red-500 bg-red-500/10 text-red-300' : 'border-emerald-500 bg-emerald-500/10 text-emerald-300') : 'border-[#1e2636] text-[#93a0b5] hover:text-white'}`}>{s.label}</button>
+        ))}
+      </div>
+
+      {/* Plataforma */}
       <div className="flex flex-wrap items-center gap-2">
         {PLATFORMS.map((p) => (
           <button key={p.key} onClick={() => setPlatform(p.key)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${platform === p.key ? 'border-blue-500 bg-blue-500/10 text-blue-300' : 'border-[#1e2636] text-[#93a0b5] hover:text-white'}`}>{p.label}</button>
         ))}
-        <label className="flex items-center gap-1.5 ml-auto text-xs text-[#93a0b5] cursor-pointer select-none">
-          <input type="checkbox" checked={showExpired} onChange={(e) => setShowExpired(e.target.checked)} className="accent-blue-500" /> Mostrar expirados
-        </label>
       </div>
 
       <div className="relative">
