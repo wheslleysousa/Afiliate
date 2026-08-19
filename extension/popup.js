@@ -566,6 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sales_count:  product.sales_count || formatSalesNum(product.sales),
       discount_pct: product.discount_pct || product.discountPercent || null,
       original_link:url,
+      affiliate_link: product.affiliate_link || null,
       miners:       [state.uid],
       mineCount:    1,
       firstMinedAt: now,
@@ -601,6 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (doc.sales_count)          patch.sales_count = doc.sales_count;
       if (doc.discount_pct != null) patch.discount_pct = doc.discount_pct;
       if (doc.free_shipping)        patch.free_shipping = doc.free_shipping;
+      if (doc.affiliate_link)       patch.affiliate_link = doc.affiliate_link;
 
       const mask = Object.keys(patch).map(f => `updateMask.fieldPaths=${f}`).join('&');
       await fetch(`${FS_BASE}/products/${globalId}?${mask}`, {

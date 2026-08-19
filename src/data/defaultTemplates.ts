@@ -496,5 +496,8 @@ export function applyTemplate(
     .filter((line) => line !== '')
     .join('\n');
 
+  // Colapsa "R$ R$" duplicado (quando o template já tem "R$" antes do valor formatado)
+  text = text.replace(/R\$\s*R\$/g, 'R$');
+
   return text;
 }
