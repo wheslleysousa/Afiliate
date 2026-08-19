@@ -3359,6 +3359,17 @@ async function processAndFilterProduct(product, manual = false) {
       if (!mlAff) mlAff = await generateMercadoLivreAffiliateLink(product.original_link || product.link);
       if (mlAff) product.affiliate_link = mlAff;
     }
+
+    // Amazon: gera o link curto (amzn.to) na hora da mineração, via API interna (MAIN world)
+    if (product && product.platform === 'amazon' && !product.affiliate_link) {
+      try {
+        const r = await new Promise((resolve) => {
+          try { chrome.runtime.sendMessage({ action: 'GENERATE_AMAZON_LINK', url: (product.original_link || product.link || '').split('#')[0] }, (resp) => resolve(resp || null)); }
+          catch (e) { resolve(null); }
+        });
+        if (r && r.success && r.short_link) product.affiliate_link = r.short_link;
+      } catch (e) { /* ignore */ }
+    }
   } catch (e) { /* mantém sem link de afiliado */ }
 
   // CRITICAL REQUIREMENT: Se for clique MANUAL (manual = true), BYPASS nos filtros de qualidade!

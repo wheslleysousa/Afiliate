@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
 import { extractCleanTrackingId } from '../utils/affiliateLink';
-import { getApiUrl } from '../utils/apiBase';
+import { getApiUrl, apiFetch } from '../utils/apiBase';
 import { 
   AlarmSettings, 
   getAlarmSettings, 
@@ -109,6 +109,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [shopeeEditSecret, setShopeeEditSecret] = useState(initialApiKeys.shopeeSecret || '');
   const [isEditingShopeeApi, setIsEditingShopeeApi] = useState(!initialApiKeys.shopeeAppId);
   const [shopeeFeedback, setShopeeFeedback] = useState(false);
+  const [awinTest, setAwinTest] = useState<{ loading: boolean; ok: boolean | null; msg: string; stores: { id: string; name: string }[] }>({ loading: false, ok: null, msg: '', stores: [] });
+
+  const handleTestAwin = async () => {
+    setAwinTest({ loading: true, ok: null, msg: '', stores: [] });
+    try {
+      const res = await apiFetch('/api/awin/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publisherId: keys.awinPublisherId, apiToken: keys.awinApiToken }),
+        action: 'Testar conexão Awin',
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setAwinTest({ loading: false, ok: true, msg: `Conectado! ${json.count} loja(s) aprovada(s).`, stores: json.advertisers || [] });
+      } else {
+        setAwinTest({ loading: false, ok: false, msg: json.error || 'Falha na conexão.', stores: [] });
+      }
+    } catch (e: any) {
+      setAwinTest({ loading: false, ok: false, msg: e?.message || 'Erro ao conectar.', stores: [] });
+    }
+  };
   const [affiliatesSavedFeedback, setAffiliatesSavedFeedback] = useState(false);
   const [editingPlatforms, setEditingPlatforms] = useState<Record<string, boolean>>({});
   const [revealedPlatforms, setRevealedPlatforms] = useState<Record<string, boolean>>({});
@@ -966,6 +987,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             <ExternalLink className="w-3.5 h-3.5" />
                             <span>{plat.connectButtonText || `Conectar Conta Oficial ${plat.title}`}</span>
                           </a>
+                        ) : plat.id === 'awin' ? (
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-bold text-[#93a0b5] uppercase">API Token da Awin</label>
+                            <input
+                              type={isRevealed ? 'text' : 'password'}
+                              placeholder="Cole o API Token do painel Awin"
+                              value={(keys.awinApiToken as string) || ''}
+                              onChange={(e) => setKeys({ ...keys, awinApiToken: e.target.value.trim() })}
+                              className="w-full px-3 py-2 bg-[#151a26] border border-purple-500/30 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleTestAwin}
+                              disabled={awinTest.loading || !keys.awinPublisherId || !keys.awinApiToken}
+                              className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+                            >
+                              {awinTest.loading ? 'Testando...' : 'Testar conexão Awin'}
+                            </button>
+                            {awinTest.ok === true && (
+                              <div className="text-[10px] text-emerald-400 font-bold">
+                                ✓ {awinTest.msg}
+                                {awinTest.stores.length > 0 && (
+                                  <div className="mt-1 max-h-28 overflow-y-auto text-[#93a0b5] font-normal">
+                                    {awinTest.stores.map((s) => <div key={s.id}>• {s.name} <span className="text-[#4b5872]">(#{s.id})</span></div>)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {awinTest.ok === false && <p className="text-[10px] text-red-400 font-bold">✗ {awinTest.msg}</p>}
+                            <p className="text-[9px] text-[#4b5872]">Salve as configurações depois de testar. Lojas "Pendente" na Awin só pagam comissão após aprovadas.</p>
+                          </div>
                         ) : (
                           <p className="text-[10px] text-[#93a0b5] italic">
                             Conexão de conta oficial indisponível para esta plataforma.
