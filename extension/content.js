@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v1.0.4</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.2.2'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -3351,7 +3351,8 @@ async function processAndFilterProduct(product, manual = false) {
       let mlAff = null;
       try {
         const r = await new Promise((resolve) => {
-          try { chrome.runtime.sendMessage({ action: 'GENERATE_ML_LINK', url: product.original_link || product.link }, (resp) => resolve(resp || null)); }
+          const mlUrl = (product.original_link && /^https?:\/\//.test(product.original_link)) ? product.original_link : window.location.href;
+          try { chrome.runtime.sendMessage({ action: 'GENERATE_ML_LINK', url: mlUrl }, (resp) => resolve(resp || null)); }
           catch (e) { resolve(null); }
         });
         if (r && r.success && r.short_link) mlAff = r.short_link;
@@ -3364,7 +3365,8 @@ async function processAndFilterProduct(product, manual = false) {
     if (product && product.platform === 'amazon' && !product.affiliate_link) {
       try {
         const r = await new Promise((resolve) => {
-          try { chrome.runtime.sendMessage({ action: 'GENERATE_AMAZON_LINK', url: (product.original_link || product.link || '').split('#')[0] }, (resp) => resolve(resp || null)); }
+          const azUrl = ((product.original_link && /^https?:\/\//.test(product.original_link)) ? product.original_link : window.location.href).split('#')[0];
+          try { chrome.runtime.sendMessage({ action: 'GENERATE_AMAZON_LINK', url: azUrl }, (resp) => resolve(resp || null)); }
           catch (e) { resolve(null); }
         });
         if (r && r.success && r.short_link) product.affiliate_link = r.short_link;
