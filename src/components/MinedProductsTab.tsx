@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   collection,
   query,
@@ -7,9 +7,11 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  setDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { apiFetch } from '../utils/apiBase';
 import type { MinedProductRef, GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
 import { ProductDetailModal } from './ProductDetailModal';
 import { PriceBlock } from './PriceBlock';
@@ -148,6 +150,71 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
       unsubscribe();
     };
   }, [uid]);
+
+  // ── Verificação automática: mesmo que a extensão mande dados errados, ao chegar
+  // no app cada produto passa pela API (scrape/afiliado) e o que fica SALVO é o
+  // que a API retornou — preço, imagem, vendas, comissão e o LINK CURTO. ──────────
+  const verifyingRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!uid || !items.length) return;
+    // pega os que ainda não foram verificados (prioriza Shopee e os sem preço antigo)
+    const pending = items.filter((it) => {
+      const pd = it.productData;
+      if (!pd || !pd.original_link) return false;
+      if (verifyingRef.current.has(it.productId)) return false;
+      if (pd.verifiedByApi) return false;
+      const plat = (pd.platform || '').toLowerCase();
+      return plat === 'shopee' || !pd.price_from; // shopee sempre; outros só se faltar preço antigo
+    }).slice(0, 4); // no máx. 4 por rodada para não sobrecarregar
+
+    if (!pending.length) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const it of pending) {
+        if (cancelled) break;
+        verifyingRef.current.add(it.productId);
+        const pd = it.productData as GlobalProduct;
+        try {
+          const resp = await apiFetch('/api/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: pd.original_link, apiKeys: apiKeys || {} }),
+          });
+          if (!resp.ok) continue;
+          const raw = await resp.json();
+          const s: any = (raw && raw.data) ? raw.data : raw;
+          if (!s || s.error || !(s.title || s.price_to)) continue;
+          const updates: Partial<GlobalProduct> = {
+            title: s.title || pd.title,
+            image_url: s.image_url || pd.image_url,
+            pictures: (Array.isArray(s.pictures) && s.pictures.length) ? s.pictures : pd.pictures,
+            price_to: s.price_to || pd.price_to,
+            price_from: s.price_from || pd.price_from,
+            pix_price: s.pix_price ?? pd.pix_price ?? null,
+            discount_pct: s.discount_pct ?? pd.discount_pct ?? null,
+            stars: (s.stars !== undefined && s.stars !== null) ? s.stars : pd.stars,
+            sales_count: (s.sales_count !== undefined && s.sales_count !== null) ? s.sales_count : pd.sales_count,
+            category: s.category || pd.category,
+            commission_rate: s.commission_rate ?? pd.commission_rate ?? null,
+            commission_amount: s.commission_amount ?? pd.commission_amount ?? null,
+            // Link de afiliado CURTO (s.shopee/meli.la/amzn.to) — nunca o link longo
+            affiliate_link: s.affiliate_link || pd.affiliate_link || null,
+            verifiedByApi: true,
+            lastVerifiedAt: new Date().toISOString(),
+          };
+          await setDoc(doc(db, 'products', it.productId), updates, { merge: true });
+          if (!cancelled) {
+            setItems((prev) => prev.map((x) => x.productId === it.productId
+              ? { ...x, productData: { ...(x.productData as GlobalProduct), ...updates } }
+              : x));
+          }
+        } catch { /* segue para o próximo */ }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [items, uid, apiKeys]);
 
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<EnrichedMinedProduct | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);

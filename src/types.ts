@@ -183,6 +183,8 @@ export interface GlobalProduct {
   commission_amount?: number | null;
   sales_trend_pct?: number | null;
   affiliate_link?: string | null;
+  verifiedByApi?: boolean;      // já passou pela verificação/enriquecimento via API
+  lastVerifiedAt?: string;
 }
 
 /** Entrada no histórico de preço de um produto do marketplace */

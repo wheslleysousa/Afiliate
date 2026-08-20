@@ -4117,6 +4117,9 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       discount_pct: data.discount_pct ?? discount_pct,
       original_link: finalLink,
       affiliate_link: data.affiliate_link || finalLink || null,
+      commission_rate: data.commission_rate ?? null,
+      commission_amount: data.commission_amount ?? null,
+      category: data.category || null,
       updated_ml_keys: data.updated_ml_keys || null
     });
 
