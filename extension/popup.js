@@ -1,4 +1,4 @@
-/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.4)
+/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.5)
    MUDANÇAS recentes:
    - Login agora usa Firebase Auth real (REST API)
    - "Enviar Todos" agora sincroniza com Firestore real
@@ -71,13 +71,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let userCategories = [];
 
   async function loadCategories() {
-    if (!state.isLoggedIn || !state.uid) return;
+    const setHint = (msg) => { if (categoryEmpty) { categoryEmpty.style.display = 'block'; categoryEmpty.textContent = msg; } };
+    if (!state.isLoggedIn || !state.uid) { setHint('Faça login na extensão para carregar suas categorias.'); return; }
     try {
       // usa token válido (renova se expirado) — senão o fetch dava 401 e sumia tudo
       let token = state.idToken;
-      try { token = await ensureValidToken(); } catch (e) {}
-      const res = await fetch(`${FS_BASE}/users/${state.uid}/userCategories`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) { if (categoryEmpty) { categoryEmpty.style.display = 'block'; categoryEmpty.textContent = 'Não consegui carregar categorias (toque em Recarregar). Crie categorias no app em Meus Produtos.'; } return; }
+      try { token = await ensureValidToken(); } catch (e) { setHint('Sessão expirada — saia e entre de novo na extensão. (' + ((e && e.message) || 'sem refresh') + ')'); return; }
+      const url = `${FS_BASE}/users/${state.uid}/userCategories?pageSize=100`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        let detail = '';
+        try { const j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
+        setHint(`Erro ao carregar categorias (HTTP ${res.status}${detail ? ' - ' + detail.slice(0, 80) : ''}). uid: ${String(state.uid).slice(0, 6)}…`);
+        return;
+      }
       const json = await res.json();
       userCategories = (json.documents || []).map((d) => {
         const id = d.name.split('/').pop();
@@ -89,8 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const ids = userCategories.map((c) => c.id);
         state.selectedCategories = state.selectedCategories.filter((x) => ids.includes(x));
       }
+      if (!userCategories.length) {
+        setHint(`Nenhuma categoria encontrada nesta conta (uid: ${String(state.uid).slice(0, 6)}…). Crie no app em Meus Produtos e toque em Recarregar.`);
+      }
       renderCategoryChips();
-    } catch (e) {}
+    } catch (e) { setHint('Falha de rede ao carregar categorias: ' + ((e && e.message) || 'erro')); }
   }
 
   function renderCategoryChips() {
@@ -970,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
-    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.4';
+    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.5';
     const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v${amVer}
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})
