@@ -124,10 +124,14 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           minedRefs.map(async (ref) => {
             try {
               const productSnap = await getDoc(doc(db, 'products', ref.productId));
-              return {
-                ...ref,
-                productData: productSnap.exists() ? (productSnap.data() as GlobalProduct) : null,
-              };
+              const globalData = productSnap.exists() ? (productSnap.data() as GlobalProduct) : null;
+              // Override por-usuário (dados verificados pela API salvos no ref do usuário,
+              // que sempre pode gravar — o doc global pode ter regra que bloqueia a escrita).
+              const override = (ref as any).enriched as Partial<GlobalProduct> | undefined;
+              const productData = globalData
+                ? ({ ...globalData, ...(override || {}) } as GlobalProduct)
+                : (override ? ({ ...(override as GlobalProduct) }) : null);
+              return { ...ref, productData };
             } catch {
               return { ...ref, productData: null };
             }
@@ -157,15 +161,20 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   const verifyingRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!uid || !items.length) return;
-    // pega os que ainda não foram verificados (prioriza Shopee e os sem preço antigo)
+    const SIX_H = 6 * 3600 * 1000;
+    // pega os que precisam de verificação: não verificados, sem preço antigo,
+    // ou verificados há mais de 6h (reverifica tudo periodicamente).
     const pending = items.filter((it) => {
       const pd = it.productData;
       if (!pd || !pd.original_link) return false;
       if (verifyingRef.current.has(it.productId)) return false;
-      if (pd.verifiedByApi) return false;
+      const verified = !!pd.verifiedByApi;
+      const stale = pd.lastVerifiedAt ? (Date.now() - Date.parse(pd.lastVerifiedAt) > SIX_H) : false;
+      if (verified && !stale) return false;
+      if (stale) return true; // passou 6h → revalida
       const plat = (pd.platform || '').toLowerCase();
-      return plat === 'shopee' || !pd.price_from; // shopee sempre; outros só se faltar preço antigo
-    }).slice(0, 4); // no máx. 4 por rodada para não sobrecarregar
+      return plat === 'shopee' || !pd.price_from;
+    }).slice(0, 20); // até 20 por rodada; o resto entra nas próximas cargas
 
     if (!pending.length) return;
 
@@ -203,7 +212,10 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             verifiedByApi: true,
             lastVerifiedAt: new Date().toISOString(),
           };
-          await setDoc(doc(db, 'products', it.productId), updates, { merge: true });
+          // 1) doc global (corrige o Marketplace) — pode falhar por regra se não for miner
+          try { await setDoc(doc(db, 'products', it.productId), updates, { merge: true }); } catch { /* sem permissão no global */ }
+          // 2) override no ref do usuário — SEMPRE grava (garante que não "some" ao recarregar)
+          try { await updateDoc(doc(db, 'users', uid, 'minedProducts', it.productId), { enriched: updates }); } catch { /* ignore */ }
           if (!cancelled) {
             setItems((prev) => prev.map((x) => x.productId === it.productId
               ? { ...x, productData: { ...(x.productData as GlobalProduct), ...updates } }
