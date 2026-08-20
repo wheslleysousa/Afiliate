@@ -92,15 +92,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   // Auto-enriquecer se faltar detalhes importantes
   useEffect(() => {
     const enrichData = async () => {
+      const plat = (product.platform || '').toLowerCase();
       const isMissingDetails =
         !product.description ||
         !product.image_url ||
         product.stars === undefined ||
         product.stars === null ||
         product.sales_count === undefined ||
-        product.sales_count === null;
+        product.sales_count === null ||
+        !product.price_from; // sem preço antigo → provável dado incompleto
 
-      if (!isMissingDetails && product.description !== 'Aguardando sincronização de detalhes...') return;
+      // Shopee: SEMPRE re-consulta pela API de afiliado (dados client-side da
+      // extensão são pouco confiáveis — preço/desconto costumam vir errados).
+      const shouldEnrich = isMissingDetails || plat === 'shopee';
+      if (!shouldEnrich && product.description !== 'Aguardando sincronização de detalhes...') return;
 
       setEnriching(true);
       try {
@@ -112,8 +117,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
         if (response.ok) {
           const resData = await response.json();
-          if (resData.success && resData.data) {
-            const scraped = resData.data;
+          // A resposta do /api/scrape é um objeto PLANO (não { success, data }).
+          const scraped: any = (resData && resData.data) ? resData.data : resData;
+          if (scraped && !scraped.error && (scraped.title || scraped.price_to)) {
             const updated: GlobalProduct = {
               ...product,
               title: scraped.title || product.title,
@@ -122,11 +128,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               pictures: scraped.pictures || product.pictures,
               price_to: scraped.price_to || product.price_to,
               price_from: scraped.price_from || product.price_from,
-              stars: scraped.stars !== undefined ? scraped.stars : product.stars,
-              sales_count: scraped.sales_count !== undefined ? scraped.sales_count : product.sales_count,
+              pix_price: scraped.pix_price || (product as any).pix_price || null,
+              discount_pct: scraped.discount_pct ?? (product as any).discount_pct ?? null,
+              stars: scraped.stars !== undefined && scraped.stars !== null ? scraped.stars : product.stars,
+              sales_count: scraped.sales_count !== undefined && scraped.sales_count !== null ? scraped.sales_count : product.sales_count,
               category: scraped.category || product.category,
+              affiliate_link: scraped.affiliate_link || (product as any).affiliate_link || null,
               lastUpdatedAt: new Date().toLocaleDateString('pt-BR'),
-            };
+            } as GlobalProduct;
 
             setCurrentProduct(updated);
 

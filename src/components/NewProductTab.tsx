@@ -111,8 +111,8 @@ export const NewProductTab: React.FC<NewProductTabProps> = ({
 
         if (response.ok) {
           const resData = await response.json();
-          if (resData.success && resData.data) {
-            const fresh = resData.data;
+          const fresh = (resData && resData.data) ? resData.data : resData;
+          if (fresh && !fresh.error && (fresh.title || fresh.price_to)) {
             const enrichedProd: ProductData = {
               id: selectedProductForCopy.id,
               platform: fresh.platform || selectedProductForCopy.platform,
