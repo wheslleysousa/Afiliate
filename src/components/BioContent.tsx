@@ -205,27 +205,28 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, getSocial
 
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col items-center px-5 pb-16"
+      className="relative min-h-screen w-full flex flex-col items-center overflow-hidden pb-16"
       style={{ ...(fullscreenBanner ? { backgroundColor: '#0a0a0a' } : backgroundStyle(theme)), color: theme.textColor || '#ffffff', fontFamily: theme.font || "'Inter', system-ui, sans-serif" }}
     >
-      {/* Banner de tela inteira (fundo, atrás de tudo, esticado até as bordas) */}
+      {/* Banner de tela inteira: cobre TUDO, esticado até as bordas (absolute p/ funcionar
+          também dentro da prévia do editor, não só na página pública). */}
       {fullscreenBanner && (
-        <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden>
+        <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
           <div className="absolute inset-0 bg-center bg-no-repeat" style={{ backgroundImage: `url("${page.bannerUrl}")`, backgroundSize: 'cover', transform: `scale(${bannerScale})` }} />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55))' }} />
         </div>
       )}
 
       <div className="relative z-10 w-full flex flex-col items-center">
-        {/* Banner topo */}
+        {/* Banner topo — largura TOTAL, rente às bordas (sem margem lateral) */}
         {showBanner && !fullscreenBanner ? (
-          <div className="w-full max-w-md">
-            <div className="w-full bg-center bg-cover shadow-lg overflow-hidden" style={{ height: bannerHeight, backgroundImage: `url("${page.bannerUrl}")`, backgroundSize: `${(theme.bannerScale ?? 100)}% auto`, ...bannerShapeStyle(theme.bannerShape) }} />
-          </div>
+          <div className="w-full bg-center bg-no-repeat shadow-lg overflow-hidden" style={{ height: bannerHeight, backgroundImage: `url("${page.bannerUrl}")`, backgroundSize: bannerScale > 1 ? `${Math.round(bannerScale * 100)}% auto` : 'cover', ...bannerShapeStyle(theme.bannerShape) }} />
         ) : (
           <div style={{ height: fullscreenBanner ? 40 : 20 }} />
         )}
 
+        {/* Conteúdo (avatar/nome/blocos) com padding próprio — o banner acima é full-width */}
+        <div className="w-full flex flex-col items-center px-5">
         {/* Avatar */}
         {showAvatar && (
           <div style={{ marginTop: (showBanner && !fullscreenBanner) ? -(avatarSize / 2) : 8 }}>
@@ -343,6 +344,7 @@ export const BioContent: React.FC<BioContentProps> = ({ page, getHref, getSocial
         {!theme.hideFooter && (
           <div className="mt-10 text-[10px] font-semibold tracking-wider uppercase opacity-40">lkrm.site</div>
         )}
+        </div>
       </div>
     </div>
   );
