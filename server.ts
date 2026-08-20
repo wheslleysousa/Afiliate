@@ -1861,35 +1861,25 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
         const source = (shopeeAppId || shopeeSecret) ? "config do usuário" : "env do servidor";
         console.log(`[SHOPEE DIAG] getProductInfoList | URL: ${finalUrl} | AppID: ${finalAppId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Origem: ${source}`);
 
+        // Extrai shopId/itemId do link para consultar por itemId (mais preciso)
+        const idMatch = finalUrl.match(/-i\.(\d+)\.(\d+)/) || finalUrl.match(/i\.(\d+)\.(\d+)/);
+        const shopId = idMatch ? idMatch[1] : null;
+        const itemId = idMatch ? idMatch[2] : null;
+        // Query CORRETA da API de afiliados da Shopee: productOfferV2
+        const inner = itemId ? `itemId: ${itemId}${shopId ? `, shopId: ${shopId}` : ''}` : `keyword: ${JSON.stringify(finalUrl)}`;
         const query = {
-          query: `query {
-            getProductInfoList(productUrlList: ["${finalUrl}"]) {
-              errCode
-              errMsg
-              data {
-                productList {
-                  productName
-                  imageUrl
-                  price
-                  priceMin
-                  priceMax
-                  productLink
-                  priceBeforeDiscount
-                  discount
-                }
-              }
-            }
-          }`
+          query: `query { productOfferV2(${inner}) { nodes { productName itemId imageUrl priceMin priceMax priceDiscountRate sales ratingStar shopName offerLink productLink commissionRate } } }`
         };
 
           const bodyStr = JSON.stringify(query);
 
-          console.log(`[Shopee Affiliate API] Querying product details via getProductInfoList for: ${finalUrl}`);
-          
+          console.log(`[Shopee Affiliate API] Querying product details via productOfferV2 (itemId=${itemId}) for: ${finalUrl}`);
+
           let response;
           try {
+            // Mesmo endpoint que funciona no generateShortLink
             response = await fetchShopeeGraphQLWithSignatureFallback(
-              "https://open-api.affiliate.shopee.com.br/api/v1/graphql",
+              "https://open-api.affiliate.shopee.com.br/graphql",
               finalAppId,
               finalSecret,
               bodyStr
@@ -1900,41 +1890,44 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
 
           if (response && response.ok) {
             const result: any = await response.json();
-            const responseData = result?.data?.getProductInfoList;
-            if (responseData?.errCode === 0 || responseData?.errCode === "0") {
-              const prodList = responseData?.data?.productList;
-              if (prodList && prodList.length > 0 && prodList[0]) {
-                const prod = prodList[0];
-                const title = prod.productName || "";
-                const mainImageUrl = prod.imageUrl || null;
-                
-                const price_to_val = prod.price || prod.priceMin || 0;
-                const price_to = cleanPrice(price_to_val);
-                
-                const price_from_val = prod.priceBeforeDiscount || 0;
-                const price_from = price_from_val > price_to_val ? cleanPrice(price_from_val) : null;
-                
-                apiData = {
-                  title,
-                  description: null,
-                  image_url: mainImageUrl,
-                  pictures: mainImageUrl ? [mainImageUrl] : [],
-                  video_url: null,
-                  videos: [],
-                  price_from,
-                  price_to: price_to || "Consulte no link",
-                  installments: null,
-                  max_installments_interest_free: null,
-                  coupon: null
-                };
-                console.log(`[Shopee Affiliate API] Successfully retrieved product data via getProductInfoList`);
-              }
+            if (result?.errors?.length) {
+              console.warn(`[Shopee Affiliate API] productOfferV2 error: ${JSON.stringify(result.errors[0]?.message || result.errors[0])}`);
+            }
+            const nodes = result?.data?.productOfferV2?.nodes;
+            if (nodes && nodes.length > 0 && nodes[0]) {
+              const p = nodes[0];
+              const priceToNum = parseFloat(String(p.priceMin || p.priceMax || "0").replace(",", ".")) || 0;
+              const rate = parseFloat(String(p.priceDiscountRate || "0")) || 0;
+              const priceFromNum = (rate > 0 && rate < 100 && priceToNum > 0) ? (priceToNum / (1 - rate / 100)) : 0;
+              const mainImageUrl = p.imageUrl || null;
+              apiData = {
+                title: p.productName || "",
+                description: null,
+                image_url: mainImageUrl,
+                pictures: mainImageUrl ? [mainImageUrl] : [],
+                video_url: null,
+                videos: [],
+                price_from: priceFromNum > priceToNum ? cleanPrice(priceFromNum) : null,
+                price_to: cleanPrice(priceToNum) || "Consulte no link",
+                pix_price: cleanPrice(priceToNum) || null,
+                discount_percent: rate > 0 ? Math.round(rate) : null,
+                sales_count: p.sales != null ? Number(p.sales) : null,
+                historical_sold: p.sales != null ? Number(p.sales) : undefined,
+                stars: p.ratingStar ? String(p.ratingStar) : null,
+                rating_average: p.ratingStar ? parseFloat(String(p.ratingStar)) : undefined,
+                installments: null,
+                max_installments_interest_free: null,
+                coupon: null,
+                affiliate_link: p.offerLink || null,
+                category: null,
+              };
+              console.log(`[Shopee Affiliate API] productOfferV2 OK — title="${apiData.title}" price_to=${apiData.price_to} price_from=${apiData.price_from} disc=${apiData.discount_percent}%`);
             } else {
-              console.warn(`[Shopee Affiliate API] getProductInfoList error: ${responseData?.errCode} - ${responseData?.errMsg}`);
+              console.warn(`[Shopee Affiliate API] productOfferV2 retornou vazio (item pode não estar no catálogo de ofertas).`);
             }
           }
       } catch (err) {
-        console.error("[Shopee Affiliate API] Error during getProductInfoList request:", err);
+        console.error("[Shopee Affiliate API] Error during productOfferV2 request:", err);
       }
     }
 
@@ -4073,18 +4066,21 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
           console.log(`[Scraper API] Gerando descrição via Gemini com rotação para o produto: ${data.title}`);
           const descPrompt = `Você é um especialista em e-commerce. Escreva uma descrição curta, extremamente atraente e de alta conversão (com 2 a 3 parágrafos ou marcadores objetivos, máximo 120 palavras) para o produto: "${data.title}". Destaque suas principais características, benefícios e utilidades práticas de forma profissional e persuasiva para venda. Não mencione preço, cupom de desconto ou links de terceiros. Retorne APENAS o texto puro da descrição.`;
           
-          const { result: descResponse } = await callGeminiWithRotation(candidateKeys, async (ai) => {
-            return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", {
-              contents: descPrompt,
-            });
-          });
-
+          // Timeout duro de 10s: a descrição é opcional e NUNCA deve travar o scrape
+          // (senão o front recebe "Failed to fetch" por timeout, como no diagnóstico).
+          const descRace: any = await Promise.race([
+            callGeminiWithRotation(candidateKeys, async (ai) => {
+              return await generateGeminiContentWithFallback(ai, "gemini-3.7-flash", { contents: descPrompt });
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("gemini-timeout")), 10000)),
+          ]);
+          const descResponse = descRace?.result;
           if (descResponse && descResponse.text) {
             data.description = descResponse.text.trim();
             console.log("[Scraper API] Descrição gerada com sucesso via Gemini!");
           }
         } catch (descErr: any) {
-          console.log("[Scraper API Info] Descrição mantida no padrão (Todas as chaves Gemini indisponíveis ou sem cota).");
+          console.log(`[Scraper API Info] Descrição mantida no padrão (${descErr?.message === 'gemini-timeout' ? 'timeout de 10s' : 'chaves Gemini indisponíveis ou sem cota'}).`);
         }
       }
     }
@@ -4120,6 +4116,7 @@ app.post(["/scrape", "/api/scrape"], async (req, res) => {
       pix_price: data.pix_price || null,
       discount_pct: data.discount_pct ?? discount_pct,
       original_link: finalLink,
+      affiliate_link: data.affiliate_link || finalLink || null,
       updated_ml_keys: data.updated_ml_keys || null
     });
 

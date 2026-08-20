@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.4.1 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.4.2 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.1'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.2'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -2955,18 +2955,9 @@ function extractInstallmentsText(scopeText) {
 }
 
 function extractCouponText(scope, scopeText) {
-  // Só retorna um CÓDIGO de cupom limpo e claramente rotulado. Nunca blobs de
-  // texto do card (isso gerava lixo tipo "R$74,79com cupom >1mil+ Vendidos").
-  // Cupons de verdade vêm da aba Cupons (extração dedicada), não da mineração.
-  if (scopeText) {
-    const m = scopeText.match(/\bcupom[:\s]+([A-Z0-9]{4,15})\b/i)
-           || scopeText.match(/\bc[óo]digo[:\s]+([A-Z0-9]{4,15})\b/i);
-    if (m) {
-      const code = m[1].trim();
-      // descarta palavras comuns que não são código
-      if (!/^(vendidos?|frete|gr[aá]tis|off|com)$/i.test(code)) return code;
-    }
-  }
+  // Mineração NÃO extrai mais cupom do texto da página — isso gerava lixo como
+  // "R$74,79com cupom >1mil+ Vendidos" ou "postal" (de "código postal").
+  // Cupons de verdade vêm da aba/feature Cupons (extração dedicada).
   return null;
 }
 
@@ -4000,7 +3991,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.1';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.2';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `
