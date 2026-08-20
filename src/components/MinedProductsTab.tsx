@@ -108,28 +108,35 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   const [assignForId, setAssignForId] = useState<string | null>(null); // produto sendo categorizado
   const [selectedProductForModal, setSelectedProductForModal] = useState<GlobalProduct | null>(null);
 
-  // Categorias criadas pelo usuário (aparecem aqui e na extensão)
+  // Categorias criadas pelo usuário — guardadas em UM doc (users/{uid}/userConfig/categories)
+  // para a extensão poder LER via GET (a listagem de coleção via REST dava 403).
   useEffect(() => {
     if (!uid) return;
-    const unsub = onSnapshot(collection(db, 'users', uid, 'userCategories'), (snap) => {
-      setUserCategories(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as UserCategory));
+    const ref = doc(db, 'users', uid, 'userConfig', 'categories');
+    const unsub = onSnapshot(ref, (snap) => {
+      const data = snap.exists() ? (snap.data() as any) : null;
+      setUserCategories(Array.isArray(data?.items) ? (data.items as UserCategory[]) : []);
     }, () => {});
     return () => unsub();
   }, [uid]);
 
   const CATEGORY_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+  const saveCategories = async (items: UserCategory[]) => {
+    if (!uid) return;
+    try { await setDoc(doc(db, 'users', uid, 'userConfig', 'categories'), { items, updatedAt: new Date().toISOString() }, { merge: true }); } catch (e) { console.error(e); }
+  };
   const createCategory = async () => {
     const name = window.prompt('Nome da nova categoria:');
     const n = (name || '').trim();
     if (!n || !uid) return;
     const id = 'cat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const color = CATEGORY_COLORS[userCategories.length % CATEGORY_COLORS.length];
-    try { await setDoc(doc(db, 'users', uid, 'userCategories', id), { id, name: n, color, createdAt: new Date().toISOString() }); } catch (e) { console.error(e); }
+    await saveCategories([...userCategories, { id, name: n, color, createdAt: new Date().toISOString() }]);
   };
   const deleteCategory = async (id: string) => {
     if (!uid) return;
     if (!window.confirm('Excluir esta categoria? Os produtos não serão apagados, apenas deixam de ter essa categoria.')) return;
-    try { await deleteDoc(doc(db, 'users', uid, 'userCategories', id)); } catch (e) { console.error(e); }
+    await saveCategories(userCategories.filter((c) => c.id !== id));
     if (categoryFilter === id) setCategoryFilter('all');
   };
   const toggleProductCategory = async (productId: string, catId: string, current: string[]) => {
