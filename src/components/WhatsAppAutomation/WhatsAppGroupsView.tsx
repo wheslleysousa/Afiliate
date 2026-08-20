@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, setDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { WaGroup, WaSession, WaGroupParticipant } from '../../types';
 import {
@@ -226,10 +226,24 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
     try {
       const targetDocId = (deleteConfirmGroup as any).docId || (deleteConfirmGroup as any).id || deleteConfirmGroup.groupId;
+      const realGroupId = (deleteConfirmGroup as any).groupId || '';
+      const sessionId = (deleteConfirmGroup as any).sessionId || '';
+      // Se é um grupo REAL do WhatsApp (@g.us), manda o worker SAIR do grupo lá também.
+      if (realGroupId && realGroupId.endsWith('@g.us')) {
+        await addDoc(collection(db, 'users', uid, 'waCommands'), {
+          action: 'leaveGroup',
+          groupId: realGroupId,
+          sessionId,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+        });
+      }
       await deleteDoc(doc(db, 'users', uid, 'waGroups', targetDocId));
       setAlertMessage({
         type: 'success',
-        text: `Registro do grupo "${deleteConfirmGroup.name}" removido com sucesso.`,
+        text: (realGroupId && realGroupId.endsWith('@g.us'))
+          ? `Saindo do grupo "${deleteConfirmGroup.name}" no WhatsApp…`
+          : `Registro do grupo "${deleteConfirmGroup.name}" removido.`,
       });
       if (selectedGroup?.groupId === deleteConfirmGroup.groupId) {
         setSelectedGroup(null);

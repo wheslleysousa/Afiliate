@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { WaSession } from '../../types';
 import {
@@ -113,22 +113,17 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
       const rawNumbers = parsedParticipants.map((p) => p.rawPhone).filter(Boolean);
 
-      const tempId = `group_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-      // Save request to Firestore under users/{uid}/waGroups
-      await setDoc(doc(db, 'users', uid, 'waGroups', tempId), {
-        groupId: tempId,
+      // Envia um COMANDO para o worker criar o grupo REAL no WhatsApp.
+      // (O worker cria via Baileys e a sincronização já traz o grupo verdadeiro.)
+      await addDoc(collection(db, 'users', uid, 'waCommands'), {
+        action: 'createGroup',
         sessionId: selectedSessionId,
         name: name.trim(),
         description: description.trim() || null,
         type,
-        status: 'pending_creation',
-        initialParticipants: rawNumbers,
-        participants: parsedParticipants,
-        isAdmin: true,
-        participantsCount: parsedParticipants.length + 1,
+        participants: rawNumbers,
+        status: 'pending',
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
 
       onSuccess();

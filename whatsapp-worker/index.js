@@ -508,6 +508,30 @@ async function syncGroups(sessionId, sock) {
         .set(groupDocData, { merge: true });
     }
 
+    // ── Remove grupos que NÃO existem mais no WhatsApp (saiu/foi excluído) ──
+    // Assim o app mostra somente os grupos que realmente estão no WhatsApp.
+    try {
+      const liveDocIds = new Set(
+        groupList.filter((g) => g.id && g.id.endsWith('@g.us')).map((g) => `${sessionId}_${g.id}`)
+      );
+      const existingSnap = await db
+        .collection('users')
+        .doc(USER_UID)
+        .collection('waGroups')
+        .where('sessionId', '==', sessionId)
+        .get();
+      const stale = [];
+      existingSnap.forEach((docSnap) => {
+        if (!liveDocIds.has(docSnap.id)) stale.push(docSnap.ref);
+      });
+      if (stale.length) {
+        await Promise.all(stale.map((ref) => ref.delete()));
+        console.log(`🗑️ [Sessão: ${sessionId}] ${stale.length} grupo(s) removido(s) do app (não estão mais no WhatsApp).`);
+      }
+    } catch (cleanupErr) {
+      console.error(`⚠️ [Sessão: ${sessionId}] Erro ao limpar grupos antigos:`, cleanupErr.message);
+    }
+
     console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
   } catch (err) {
     console.error(`⚠️ [Sessão: ${sessionId}] Erro ao sincronizar grupos:`, err.message);
@@ -1055,6 +1079,83 @@ async function processSendQueue() {
 }
 
 // ------------------------------------------------------------------------------
+// 7b. FILA DE COMANDOS DE GRUPO (users/{uid}/waCommands) — criar/sair de grupos
+//     a partir do app (sincronização de mão dupla).
+// ------------------------------------------------------------------------------
+
+function normalizeJid(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  if (s.endsWith('@s.whatsapp.net') || s.endsWith('@g.us')) return s;
+  let num = s.replace(/\D/g, '');
+  if (!num) return '';
+  if (num.length <= 11) num = '55' + num; // assume Brasil se vier sem DDI
+  return num + '@s.whatsapp.net';
+}
+
+function pickConnectedSock(preferredSessionId) {
+  if (preferredSessionId) {
+    const s = sessionsMap.get(preferredSessionId);
+    if (s && s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: preferredSessionId };
+  }
+  for (const [sid, s] of sessionsMap.entries()) {
+    if (s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: sid };
+  }
+  return { sock: null, sessionId: null };
+}
+
+let isProcessingCommands = false;
+async function processCommands() {
+  if (isProcessingCommands) return;
+  isProcessingCommands = true;
+  try {
+    const snap = await db
+      .collection('users').doc(USER_UID).collection('waCommands')
+      .where('status', '==', 'pending').limit(10).get();
+    if (snap.empty) return;
+
+    for (const cmdDoc of snap.docs) {
+      const cmd = cmdDoc.data() || {};
+      const ref = cmdDoc.ref;
+      try {
+        await ref.update({ status: 'processing', startedAt: admin.firestore.FieldValue.serverTimestamp() });
+        const { sock, sessionId } = pickConnectedSock(cmd.sessionId);
+        if (!sock) throw new Error('Nenhuma sessão do WhatsApp conectada.');
+
+        if (cmd.action === 'createGroup') {
+          const name = (cmd.name || 'Novo Grupo').toString().trim().slice(0, 100);
+          const participants = Array.isArray(cmd.participants) ? cmd.participants.map(normalizeJid).filter(Boolean) : [];
+          const created = await sock.groupCreate(name, participants);
+          const gid = created && created.id;
+          if (gid && cmd.description) { try { await sock.groupUpdateDescription(gid, String(cmd.description)); } catch (e) {} }
+          let inviteLink = null;
+          if (gid) { try { const code = await sock.groupInviteCode(gid); inviteLink = code ? `https://chat.whatsapp.com/${code}` : null; } catch (e) {} }
+          await ref.update({ status: 'done', groupId: gid || null, inviteLink: inviteLink || null, doneAt: admin.firestore.FieldValue.serverTimestamp() });
+          await syncGroups(sessionId, sock);
+          console.log(`✅ [Comando] Grupo criado: "${name}" (${gid})`);
+        } else if (cmd.action === 'leaveGroup') {
+          const gid = cmd.groupId;
+          if (!gid) throw new Error('groupId ausente');
+          try { await sock.groupLeave(gid); } catch (e) { /* pode já ter saído */ }
+          try { await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${cmd.sessionId || sessionId}_${gid}`).delete(); } catch (e) {}
+          await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
+          console.log(`✅ [Comando] Saiu do grupo: ${gid}`);
+        } else {
+          await ref.update({ status: 'failed', error: 'Ação desconhecida: ' + cmd.action });
+        }
+      } catch (e) {
+        try { await ref.update({ status: 'failed', error: (e && e.message) || String(e), doneAt: admin.firestore.FieldValue.serverTimestamp() }); } catch (e2) {}
+        console.error('⚠️ [Comando] Falhou:', (e && e.message) || e);
+      }
+    }
+  } catch (err) {
+    console.error('⚠️ Erro no processamento de comandos:', err.message);
+  } finally {
+    isProcessingCommands = false;
+  }
+}
+
+// ------------------------------------------------------------------------------
 // 8. TEMPORIZADORES (LOOPS)
 // ------------------------------------------------------------------------------
 
@@ -1076,6 +1177,10 @@ async function main() {
 
   // 5. Consumidor de fila em tempo real (a cada 15 segundos)
   setInterval(processSendQueue, 15 * 1000);
+
+  // 6. Fila de comandos de grupo (criar/sair) — a cada 8 segundos
+  setInterval(processCommands, 8 * 1000);
+  processCommands();
 }
 
 main().catch((err) => {
