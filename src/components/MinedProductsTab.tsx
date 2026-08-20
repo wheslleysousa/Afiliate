@@ -334,6 +334,13 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
     return true;
   });
 
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (platformFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) +
+    (search.trim() ? 1 : 0);
+  const clearFilters = () => { setStatusFilter('all'); setPlatformFilter('all'); setCategoryFilter('all'); setSearch(''); };
+
   return (
     <div className="space-y-5 animate-fadeIn">
       {/* Header Padronizado */}
@@ -358,71 +365,85 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
         </div>
       </div>
 
-      {/* Painel de Filtros Compacto com Chips */}
-      <div className="bg-[#0e1119] border border-[#1e2636] p-3 sm:p-4 rounded-2xl space-y-3">
-        {/* Status */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Status:</span>
-          {STATUS_OPTIONS.map((st) => {
-            const isActive = statusFilter === st.id;
-            return (
-              <button
-                key={st.id}
-                onClick={() => setStatusFilter(st.id as any)}
-                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
-                    : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
-                }`}
-              >
-                {st.label}
-              </button>
-            );
-          })}
+      {/* ── Painel de Filtros (redesign) ───────────────────────────────── */}
+      <div className="bg-gradient-to-b from-[#0e1119] to-[#0b0e15] border border-[#1e2636] rounded-2xl overflow-hidden">
+        {/* Cabeçalho do painel */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1e2636] bg-[#0e1119]/60">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+              <Filter className="w-3.5 h-3.5 text-blue-400" />
+            </div>
+            <span className="text-xs font-extrabold text-white">Filtros</span>
+            {activeFilterCount > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30">{activeFilterCount} ativo{activeFilterCount > 1 ? 's' : ''}</span>
+            )}
+          </div>
+          {activeFilterCount > 0 && (
+            <button onClick={clearFilters} className="text-[11px] font-bold text-[#93a0b5] hover:text-red-400 transition-colors cursor-pointer">Limpar filtros</button>
+          )}
         </div>
 
-        {/* Plataforma */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1e2636]">
-          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Loja:</span>
-          {PLATFORMS.map((pl) => {
-            const isActive = platformFilter === pl.id;
-            return (
-              <button
-                key={pl.id}
-                onClick={() => setPlatformFilter(pl.id)}
-                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
-                  isActive
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
-                    : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
-                }`}
-              >
-                {pl.label}
-              </button>
-            );
-          })}
-        </div>
+        <div className="p-4 space-y-4">
+          {/* Status */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Status</span>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_OPTIONS.map((st) => {
+                const isActive = statusFilter === st.id;
+                return (
+                  <button key={st.id} onClick={() => setStatusFilter(st.id as any)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border cursor-pointer ${isActive ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/30' : 'bg-[#151a26] text-[#93a0b5] hover:text-white hover:border-[#2a3548] border-[#1e2636]'}`}>
+                    {st.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-        {/* Categoria (criadas pelo usuário; aparecem também na extensão) */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1e2636]">
-          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Categoria:</span>
-          <button
-            onClick={() => setCategoryFilter('all')}
-            className={`px-3 py-1 rounded-xl text-xs font-semibold border cursor-pointer ${categoryFilter === 'all' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}
-          >Todas</button>
-          {userCategories.map((c) => {
-            const isActive = categoryFilter === c.id;
-            return (
-              <span key={c.id} className={`inline-flex items-center gap-1 rounded-xl border text-xs font-semibold ${isActive ? 'text-white' : 'text-[#93a0b5] hover:text-white'}`} style={{ borderColor: isActive ? c.color : '#1e2636', background: isActive ? (c.color + '33') : '#151a26' }}>
-                <button onClick={() => setCategoryFilter(c.id)} className="pl-3 pr-1 py-1 cursor-pointer">{c.name}</button>
-                <button onClick={() => deleteCategory(c.id)} title="Excluir categoria" className="pr-2 text-[#93a0b5] hover:text-red-400 cursor-pointer">×</button>
-              </span>
-            );
-          })}
-          <button
-            onClick={() => setCategoryFilter('none')}
-            className={`px-3 py-1 rounded-xl text-xs font-semibold border cursor-pointer ${categoryFilter === 'none' ? 'bg-[#334155] text-white border-[#475569]' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}
-          >Sem categoria</button>
-          <button onClick={createCategory} className="px-3 py-1 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 cursor-pointer">＋ Nova</button>
+          {/* Loja */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Loja</span>
+            <div className="flex flex-wrap gap-1.5">
+              {PLATFORMS.map((pl) => {
+                const isActive = platformFilter === pl.id;
+                return (
+                  <button key={pl.id} onClick={() => setPlatformFilter(pl.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border cursor-pointer ${isActive ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm' : 'bg-[#151a26] text-[#93a0b5] hover:text-white hover:border-[#2a3548] border-[#1e2636]'}`}>
+                    {pl.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Categoria */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Categoria</span>
+              <button onClick={createCategory} className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer">＋ Nova categoria</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${categoryFilter === 'all' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}>Todas</button>
+              {userCategories.map((c) => {
+                const isActive = categoryFilter === c.id;
+                return (
+                  <span key={c.id} className="inline-flex items-center rounded-full border text-xs font-semibold transition-all overflow-hidden" style={{ borderColor: isActive ? c.color : '#1e2636', background: isActive ? (c.color + '33') : '#151a26' }}>
+                    <button onClick={() => setCategoryFilter(c.id)} className={`inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 cursor-pointer ${isActive ? 'text-white' : 'text-[#93a0b5] hover:text-white'}`}>
+                      <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
+                      {c.name}
+                    </button>
+                    <button onClick={() => deleteCategory(c.id)} title="Excluir categoria" className="pr-2 pl-0.5 py-1.5 text-[#6b7a90] hover:text-red-400 cursor-pointer">×</button>
+                  </span>
+                );
+              })}
+              <button onClick={() => setCategoryFilter('none')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${categoryFilter === 'none' ? 'bg-[#334155] text-white border-[#475569]' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}>Sem categoria</button>
+            </div>
+            {userCategories.length === 0 && (
+              <p className="text-[11px] text-[#6b7a90]">Crie categorias para organizar seus produtos — elas também aparecem na extensão para você classificar antes de enviar.</p>
+            )}
+          </div>
         </div>
       </div>
 

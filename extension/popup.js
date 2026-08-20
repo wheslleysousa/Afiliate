@@ -1,4 +1,4 @@
-/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.3)
+/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.4)
    MUDANÇAS recentes:
    - Login agora usa Firebase Auth real (REST API)
    - "Enviar Todos" agora sincroniza com Firestore real
@@ -71,10 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let userCategories = [];
 
   async function loadCategories() {
-    if (!state.isLoggedIn || !state.uid || !state.idToken) return;
+    if (!state.isLoggedIn || !state.uid) return;
     try {
-      const res = await fetch(`${FS_BASE}/users/${state.uid}/userCategories`, { headers: { Authorization: `Bearer ${state.idToken}` } });
-      if (!res.ok) return;
+      // usa token válido (renova se expirado) — senão o fetch dava 401 e sumia tudo
+      let token = state.idToken;
+      try { token = await ensureValidToken(); } catch (e) {}
+      const res = await fetch(`${FS_BASE}/users/${state.uid}/userCategories`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { if (categoryEmpty) { categoryEmpty.style.display = 'block'; categoryEmpty.textContent = 'Não consegui carregar categorias (toque em Recarregar). Crie categorias no app em Meus Produtos.'; } return; }
       const json = await res.json();
       userCategories = (json.documents || []).map((d) => {
         const id = d.name.split('/').pop();
@@ -830,6 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         saveState();
         updateUI();
+        loadCategories();
         showToast(`✅ Conectado como ${authData.email}`);
 
       } catch (e) {
@@ -966,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
-    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.3';
+    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.4';
     const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v${amVer}
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})
