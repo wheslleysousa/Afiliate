@@ -3,7 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { BioPage, BioBlock, BioSocial } from '../types';
 import { BioContent } from './BioContent';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 interface PublicBioPageProps {
   slug: string;
@@ -50,11 +50,8 @@ export const PublicBioPage: React.FC<PublicBioPageProps> = ({ slug }) => {
   }, [slug]);
 
   if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-[#07090f] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-      </div>
-    );
+    // Tela neutra em branco (sem spinner/"carregando") enquanto busca a bio
+    return <div className="min-h-screen w-full" style={{ background: '#0a0a0a' }} />;
   }
 
   if (status === 'notfound' || !page) {

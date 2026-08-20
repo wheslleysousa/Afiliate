@@ -388,11 +388,20 @@ export interface Coupon {
 
 export type BioButtonShape = "sharp" | "square" | "rounded" | "large" | "pill";
 export type BioButtonStyle = "fill" | "outline" | "soft" | "glass" | "hard" | "gradient" | "neumorph";
-export type BioAvatarShape = "circle" | "rounded" | "square" | "squircle" | "none";
+// 10 formatos de avatar
+export type BioAvatarShape = "circle" | "rounded" | "square" | "squircle" | "none" | "hexagon" | "diamond" | "blob" | "star" | "shield";
+// 10 formatos de banner
+export type BioBannerShape = "straight" | "round-bottom" | "rounded" | "pill" | "wave" | "slant" | "arch" | "chevron" | "tilt" | "scallop";
+// tipo/estilo de fundo (com cores editáveis)
+export type BioBgType = "solid" | "gradient" | "gradient3" | "stripes" | "image";
 
 export interface BioTheme {
-  bgType: "solid" | "gradient" | "image";
+  bgType: BioBgType;
   bgValue: string;          // cor hex, string de gradiente/CSS, ou URL de imagem
+  bgColor1?: string;        // cores editáveis dos estilos de fundo
+  bgColor2?: string;
+  bgColor3?: string;
+  bgAngle?: number;         // ângulo do gradiente/listras (graus)
   buttonColor: string;      // cor de fundo/realce dos botões
   buttonColor2?: string;    // segunda cor (estilo gradiente)
   buttonTextColor: string;  // cor do texto dos botões
@@ -410,7 +419,15 @@ export interface BioTheme {
   bioSize?: number;         // tamanho da descrição (px)
   avatarShape: BioAvatarShape;
   avatarSize?: number;      // tamanho do avatar (px)
-  bannerHeight?: number;    // altura do banner (px)
+  avatarBorderWidth?: number; // 0 = sem borda
+  avatarBorderColor?: string;
+  showAvatar?: boolean;     // exibir/ocultar avatar (padrão true)
+  showBanner?: boolean;     // exibir/ocultar banner (padrão true)
+  bannerHeight?: number;    // altura do banner (px) — modo topo
+  bannerMode?: "top" | "fullscreen"; // topo (padrão) ou fundo de tela inteira
+  bannerShape?: BioBannerShape;
+  bannerScale?: number;     // zoom da imagem do banner (%) — 100 = normal
+  hideFooter?: boolean;     // esconde o "lkrm.site" no rodapé
 }
 
 export type BioBlockType = "link" | "section" | "text" | "image" | "video";

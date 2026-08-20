@@ -5,9 +5,9 @@ import {
 import { db } from '../lib/firebase';
 import {
   BioPage, BioBlock, BioBlockType, BioTheme, BioButtonShape, BioButtonStyle, BioAvatarShape,
-  BioIconType, BioSocial, UserProfile,
+  BioBannerShape, BioIconType, BioSocial, UserProfile,
 } from '../types';
-import { BioContent } from './BioContent';
+import { BioContent, BIO_FONTS } from './BioContent';
 import { BUILTIN_ICONS, SOCIAL_PLATFORMS, renderBuiltinIcon } from './bioIcons';
 import { apiFetch, getShortDomain } from '../utils/apiBase';
 import { uploadBioImage } from '../utils/uploadImage';
@@ -30,17 +30,28 @@ const RESERVED = new Set([
   'sitemap', 'robots', 'favicon', 'index', 'home', 'app', 'www', 'static', 'public',
 ]);
 
-const FONT_OPTIONS: { label: string; value: string }[] = [
-  { label: 'Padrão', value: 'Inter, system-ui, sans-serif' },
-  { label: 'Serifada', value: "Georgia, 'Times New Roman', serif" },
-  { label: 'Suave', value: "'Trebuchet MS', 'Segoe UI', sans-serif" },
-  { label: 'Mono', value: "'Courier New', ui-monospace, monospace" },
-  { label: 'Larga', value: 'Verdana, Geneva, sans-serif' },
-  { label: 'Elegante', value: "'Palatino Linotype', 'Book Antiqua', serif" },
-  { label: 'Impacto', value: "'Arial Black', Impact, sans-serif" },
-  { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
-  { label: 'Clássica', value: "Garamond, 'Times New Roman', serif" },
-  { label: 'Console', value: "'Lucida Console', Monaco, monospace" },
+// 10 fontes reais (Google Fonts) — alinhadas ao renderer (carregam na página pública)
+const FONT_OPTIONS: { label: string; value: string }[] = BIO_FONTS.map((f) => ({ label: f.label, value: f.css }));
+
+// Paleta de cores pré-definidas (para os seletores de cor) — 24 opções
+const COLOR_PALETTE = [
+  '#ffffff', '#000000', '#0e1119', '#1e2636', '#ef4444', '#f97316',
+  '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6',
+  '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb', '#6366f1', '#8b5cf6',
+  '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#78716c', '#f5f5f7',
+];
+
+const BANNER_SHAPE_OPTIONS: { value: BioBannerShape; label: string }[] = [
+  { value: 'straight', label: 'Reto' },
+  { value: 'round-bottom', label: 'Base arred.' },
+  { value: 'rounded', label: 'Arredondado' },
+  { value: 'pill', label: 'Pílula' },
+  { value: 'wave', label: 'Onda' },
+  { value: 'slant', label: 'Inclinado' },
+  { value: 'arch', label: 'Arco' },
+  { value: 'chevron', label: 'Chevron' },
+  { value: 'tilt', label: 'Torto' },
+  { value: 'scallop', label: 'Cartão' },
 ];
 
 // Estilos de fundo variados (gradientes, mesh, padrões) — aplicados como background CSS
@@ -82,8 +93,21 @@ const AVATAR_OPTIONS: { value: BioAvatarShape; label: string }[] = [
   { value: 'rounded', label: 'Arredondado' },
   { value: 'squircle', label: 'Squircle' },
   { value: 'square', label: 'Quadrado' },
+  { value: 'blob', label: 'Blob' },
+  { value: 'hexagon', label: 'Hexágono' },
+  { value: 'diamond', label: 'Diamante' },
+  { value: 'star', label: 'Estrela' },
+  { value: 'shield', label: 'Escudo' },
   { value: 'none', label: 'Sem foto' },
 ];
+
+// clip-path para prévia dos formatos de avatar no editor
+const AVATAR_CLIP: Partial<Record<BioAvatarShape, string>> = {
+  hexagon: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+  diamond: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+  star: 'polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)',
+  shield: 'polygon(50% 0%,100% 12%,100% 55%,50% 100%,0% 55%,0% 12%)',
+};
 
 const DEFAULT_THEME: BioTheme = {
   bgType: 'solid', bgValue: '#0e1119', buttonColor: '#2563eb', buttonColor2: '#06b6d4',
@@ -92,6 +116,9 @@ const DEFAULT_THEME: BioTheme = {
   shadowColor: '#0a0a0a', shadowOffset: 4, shadowBlur: 0,
   textColor: '#ffffff', titleColor: '#ffffff', font: FONT_OPTIONS[0].value,
   titleSize: 22, bioSize: 14, avatarShape: 'circle', avatarSize: 96, bannerHeight: 112,
+  bgColor1: '#0e1119', bgColor2: '#1e2636', bgColor3: '#2563eb', bgAngle: 135,
+  showAvatar: true, showBanner: true, avatarBorderWidth: 4, avatarBorderColor: '#ffffff',
+  bannerMode: 'top', bannerShape: 'round-bottom', bannerScale: 100, hideFooter: false,
 };
 
 function base(t: Partial<BioTheme>): BioTheme {
@@ -138,7 +165,7 @@ function radiusOf(shape: BioButtonShape): string {
   return shape === 'sharp' ? '0px' : shape === 'square' ? '6px' : shape === 'large' ? '22px' : shape === 'pill' ? '9999px' : '14px';
 }
 function avatarRadiusOf(shape: BioAvatarShape): string {
-  return shape === 'square' ? '14px' : shape === 'rounded' ? '28px' : shape === 'squircle' ? '32%' : '9999px';
+  return shape === 'square' ? '14px' : shape === 'rounded' ? '28px' : shape === 'squircle' ? '32%' : shape === 'blob' ? '42% 58% 70% 30% / 45% 45% 55% 55%' : '9999px';
 }
 function hexA(hex: string, a: number): string {
   const h = (hex || '').replace('#', '');
@@ -178,13 +205,22 @@ const chip = (active: boolean) => `px-3 py-1.5 rounded-lg text-xs font-bold bord
 const cardCls = 'bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 sm:p-5';
 
 // ── Campos reutilizáveis ──────────────────────────────────────────────────────
-const ColorField: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => (
+const ColorField: React.FC<{ label: string; value: string; onChange: (v: string) => void; palette?: boolean }> = ({ label, value, onChange, palette = true }) => (
   <div>
     <label className={labelCls}>{label}</label>
     <div className="flex items-center gap-2">
       <input type="color" value={isHex(value) ? value : '#000000'} onChange={(e) => onChange(e.target.value)} className="w-9 h-9 rounded-lg bg-transparent border border-[#1e2636] cursor-pointer shrink-0" />
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="#000000" className={inputCls + ' font-mono text-xs'} maxLength={9} />
     </div>
+    {palette && (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {COLOR_PALETTE.map((c) => (
+          <button key={c} type="button" title={c} onClick={() => onChange(c)}
+            className={`w-5 h-5 rounded-md border transition-transform hover:scale-110 ${(value || '').toLowerCase() === c.toLowerCase() ? 'border-white ring-1 ring-white' : 'border-[#1e2636]'}`}
+            style={{ background: c }} />
+        ))}
+      </div>
+    )}
   </div>
 );
 
@@ -641,13 +677,23 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
             {/* Fundo */}
             <div className={cardCls + ' space-y-3'}>
               <label className={labelCls}>Fundo</label>
-              <div className="flex gap-2">
-                {(['solid', 'gradient', 'image'] as const).map((t) => <button key={t} type="button" onClick={() => setTF('bgType', t)} className={chip(theme.bgType === t)}>{t === 'solid' ? 'Cor' : t === 'gradient' ? 'Estilos' : 'Imagem'}</button>)}
+              <div className="flex flex-wrap gap-2">
+                {([['solid', 'Cor'], ['gradient', 'Gradiente'], ['gradient3', '3 Cores'], ['stripes', 'Listras'], ['image', 'Imagem']] as const).map(([t, lbl]) => <button key={t} type="button" onClick={() => setTF('bgType', t)} className={chip(theme.bgType === t)}>{lbl}</button>)}
               </div>
-              {theme.bgType === 'solid' && <ColorField label="Cor do fundo" value={theme.bgValue} onChange={(v) => setTF('bgValue', v)} />}
+              {theme.bgType === 'solid' && <ColorField label="Cor do fundo" value={theme.bgColor1 || theme.bgValue} onChange={(v) => { setTF('bgColor1', v); setTF('bgValue', v); }} />}
               {theme.bgType === 'gradient' && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {BG_STYLES.map((g) => <button key={g.name} type="button" title={g.name} onClick={() => setTF('bgValue', g.css)} className={`h-12 rounded-lg border-2 transition-all ${theme.bgValue === g.css ? 'border-white' : 'border-transparent'}`} style={{ background: g.css }} />)}
+                </div>
+              )}
+              {(theme.bgType === 'gradient3' || theme.bgType === 'stripes') && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <ColorField label="Cor 1" value={theme.bgColor1 || '#0e1119'} onChange={(v) => setTF('bgColor1', v)} />
+                    <ColorField label="Cor 2" value={theme.bgColor2 || '#1e2636'} onChange={(v) => setTF('bgColor2', v)} />
+                  </div>
+                  {theme.bgType === 'gradient3' && <ColorField label="Cor 3" value={theme.bgColor3 || '#2563eb'} onChange={(v) => setTF('bgColor3', v)} />}
+                  <Slider label="Ângulo" value={theme.bgAngle ?? 135} min={0} max={360} unit="°" onChange={(n) => setTF('bgAngle', n)} />
                 </div>
               )}
               {theme.bgType === 'image' && <ImageField label="Imagem de fundo" value={theme.bgValue.startsWith('http') ? theme.bgValue : ''} onChange={(url) => setTF('bgValue', url)} uid={uid} kind="bg" onError={(m) => setToast({ type: 'err', msg: m })} />}
@@ -699,32 +745,81 @@ export const BioTab: React.FC<BioTabProps> = ({ user, uid }) => {
               )}
             </div>
 
-            {/* Avatar & tamanhos */}
+            {/* Avatar */}
             <div className={cardCls + ' space-y-4'}>
-              <div>
-                <label className={labelCls}>Formato do avatar</label>
-                <div className="flex flex-wrap gap-2">
-                  {AVATAR_OPTIONS.map((s) => (
-                    <button key={s.value} type="button" onClick={() => setTF('avatarShape', s.value)} className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${theme.avatarShape === s.value ? 'border-blue-500 bg-blue-500/10' : 'border-[#1e2636] hover:border-[#2a3550]'}`}>
-                      {s.value === 'none' ? <span className="w-8 h-8 flex items-center justify-center text-[#4b5872]"><X className="w-5 h-5" /></span> : <span className="w-8 h-8" style={{ background: theme.buttonColor, borderRadius: avatarRadiusOf(s.value) }} />}
-                      <span className={`text-[10px] font-bold ${theme.avatarShape === s.value ? 'text-blue-300' : 'text-[#93a0b5]'}`}>{s.label}</span>
-                    </button>
-                  ))}
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className={labelCls + ' mb-0'}>Mostrar avatar</span>
+                <input type="checkbox" checked={theme.showAvatar !== false} onChange={(e) => setTF('showAvatar', e.target.checked)} className="accent-blue-500 w-4 h-4" />
+              </label>
+              {theme.showAvatar !== false && (<>
+                <div>
+                  <label className={labelCls}>Formato do avatar (10)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {AVATAR_OPTIONS.map((s) => (
+                      <button key={s.value} type="button" onClick={() => setTF('avatarShape', s.value)} className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${theme.avatarShape === s.value ? 'border-blue-500 bg-blue-500/10' : 'border-[#1e2636] hover:border-[#2a3550]'}`}>
+                        {s.value === 'none' ? <span className="w-8 h-8 flex items-center justify-center text-[#4b5872]"><X className="w-5 h-5" /></span> : <span className="w-8 h-8" style={{ background: theme.buttonColor, borderRadius: AVATAR_CLIP[s.value] ? '0' : avatarRadiusOf(s.value), clipPath: AVATAR_CLIP[s.value] }} />}
+                        <span className={`text-[10px] font-bold ${theme.avatarShape === s.value ? 'text-blue-300' : 'text-[#93a0b5]'}`}>{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <Slider label="Tamanho do avatar" value={theme.avatarSize ?? 96} min={56} max={160} onChange={(n) => setTF('avatarSize', n)} />
-                <Slider label="Altura do banner" value={theme.bannerHeight ?? 112} min={60} max={320} onChange={(n) => setTF('bannerHeight', n)} />
-              </div>
-              <div>
-                <label className={labelCls}>Proporção do banner</label>
-                <div className="flex flex-wrap gap-2">
-                  {BANNER_RATIOS.map((r) => (
-                    <button key={r.label} type="button" onClick={() => setTF('bannerHeight', r.h)} className={chip((theme.bannerHeight ?? 112) === r.h)}>{r.label}</button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <Slider label="Borda do avatar" value={theme.avatarBorderWidth ?? 4} min={0} max={12} onChange={(n) => setTF('avatarBorderWidth', n)} />
+                  {(theme.avatarBorderWidth ?? 4) > 0 && <ColorField label="Cor da borda" value={theme.avatarBorderColor || theme.buttonColor} onChange={(v) => setTF('avatarBorderColor', v)} />}
                 </div>
-                <p className="text-[10px] text-[#4b5872] mt-1.5">A largura acompanha a página; ajuste a altura ou escolha uma proporção.</p>
-              </div>
+                <p className="text-[10px] text-[#4b5872]">Borda em <b>0</b> = sem borda ao redor da foto.</p>
+              </>)}
+            </div>
+
+            {/* Banner */}
+            <div className={cardCls + ' space-y-4'}>
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className={labelCls + ' mb-0'}>Mostrar banner</span>
+                <input type="checkbox" checked={theme.showBanner !== false} onChange={(e) => setTF('showBanner', e.target.checked)} className="accent-blue-500 w-4 h-4" />
+              </label>
+              {theme.showBanner !== false && (<>
+                <div>
+                  <label className={labelCls}>Posição do banner</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setTF('bannerMode', 'top')} className={chip((theme.bannerMode ?? 'top') === 'top')}>No topo</button>
+                    <button type="button" onClick={() => setTF('bannerMode', 'fullscreen')} className={chip(theme.bannerMode === 'fullscreen')}>Tela inteira (fundo)</button>
+                  </div>
+                  <p className="text-[10px] text-[#4b5872] mt-1.5">Tela inteira: a foto do banner ocupa o fundo, esticada até as bordas, atrás de tudo.</p>
+                </div>
+                {(theme.bannerMode ?? 'top') === 'top' && (
+                  <div>
+                    <label className={labelCls}>Formato do banner (10)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {BANNER_SHAPE_OPTIONS.map((s) => (
+                        <button key={s.value} type="button" onClick={() => setTF('bannerShape', s.value)} className={chip((theme.bannerShape ?? 'round-bottom') === s.value)}>{s.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {(theme.bannerMode ?? 'top') === 'top' && <Slider label="Altura do banner" value={theme.bannerHeight ?? 112} min={60} max={400} onChange={(n) => setTF('bannerHeight', n)} />}
+                  <Slider label="Zoom da imagem" value={theme.bannerScale ?? 100} min={100} max={220} unit="%" onChange={(n) => setTF('bannerScale', n)} />
+                </div>
+                {(theme.bannerMode ?? 'top') === 'top' && (
+                  <div>
+                    <label className={labelCls}>Proporção</label>
+                    <div className="flex flex-wrap gap-2">
+                      {BANNER_RATIOS.map((r) => (
+                        <button key={r.label} type="button" onClick={() => setTF('bannerHeight', r.h)} className={chip((theme.bannerHeight ?? 112) === r.h)}>{r.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>)}
+            </div>
+
+            {/* Rodapé */}
+            <div className={cardCls}>
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className={labelCls + ' mb-0'}>Esconder "lkrm.site" no rodapé</span>
+                <input type="checkbox" checked={!!theme.hideFooter} onChange={(e) => setTF('hideFooter', e.target.checked)} className="accent-blue-500 w-4 h-4" />
+              </label>
             </div>
 
             {/* Textos */}

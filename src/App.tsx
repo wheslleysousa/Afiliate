@@ -69,6 +69,17 @@ export default function App() {
   const [redirectingState, setRedirectingState] = useState<{ status: 'idle' | 'redirecting' | 'error', url?: string }>({ status: 'idle' });
   // Slug de uma página pública de Bio (lkrm.site/{slug}) detectada no boot
   const [publicBioSlug, setPublicBioSlug] = useState<string | null>(null);
+  // Detecta SINCRONAMENTE se a URL é uma rota pública (bio/link curto) para NÃO
+  // piscar a tela "Carregando dados" do app antes de resolver a bio.
+  const [isPotentialPublic] = useState<boolean>(() => {
+    try {
+      const path = window.location.pathname;
+      if (path === '/' || path === '') return false;
+      const parts = path.replace(/^\//, '').split('?')[0].split('/').filter(Boolean);
+      const validAppTabs = ['dashboard', 'new-product', 'saved-products', 'marketplace', 'my-products', 'projects', 'whatsapp-auto', 'templates', 'extension', 'url-shortener', 'bio', 'coupons', 'settings', 'api-docs'];
+      return !!parts[0] && !validAppTabs.includes(parts[0]);
+    } catch { return false; }
+  });
 
   // Fast Client-Side Redirect for Short Links + resolução de páginas de Bio
   useEffect(() => {
@@ -984,6 +995,12 @@ export default function App() {
         </p>
       </div>
     );
+  }
+
+  // Rota pública (bio/link curto) ainda resolvendo: tela neutra em branco,
+  // SEM o "Carregando dados" do app (o visitante da bio não deve ver isso).
+  if (isPotentialPublic && !publicBioSlug && redirectingState.status === 'idle') {
+    return <div className="min-h-screen w-full" style={{ background: '#0a0a0a' }} />;
   }
 
   // Loading indicator while checking Firebase Auth status
