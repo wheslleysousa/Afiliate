@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.4.0 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.4.1 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -638,7 +638,7 @@ function renderDraggableOverlay() {
           <div class="am-logo-icon">⚡</div>
           <div>
             <div class="am-header-title">AFFILIATE MINER</div>
-            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.0'}</div>
+            <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.1'}</div>
           </div>
         </div>
         <div class="am-header-actions">
@@ -2030,10 +2030,17 @@ async function extractRealProductData(element) {
                 const rawPrice = item.price || item.price_min || item.price_max;
                 if (rawPrice) pixPrice = rawPrice / 100000;
                 
-                if (item.price_before_discount > 0) {
-                  oldPrice = item.price_before_discount / 100000;
+                const rawOld = item.price_before_discount || item.price_max_before_discount || item.price_min_before_discount || 0;
+                if (rawOld > 0 && rawOld > (rawPrice || 0)) oldPrice = rawOld / 100000;
+                // Categoria pela própria API da Shopee (confiável, inclusive na listagem)
+                if (Array.isArray(item.categories) && item.categories.length) {
+                  const cats = item.categories.map((c) => (c && (c.display_name || c.name)) || '').filter(Boolean);
+                  if (cats.length) category = cats[cats.length - 1].slice(0, 60);
+                } else if (Array.isArray(item.fe_categories) && item.fe_categories.length) {
+                  const cats = item.fe_categories.map((c) => (c && c.display_name) || '').filter(Boolean);
+                  if (cats.length) category = cats[cats.length - 1].slice(0, 60);
                 }
-                
+
                 discountPercent = item.raw_discount || 0;
                 sales = item.historical_sold || item.sold || item.global_sold_count || 0;
                 rating = item.item_rating?.rating_star || 0;
@@ -2340,7 +2347,7 @@ async function extractRealProductData(element) {
       installments = extractInstallmentsText(cardText);
       coupon       = extractCouponText(element, cardText);
       pixExplicit  = extractPixPriceNum(cardText, 0);
-      category     = extractCategoryText();
+      if (!category) category = extractCategoryText();
     } else {
       // Single PDP Extraction (Product Detail Page)
       const platform = getPlatformKey();
@@ -2386,10 +2393,17 @@ async function extractRealProductData(element) {
                 const rawPrice = item.price || item.price_min || item.price_max;
                 if (rawPrice) pixPrice = rawPrice / 100000;
                 
-                if (item.price_before_discount > 0) {
-                  oldPrice = item.price_before_discount / 100000;
+                const rawOld = item.price_before_discount || item.price_max_before_discount || item.price_min_before_discount || 0;
+                if (rawOld > 0 && rawOld > (rawPrice || 0)) oldPrice = rawOld / 100000;
+                // Categoria pela própria API da Shopee (confiável, inclusive na listagem)
+                if (Array.isArray(item.categories) && item.categories.length) {
+                  const cats = item.categories.map((c) => (c && (c.display_name || c.name)) || '').filter(Boolean);
+                  if (cats.length) category = cats[cats.length - 1].slice(0, 60);
+                } else if (Array.isArray(item.fe_categories) && item.fe_categories.length) {
+                  const cats = item.fe_categories.map((c) => (c && c.display_name) || '').filter(Boolean);
+                  if (cats.length) category = cats[cats.length - 1].slice(0, 60);
                 }
-                
+
                 discountPercent = item.raw_discount || 0;
                 sales = item.historical_sold || item.sold || item.global_sold_count || 0;
                 rating = item.item_rating?.rating_star || 0;
@@ -2782,7 +2796,7 @@ async function extractRealProductData(element) {
       coupon       = extractCouponText(document, bodyText);
       pixExplicit  = extractPixPriceNum(bodyText, 0);
       description  = extractDescriptionText();
-      category     = extractCategoryText();
+      if (!category) category = extractCategoryText();
     }
 
     if (image && !pictures.includes(image)) pictures.unshift(image);
@@ -2941,23 +2955,17 @@ function extractInstallmentsText(scopeText) {
 }
 
 function extractCouponText(scope, scopeText) {
-  try {
-    if (scope && scope.querySelector) {
-      const badge = scope.querySelector(
-        '#couponBadge, .couponBadge, .vpc-coupon-badge, [class*="coupon" i], [class*="cupom" i], [class*="voucher" i]'
-      );
-      if (badge) {
-        const t = (badge.textContent || '').replace(/\s+/g, ' ').trim();
-        if (t && t.length <= 50) return t;
-      }
-    }
-  } catch (_) {}
+  // Só retorna um CÓDIGO de cupom limpo e claramente rotulado. Nunca blobs de
+  // texto do card (isso gerava lixo tipo "R$74,79com cupom >1mil+ Vendidos").
+  // Cupons de verdade vêm da aba Cupons (extração dedicada), não da mineração.
   if (scopeText) {
-    const m = scopeText.match(/(R\$\s*[\d.,]+\s*com\s*cupom(?:[^\n,.]{0,20})?)/i)
-           || scopeText.match(/(cupom\s*de\s*R\$\s*[\d.,]+)/i)
-           || scopeText.match(/cupom[:\s]*([A-Z0-9]{4,15})/i)
-           || scopeText.match(/c[óo]digo[:\s]*([A-Z0-9]{4,15})/i);
-    if (m) return m[1].trim();
+    const m = scopeText.match(/\bcupom[:\s]+([A-Z0-9]{4,15})\b/i)
+           || scopeText.match(/\bc[óo]digo[:\s]+([A-Z0-9]{4,15})\b/i);
+    if (m) {
+      const code = m[1].trim();
+      // descarta palavras comuns que não são código
+      if (!/^(vendidos?|frete|gr[aá]tis|off|com)$/i.test(code)) return code;
+    }
   }
   return null;
 }
@@ -3992,7 +4000,7 @@ function showDiagnosticErrorModal(errLog) {
     document.body.appendChild(modal);
   }
 
-  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.0';
+  const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.1';
   const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `

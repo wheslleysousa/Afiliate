@@ -486,21 +486,38 @@ export function applyTemplate(
     text = text.replaceAll(key, replacements[key]);
   }
 
-  // Limpar linhas onde variáveis vazias deixaram símbolos órfãos
+  // Limpar linhas onde variáveis vazias deixaram símbolos/rótulos órfãos
   text = text
     .split('\n')
     .map((line) => {
-      let cleanLine = line.replace(/~~\s*~~/g, '').trim();
-      if (cleanLine === 'De  por' || cleanLine === 'De por' || cleanLine === '🎟️' || cleanLine === '💳' || cleanLine === '🚚') {
-        return '';
-      }
-      return cleanLine;
+      return line
+        .replace(/~~\s*~~/g, '')          // tachado vazio duplo
+        .replace(/~\s*R\$\s*~/gi, '')      // "~R$ ~" (preço antigo vazio)
+        .replace(/~\s*~/g, '')             // tachado vazio simples
+        .replace(/\(\s*\)/g, '')           // parênteses vazios "( )"
+        .replace(/\bR\$\s*(?=$)/g, '')      // "R$" solto no fim da linha
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([!?.,])/g, '$1')
+        .trimEnd();
     })
-    .filter((line) => line !== '')
+    .filter((line) => {
+      const t = line.trim();
+      if (t === '') return false;
+      if (/\d/.test(t) || /https?:\/\//i.test(t)) return true; // tem número ou link → mantém
+      // linha sem valor: remove rótulos órfãos (preço/parcela/cupom/pix sem conteúdo)
+      const s = t.replace(/[*_~`]/g, '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}️]/gu, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (s === '') return false;
+      if (/^(de|por|de por|use o cupom|ou parcele em|parcele em|no pix|pix)$/.test(s)) return false;
+      if (/\b(parcele em|no pix|use o cupom|de por)$/.test(s)) return false;
+      if (/(:|—|-|em|por|de)\s*$/.test(s) && /(cupom|c[óo]digo|parcel|pix|pre[çc]o|de\b|por\b)/.test(s)) return false;
+      return true;
+    })
     .join('\n');
 
   // Colapsa "R$ R$" duplicado (quando o template já tem "R$" antes do valor formatado)
   text = text.replace(/R\$\s*R\$/g, 'R$');
+  // Colapsa múltiplas linhas em branco
+  text = text.replace(/\n{3,}/g, '\n\n');
 
   return text;
 }
