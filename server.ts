@@ -2113,7 +2113,7 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
     }
     const estCommissionAmount = Number(((numericPrice * estCommissionRate) / 100).toFixed(2));
     const estSalesTrendPct = Math.floor(Math.random() * 40) - 10;
-    const estCategory = apiData?.shopName || apiData?.shop_name || "Eletrônicos & Acessórios";
+    const estCategory = apiData?.category || null;
 
     const isGenericOrBlocked = !apiData || !apiData.title || apiData.title.includes("Verificação") || apiData.title.includes("não identificado") ||
                                finalTitle.includes("Verificação") || finalTitle.includes("não identificado") || price_to === "Consulte no link";
@@ -2167,7 +2167,7 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
               commission_rate: estCommissionRate,
               commission_amount: geminiCommissionAmount,
               sales_trend_pct: estSalesTrendPct,
-              category: "Utilidades Domésticas"
+              category: null
             };
           }
         }
@@ -2217,7 +2217,7 @@ async function scrapeShopee(url: string, shopeeKey?: string, shopeeAppId?: strin
       commission_rate: estCommissionRate,
       commission_amount: estCommissionAmount,
       sales_trend_pct: estSalesTrendPct,
-      category: "Eletrônicos & Acessórios"
+      category: null
     };
   } catch (err: any) {
     console.error("[Shopee Scraper Error]", err);

@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { apiFetch } from '../utils/apiBase';
-import type { MinedProductRef, GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate } from '../types';
+import type { MinedProductRef, GlobalProduct, ApiKeysConfig, CommissionRatesConfig, CopyTemplate, UserCategory } from '../types';
 import { ProductDetailModal } from './ProductDetailModal';
 import { PriceBlock } from './PriceBlock';
 import { calculateCommission } from '../utils/marketplaceUtils';
@@ -103,7 +103,43 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready_24h' | 'shared_24h' | 'favorites' | 'archived'>('all');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all'); // 'all' | catId | 'none'
+  const [userCategories, setUserCategories] = useState<UserCategory[]>([]);
+  const [assignForId, setAssignForId] = useState<string | null>(null); // produto sendo categorizado
   const [selectedProductForModal, setSelectedProductForModal] = useState<GlobalProduct | null>(null);
+
+  // Categorias criadas pelo usuário (aparecem aqui e na extensão)
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = onSnapshot(collection(db, 'users', uid, 'userCategories'), (snap) => {
+      setUserCategories(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as UserCategory));
+    }, () => {});
+    return () => unsub();
+  }, [uid]);
+
+  const CATEGORY_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+  const createCategory = async () => {
+    const name = window.prompt('Nome da nova categoria:');
+    const n = (name || '').trim();
+    if (!n || !uid) return;
+    const id = 'cat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const color = CATEGORY_COLORS[userCategories.length % CATEGORY_COLORS.length];
+    try { await setDoc(doc(db, 'users', uid, 'userCategories', id), { id, name: n, color, createdAt: new Date().toISOString() }); } catch (e) { console.error(e); }
+  };
+  const deleteCategory = async (id: string) => {
+    if (!uid) return;
+    if (!window.confirm('Excluir esta categoria? Os produtos não serão apagados, apenas deixam de ter essa categoria.')) return;
+    try { await deleteDoc(doc(db, 'users', uid, 'userCategories', id)); } catch (e) { console.error(e); }
+    if (categoryFilter === id) setCategoryFilter('all');
+  };
+  const toggleProductCategory = async (productId: string, catId: string, current: string[]) => {
+    if (!uid) return;
+    const next = current.includes(catId)
+      ? current.filter((x) => x !== catId)
+      : (current.length >= 2 ? current : [...current, catId]);
+    try { await updateDoc(doc(db, 'users', uid, 'minedProducts', productId), { categories: next }); } catch (e) { console.error(e); }
+  };
+  const catById = (id: string) => userCategories.find((c) => c.id === id);
 
   useEffect(() => {
     if (!uid) return;
@@ -279,6 +315,11 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
     // Filtro por plataforma
     if (platformFilter !== 'all' && p.platform !== platformFilter) return false;
 
+    // Filtro por categoria (categorias ficam no ref do produto minerado)
+    const itemCats = ((item as any).categories as string[] | undefined) || [];
+    if (categoryFilter === 'none') { if (itemCats.length) return false; }
+    else if (categoryFilter !== 'all') { if (!itemCats.includes(categoryFilter)) return false; }
+
     // Filtro por status
     const lastSharedMs = typeof item.lastSharedAt === 'number' ? item.lastSharedAt : (item.lastSharedAt ? new Date(item.lastSharedAt).getTime() : 0);
     const isSharedRecently = lastSharedMs > 0 && (now - lastSharedMs) < TWENTY_FOUR_HOURS;
@@ -360,6 +401,29 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             );
           })}
         </div>
+
+        {/* Categoria (criadas pelo usuário; aparecem também na extensão) */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1e2636]">
+          <span className="text-[11px] font-bold text-[#93a0b5] mr-1">Categoria:</span>
+          <button
+            onClick={() => setCategoryFilter('all')}
+            className={`px-3 py-1 rounded-xl text-xs font-semibold border cursor-pointer ${categoryFilter === 'all' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}
+          >Todas</button>
+          {userCategories.map((c) => {
+            const isActive = categoryFilter === c.id;
+            return (
+              <span key={c.id} className={`inline-flex items-center gap-1 rounded-xl border text-xs font-semibold ${isActive ? 'text-white' : 'text-[#93a0b5] hover:text-white'}`} style={{ borderColor: isActive ? c.color : '#1e2636', background: isActive ? (c.color + '33') : '#151a26' }}>
+                <button onClick={() => setCategoryFilter(c.id)} className="pl-3 pr-1 py-1 cursor-pointer">{c.name}</button>
+                <button onClick={() => deleteCategory(c.id)} title="Excluir categoria" className="pr-2 text-[#93a0b5] hover:text-red-400 cursor-pointer">×</button>
+              </span>
+            );
+          })}
+          <button
+            onClick={() => setCategoryFilter('none')}
+            className={`px-3 py-1 rounded-xl text-xs font-semibold border cursor-pointer ${categoryFilter === 'none' ? 'bg-[#334155] text-white border-[#475569]' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}
+          >Sem categoria</button>
+          <button onClick={createCategory} className="px-3 py-1 rounded-xl text-xs font-bold border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 cursor-pointer">＋ Nova</button>
+        </div>
       </div>
 
       {/* Loading Skeleton State */}
@@ -429,6 +493,14 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                         </button>
 
                         <button
+                          onClick={() => setAssignForId(item.productId)}
+                          className="p-1 rounded-lg bg-[#151a26] hover:bg-[#1e2636] text-[#93a0b5] hover:text-blue-300 transition-colors cursor-pointer"
+                          title="Definir categorias"
+                        >
+                          <Filter className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
                           onClick={() => setDeleteConfirmItem(item)}
                           className="p-1 rounded-lg bg-[#151a26] hover:bg-red-500/20 text-[#93a0b5] hover:text-red-400 transition-colors cursor-pointer"
                           title="Remover produto"
@@ -437,6 +509,17 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {/* Chips de categorias atribuídas */}
+                    {(((item as any).categories as string[] | undefined) || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 -mt-1">
+                        {(((item as any).categories as string[]) || []).map((cid) => {
+                          const c = catById(cid);
+                          if (!c) return null;
+                          return <span key={cid} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: c.color + '33', color: '#fff', border: `1px solid ${c.color}` }}>{c.name}</span>;
+                        })}
+                      </div>
+                    )}
 
                     {/* Clique para abrir modal */}
                     <div
@@ -500,6 +583,40 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
           )}
         </>
       )}
+
+      {/* Modal: definir categorias de um produto (até 2) */}
+      {assignForId && (() => {
+        const it = items.find((x) => x.productId === assignForId);
+        const cur = ((it as any)?.categories as string[] | undefined) || [];
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn" onClick={() => setAssignForId(null)}>
+            <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-extrabold text-white">Categorias do produto</h3>
+                <button onClick={() => setAssignForId(null)} className="text-[#93a0b5] hover:text-white cursor-pointer">✕</button>
+              </div>
+              <p className="text-xs text-[#93a0b5]">Selecione até 2 categorias. {cur.length >= 2 && <span className="text-amber-300">Limite de 2 atingido.</span>}</p>
+              {userCategories.length === 0 ? (
+                <div className="text-xs text-[#93a0b5]">Você ainda não criou categorias. Feche e clique em <b>＋ Nova</b> na barra de categorias.</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {userCategories.map((c) => {
+                    const on = cur.includes(c.id);
+                    return (
+                      <button key={c.id} onClick={() => toggleProductCategory(assignForId, c.id, cur)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-xl border cursor-pointer transition-all"
+                        style={{ borderColor: on ? c.color : '#1e2636', background: on ? (c.color + '33') : '#151a26', color: on ? '#fff' : '#93a0b5' }}>
+                        {on ? '✓ ' : ''}{c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <button onClick={createCategory} className="w-full text-xs font-bold py-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 cursor-pointer">＋ Criar nova categoria</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal de Confirmação de Exclusão */}
       {deleteConfirmItem && (

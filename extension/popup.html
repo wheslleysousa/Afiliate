@@ -79,7 +79,7 @@
         <div>
           <div class="brand-title">
             <span>Affiliate Miner</span>
-            <span class="v-badge" id="v-badge">v1.4.2</span>
+            <span class="v-badge" id="v-badge">v1.4.3</span>
           </div>
           <div class="status-indicator">
             <span class="status-dot active"></span>
@@ -165,6 +165,16 @@
       <div style="margin:10px 0;padding:12px;background:#0e1119;border:1px solid #1e2636;border-radius:14px;">
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:#eef2f9;margin-bottom:4px;">🎟️ Cupons</div>
         <div style="font-size:10px;color:#93a0b5;">Para extrair cupons, abra a loja e toque em <strong>“Extrair cupons”</strong> no menu flutuante (logo abaixo de “Extrair link de afiliado”). Os cupons vão direto para a aba <strong>Cupons</strong> do app.</div>
+      </div>
+
+      <!-- Categorias (criadas no app; selecione até 2 antes de enviar) -->
+      <div style="margin:10px 0;padding:12px;background:#0e1119;border:1px solid #1e2636;border-radius:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:800;color:#eef2f9;">🗂️ Categoria (até 2)</div>
+          <button id="btn-reload-categories" style="font-size:10px;background:#151a26;border:1px solid #1e2636;color:#93a0b5;border-radius:8px;padding:3px 8px;cursor:pointer;">Recarregar</button>
+        </div>
+        <div id="category-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        <div id="category-empty" style="font-size:10px;color:#93a0b5;">Crie categorias no app (aba <strong>Meus Produtos</strong>) para poder classificar os produtos aqui antes de enviar.</div>
       </div>
 
       <!-- Botão de Ação Principal -->

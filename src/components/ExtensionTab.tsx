@@ -25,7 +25,7 @@ import {
 
 // Versão da extensão — deve ser IDÊNTICA ao manifest.json da extensão.
 // Atualize apenas aqui e todos os textos da página são sincronizados.
-const EXT_VERSION = '1.4.2';
+const EXT_VERSION = '1.4.3';
 
 export const ExtensionTab: React.FC = () => {
   const [activeShowcase, setActiveShowcase] = useState<'amazon' | 'shopee' | 'filters' | 'toasts'>('amazon');

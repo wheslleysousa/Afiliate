@@ -238,7 +238,7 @@ async function addPriceHistory(globalId, priceTo, priceFrom, now, headers) {
   }
 }
 
-async function syncProductToFirestore(product, uid, idToken) {
+async function syncProductToFirestore(product, uid, idToken, categories = []) {
   // Normalizar platform e link
   const url      = cleanUrl(product.original_link || product.link || '');
   const platform = normalizePlatform(product.platform || product.marketplace || '', url);
@@ -368,6 +368,7 @@ async function syncProductToFirestore(product, uid, idToken) {
   const minedRef = `${FS_BASE}/users/${uid}/minedProducts/${globalId}`;
   const minedCheck = await fetch(minedRef, { headers });
 
+  const cats = Array.isArray(categories) ? categories.filter(Boolean).slice(0, 2) : [];
   if (!minedCheck.ok) {
     await fetch(minedRef, {
       method:  'PATCH',
@@ -375,16 +376,21 @@ async function syncProductToFirestore(product, uid, idToken) {
       body: JSON.stringify({ fields: objToFs({
         productId: globalId, platform, minedAt: now,
         favorite: false, status: 'active',
+        categories: cats,
       }) }),
     });
     // Contabiliza no "Minerados hoje" apenas na PRIMEIRA vez que este usuário
     // minera este produto (evita inflar o contador em re-sincronizações).
     await incrementDailyStat(uid, headers);
   } else {
-    await fetch(`${minedRef}?updateMask.fieldPaths=minedAt`, {
+    // Atualiza data e (se o usuário selecionou) as categorias na re-sincronização
+    const upd = { minedAt: now };
+    let mask = 'updateMask.fieldPaths=minedAt';
+    if (cats.length) { upd.categories = cats; mask += '&updateMask.fieldPaths=categories'; }
+    await fetch(`${minedRef}?${mask}`, {
       method:  'PATCH',
       headers,
-      body: JSON.stringify({ fields: objToFs({ minedAt: now }) }),
+      body: JSON.stringify({ fields: objToFs(upd) }),
     });
   }
 
@@ -699,9 +705,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
       const products = msg.payload?.products || [];
+      // categorias selecionadas: do payload (popup) ou do estado salvo
+      const cats = Array.isArray(msg.payload?.categories) ? msg.payload.categories
+        : (Array.isArray(s.selectedCategories) ? s.selectedCategories : []);
       let synced = 0;
       for (const p of products) {
-        try { await syncProductToFirestore(p, s.uid, s.idToken); synced++; } catch (_) {}
+        try { await syncProductToFirestore(p, s.uid, s.idToken, cats); synced++; } catch (_) {}
       }
       sendResponse({ success: true, synced });
     });

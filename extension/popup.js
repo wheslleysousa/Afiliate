@@ -1,4 +1,4 @@
-/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.2)
+/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.3)
    MUDANÇAS recentes:
    - Login agora usa Firebase Auth real (REST API)
    - "Enviar Todos" agora sincroniza com Firestore real
@@ -65,6 +65,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendAll        = document.getElementById('btn-send-all');
   const btnSendText       = document.getElementById('btn-send-text');
 
+  const categoryChips       = document.getElementById('category-chips');
+  const categoryEmpty       = document.getElementById('category-empty');
+  const btnReloadCategories = document.getElementById('btn-reload-categories');
+  let userCategories = [];
+
+  async function loadCategories() {
+    if (!state.isLoggedIn || !state.uid || !state.idToken) return;
+    try {
+      const res = await fetch(`${FS_BASE}/users/${state.uid}/userCategories`, { headers: { Authorization: `Bearer ${state.idToken}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      userCategories = (json.documents || []).map((d) => {
+        const id = d.name.split('/').pop();
+        const f = d.fields || {};
+        return { id, name: (f.name && f.name.stringValue) || id, color: (f.color && f.color.stringValue) || '#2563eb' };
+      });
+      // remove seleções de categorias que não existem mais
+      if (Array.isArray(state.selectedCategories)) {
+        const ids = userCategories.map((c) => c.id);
+        state.selectedCategories = state.selectedCategories.filter((x) => ids.includes(x));
+      }
+      renderCategoryChips();
+    } catch (e) {}
+  }
+
+  function renderCategoryChips() {
+    if (!categoryChips) return;
+    if (!userCategories.length) {
+      categoryChips.innerHTML = '';
+      if (categoryEmpty) categoryEmpty.style.display = 'block';
+      return;
+    }
+    if (categoryEmpty) categoryEmpty.style.display = 'none';
+    const sel = state.selectedCategories || [];
+    categoryChips.innerHTML = '';
+    userCategories.forEach((c) => {
+      const b = document.createElement('button');
+      const on = sel.includes(c.id);
+      b.textContent = c.name;
+      b.style.cssText = `font-size:11px;font-weight:700;border-radius:9px;padding:5px 10px;cursor:pointer;border:1px solid ${on ? c.color : '#1e2636'};background:${on ? c.color + '33' : '#151a26'};color:${on ? '#fff' : '#93a0b5'};`;
+      b.onclick = () => toggleCategory(c.id);
+      categoryChips.appendChild(b);
+    });
+  }
+
+  function toggleCategory(id) {
+    let sel = Array.isArray(state.selectedCategories) ? state.selectedCategories.slice() : [];
+    if (sel.includes(id)) sel = sel.filter((x) => x !== id);
+    else { if (sel.length >= 2) { showToast('Máximo de 2 categorias por vez'); return; } sel.push(id); }
+    state.selectedCategories = sel;
+    saveState();
+    renderCategoryChips();
+  }
+
+  if (btnReloadCategories) btnReloadCategories.addEventListener('click', () => loadCategories());
+
   // Cupons: a extração agora é feita pelo botão único "Extrair cupons" do painel
   // flutuante na loja (content.js), abaixo de "Extrair link de afiliado".
 
@@ -123,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
           state = { ...state, ...res.affiliateMinerState };
         }
         updateUI();
+        loadCategories();
 
         // ── NOVO: escutar mudanças no storage e sincronizar novos produtos ──
         chrome.storage.onChanged.addListener((changes, area) => {
@@ -633,18 +690,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const minedRef   = `${FS_BASE}/users/${state.uid}/minedProducts/${globalId}`;
     const minedCheck = await fetch(minedRef, { headers });
 
+    const cats = Array.isArray(state.selectedCategories) ? state.selectedCategories.filter(Boolean).slice(0, 2) : [];
     if (!minedCheck.ok) {
       await fetch(minedRef, {
         method: 'PATCH', headers,
         body: JSON.stringify({ fields: objToFs({
           productId: globalId, platform, minedAt: now, favorite: false, status: 'active',
+          categories: cats,
         }) }),
       });
       await incrementDailyStat(state.uid, headers);
     } else {
-      await fetch(`${minedRef}?updateMask.fieldPaths=minedAt`, {
+      let mask = 'updateMask.fieldPaths=minedAt';
+      const upd = { minedAt: now };
+      if (cats.length) { upd.categories = cats; mask += '&updateMask.fieldPaths=categories'; }
+      await fetch(`${minedRef}?${mask}`, {
         method: 'PATCH', headers,
-        body: JSON.stringify({ fields: objToFs({ minedAt: now }) }),
+        body: JSON.stringify({ fields: objToFs(upd) }),
       });
     }
   }
@@ -904,7 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
-    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.2';
+    const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.3';
     const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v${amVer}
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})

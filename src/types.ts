@@ -187,6 +187,14 @@ export interface GlobalProduct {
   lastVerifiedAt?: string;
 }
 
+/** Categoria criada pelo usuário para organizar os produtos minerados */
+export interface UserCategory {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt?: string;
+}
+
 /** Entrada no histórico de preço de um produto do marketplace */
 export interface PriceHistoryEntry {
   id: string;
