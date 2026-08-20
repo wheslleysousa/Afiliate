@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ApiKeysConfig, UserProfile, CommissionRatesConfig } from '../types';
+import { DEFAULT_COMMISSION_CONFIG } from '../utils/marketplaceUtils';
 import { extractCleanTrackingId } from '../utils/affiliateLink';
 import { getApiUrl, apiFetch } from '../utils/apiBase';
 import { 
@@ -42,7 +43,9 @@ import {
   Info,
   Pencil,
   Unlink,
-  LogOut
+  LogOut,
+  Percent,
+  RotateCcw
 } from 'lucide-react';
 
 interface SettingsTabProps {
@@ -62,13 +65,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   user,
   apiKeys: initialApiKeys,
   alarmSettings: initialAlarmSettings,
+  commissionRates,
   currentTimezone = 'America/Sao_Paulo',
   onOpenTimezoneModal,
   onSaveAlarmSettings,
   onSaveApiKeys,
+  onSaveCommissionRates,
   onUpdateProfile,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'gemini' | 'affiliates' | 'alarm'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'gemini' | 'affiliates' | 'commission' | 'alarm'>('profile');
 
   // --- 1. Meu Perfil ---
   const [name, setName] = useState(user.name);
@@ -217,6 +222,77 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setEditingPlatforms((prev) => ({ ...prev, [platformId]: false }));
   };
 
+  // --- 3b. Comissões por Categoria ---
+  const cloneRates = (r?: CommissionRatesConfig | null): CommissionRatesConfig =>
+    JSON.parse(JSON.stringify(r && Object.keys(r).length ? r : DEFAULT_COMMISSION_CONFIG));
+  const [rates, setRates] = useState<CommissionRatesConfig>(() => cloneRates(commissionRates));
+  const [commPlatform, setCommPlatform] = useState<string>('shopee');
+  const [commissionSavedFeedback, setCommissionSavedFeedback] = useState(false);
+
+  useEffect(() => {
+    setRates(cloneRates(commissionRates));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commissionRates]);
+
+  const COMMISSION_PLATFORMS: { id: string; label: string }[] = [
+    { id: 'shopee', label: 'Shopee' },
+    { id: 'mercadolivre', label: 'Mercado Livre' },
+    { id: 'amazon', label: 'Amazon' },
+    { id: 'aliexpress', label: 'AliExpress' },
+    { id: 'shein', label: 'Shein' },
+    { id: 'tiktokshop', label: 'TikTok Shop' },
+  ];
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    moda: 'Moda & Vestuário',
+    beleza: 'Beleza & Saúde',
+    casa: 'Casa & Decoração',
+    esportes: 'Esportes & Fitness',
+    brinquedos: 'Brinquedos',
+    eletrodomesticos: 'Eletrodomésticos',
+    eletronicos: 'Eletrônicos',
+    informatica: 'Informática',
+    celulares: 'Celulares',
+    games: 'Games',
+    pet: 'Pet',
+    saude: 'Saúde',
+    ferramentas: 'Ferramentas',
+    livros: 'Livros',
+  };
+
+  const setPlatformDefault = (plat: string, value: number) => {
+    setRates((prev) => {
+      const next = cloneRates(prev);
+      if (!next[plat]) next[plat] = { default: value, categories: {} };
+      next[plat].default = value;
+      return next;
+    });
+  };
+
+  const setCategoryRate = (plat: string, cat: string, value: number) => {
+    setRates((prev) => {
+      const next = cloneRates(prev);
+      if (!next[plat]) next[plat] = { default: 0, categories: {} };
+      if (!next[plat].categories) next[plat].categories = {};
+      next[plat].categories[cat] = value;
+      return next;
+    });
+  };
+
+  const resetPlatformToDefault = (plat: string) => {
+    setRates((prev) => {
+      const next = cloneRates(prev);
+      next[plat] = JSON.parse(JSON.stringify(DEFAULT_COMMISSION_CONFIG[plat] || { default: 5, categories: {} }));
+      return next;
+    });
+  };
+
+  const handleSaveCommission = () => {
+    if (onSaveCommissionRates) onSaveCommissionRates(cloneRates(rates));
+    setCommissionSavedFeedback(true);
+    setTimeout(() => setCommissionSavedFeedback(false), 2500);
+  };
+
   // --- 4. Alarmes & Configurações Modal ---
   const [alarm, setAlarm] = useState<AlarmSettings>(
     initialAlarmSettings || getAlarmSettings()
@@ -334,6 +410,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         >
           <Key className="w-3.5 h-3.5 text-emerald-400" />
           <span>Contas e Afiliados</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('commission')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
+            activeTab === 'commission'
+              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
+              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
+          }`}
+        >
+          <Percent className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Comissões</span>
         </button>
 
         <button
@@ -1126,6 +1214,118 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             >
               {alarm.enabled ? 'Alarme Ativado ✓' : 'Alarme Desativado'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- SECTION 3b: COMISSÕES POR CATEGORIA --- */}
+      {activeTab === 'commission' && (
+        <div className="p-6 bg-[#0e1119] border border-[#1e2636] rounded-2xl space-y-5 animate-fadeIn">
+          <div className="flex items-center gap-3 border-b border-[#1e2636] pb-4">
+            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
+              <Percent className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white">Comissões por Categoria</h3>
+              <p className="text-xs text-[#93a0b5]">
+                Ajuste a % de comissão de afiliado por plataforma e categoria. Usada no cálculo da
+                comissão estimada em Meus Produtos, Marketplace e nos templates.
+              </p>
+            </div>
+          </div>
+
+          {/* Seletor de plataforma */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {COMMISSION_PLATFORMS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setCommPlatform(p.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
+                  commPlatform === p.id
+                    ? 'bg-emerald-600 text-white border-emerald-400'
+                    : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            const plat = rates[commPlatform] || DEFAULT_COMMISSION_CONFIG[commPlatform] || { default: 5, categories: {} };
+            // União das categorias do padrão + das configuradas, mantendo ordem do padrão
+            const defaultCats = Object.keys(DEFAULT_COMMISSION_CONFIG[commPlatform]?.categories || {});
+            const extraCats = Object.keys(plat.categories || {}).filter((k) => !defaultCats.includes(k));
+            const catKeys = [...defaultCats, ...extraCats];
+
+            return (
+              <div className="space-y-4">
+                {/* Comissão padrão */}
+                <div className="flex items-center justify-between gap-3 bg-[#151a26] border border-[#1e2636] rounded-xl px-4 py-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Comissão padrão</div>
+                    <div className="text-[10px] text-[#93a0b5]">Aplicada quando a categoria do produto não é reconhecida.</div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={plat.default ?? 0}
+                      onChange={(e) => setPlatformDefault(commPlatform, Number(e.target.value))}
+                      className="w-20 bg-[#0e1119] border border-[#1e2636] rounded-lg px-2.5 py-1.5 text-sm font-extrabold text-white text-right focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-xs font-bold text-[#93a0b5]">%</span>
+                  </div>
+                </div>
+
+                {/* Categorias */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {catKeys.map((cat) => (
+                    <div key={cat} className="flex items-center justify-between gap-3 bg-[#151a26] border border-[#1e2636] rounded-xl px-3 py-2">
+                      <span className="text-xs font-medium text-stone-200 truncate">
+                        {CATEGORY_LABELS[cat] || cat}
+                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          value={plat.categories?.[cat] ?? ''}
+                          onChange={(e) => setCategoryRate(commPlatform, cat, Number(e.target.value))}
+                          className="w-16 bg-[#0e1119] border border-[#1e2636] rounded-lg px-2 py-1 text-xs font-extrabold text-white text-right focus:outline-none focus:border-emerald-500"
+                        />
+                        <span className="text-[11px] font-bold text-[#93a0b5]">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => resetPlatformToDefault(commPlatform)}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#93a0b5] hover:text-white bg-[#151a26] border border-[#1e2636] rounded-lg px-3 py-1.5 cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Restaurar padrão desta plataforma
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Salvar */}
+          <div className="flex items-center gap-3 border-t border-[#1e2636] pt-4">
+            <button
+              onClick={handleSaveCommission}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+            >
+              {commissionSavedFeedback ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {commissionSavedFeedback ? 'Comissões salvas!' : 'Salvar comissões'}
+            </button>
+            <p className="text-[10px] text-[#4b5872]">
+              Você também pode definir uma comissão específica por produto no card do produto (sobrescreve estas taxas).
+            </p>
           </div>
         </div>
       )}
