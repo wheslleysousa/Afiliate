@@ -79,7 +79,7 @@
         <div>
           <div class="brand-title">
             <span>Affiliate Miner</span>
-            <span class="v-badge" id="v-badge">v1.4.6</span>
+            <span class="v-badge" id="v-badge">v1.4.7</span>
           </div>
           <div class="status-indicator">
             <span class="status-dot active"></span>
@@ -171,10 +171,13 @@
       <div style="margin:10px 0;padding:12px;background:#0e1119;border:1px solid #1e2636;border-radius:14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;">
           <div style="font-size:12px;font-weight:800;color:#eef2f9;">🗂️ Categoria (até 2)</div>
-          <button id="btn-reload-categories" style="font-size:10px;background:#151a26;border:1px solid #1e2636;color:#93a0b5;border-radius:8px;padding:3px 8px;cursor:pointer;">Recarregar</button>
+          <div style="display:flex;gap:6px;">
+            <button id="btn-create-category" style="font-size:10px;background:#0e2a1c;border:1px solid #1f6f4a;color:#6ee7b7;border-radius:8px;padding:3px 8px;cursor:pointer;font-weight:700;">＋ Criar</button>
+            <button id="btn-reload-categories" style="font-size:10px;background:#151a26;border:1px solid #1e2636;color:#93a0b5;border-radius:8px;padding:3px 8px;cursor:pointer;">Recarregar</button>
+          </div>
         </div>
         <div id="category-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-        <div id="category-empty" style="font-size:10px;color:#93a0b5;">Crie categorias no app (aba <strong>Meus Produtos</strong>) para poder classificar os produtos aqui antes de enviar.</div>
+        <div id="category-empty" style="font-size:10px;color:#93a0b5;">Nenhuma categoria ainda. Toque em <strong>＋ Criar</strong> para adicionar uma aqui — ela também aparece no app (aba <strong>Meus Produtos</strong>).</div>
       </div>
 
       <!-- Botão de Ação Principal -->

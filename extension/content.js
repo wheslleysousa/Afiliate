@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.4.6 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Affiliate Miner Content Script v1.4.7 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -3337,7 +3337,18 @@ async function extractAffiliateLinkFlow() {
       return;
     }
     if (platform === 'shopee') { showAffiliateResult('Shopee', false, `<p>Na Shopee o link de afiliado (s.shopee) é gerado <b>automaticamente no app</b> pela API oficial — basta configurar o App ID e o Secret nas Configurações. Não precisa extrair aqui.</p>`, 'shopee via API'); return; }
-    if (platform === 'tiktokshop') { showAffiliateResult('TikTok Shop', false, `<p>No TikTok Shop o link de afiliado é gerado no app deles. Por enquanto, cole seu link manualmente ao divulgar.</p>`, 'tiktok manual'); return; }
+    if (platform === 'tiktokshop') {
+      // Igual ao ML/Amazon: roda no MAIN world via background usando a sessão logada
+      const r = await new Promise((resolve) => {
+        try { chrome.runtime.sendMessage({ action: 'GENERATE_TIKTOK_LINK', url: window.location.href.split('#')[0] }, (resp) => resolve(resp || { success: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'sem resposta do background' })); }
+        catch (e) { resolve({ success: false, error: e && e.message || String(e) }); }
+      });
+      const raw = JSON.stringify(r, null, 2);
+      const diagBlock = `<hr style="border-color:#1e2636;margin:10px 0"><p style="font-size:10px;color:#93a0b5">Diagnóstico (toque em "Copiar resultado" e me mande se algo der errado):</p><pre style="font-size:10px;white-space:pre-wrap;color:#cbd5e1">${escapeHtmlAff(raw)}</pre>`;
+      if (r && r.success && r.short_link) showAffiliateResult('TikTok Shop ✓', true, `<p>Link de afiliado:</p><a href="${escapeHtmlAff(r.short_link)}" target="_blank" style="color:#60a5fa;word-break:break-all">${escapeHtmlAff(r.short_link)}</a>${diagBlock}`, r.short_link);
+      else showAffiliateResult('TikTok Shop ✗', false, `<p>${escapeHtmlAff((r && r.error) || 'Não consegui extrair.')}</p>${diagBlock}`, raw);
+      return;
+    }
     showAffiliateResult('Plataforma', false, `<p>Extração ainda não suportada nesta plataforma (${escapeHtmlAff(platform)}).</p>`, platform);
   } catch (e) {
     showAffiliateResult('Erro', false, `<p>Erro inesperado: ${escapeHtmlAff(e && e.message || String(e))}</p>`, String(e && e.stack || e));

@@ -29,6 +29,9 @@ import {
   ShoppingBag,
   Loader2,
   Filter,
+  ChevronDown,
+  Plus,
+  X,
 } from 'lucide-react';
 
 interface MinedProductsTabProps {
@@ -107,6 +110,8 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
   const [userCategories, setUserCategories] = useState<UserCategory[]>([]);
   const [assignForId, setAssignForId] = useState<string | null>(null); // produto sendo categorizado
   const [selectedProductForModal, setSelectedProductForModal] = useState<GlobalProduct | null>(null);
+  const [showFilters, setShowFilters] = useState(false); // painel de filtros abre ao clicar no botão
+  const [catPopupOpen, setCatPopupOpen] = useState(false); // popup "Selecionar categoria" (filtro)
 
   // Categorias criadas pelo usuário — guardadas em UM doc (users/{uid}/userConfig/categories)
   // para a extensão poder LER via GET (a listagem de coleção via REST dava 403).
@@ -207,15 +212,19 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
     const SIX_H = 6 * 3600 * 1000;
     // pega os que precisam de verificação: não verificados, sem preço antigo,
     // ou verificados há mais de 6h (reverifica tudo periodicamente).
+    // Só extraímos via API os produtos de Shopee, Mercado Livre e Amazon.
+    // (AliExpress/Shein/TikTok não têm extração de preço confiável por aqui.)
+    const API_PLATFORMS = ['shopee', 'mercadolivre', 'amazon'];
     const pending = items.filter((it) => {
       const pd = it.productData;
       if (!pd || !pd.original_link) return false;
+      const plat = (pd.platform || '').toLowerCase();
+      if (!API_PLATFORMS.includes(plat)) return false;
       if (verifyingRef.current.has(it.productId)) return false;
       const verified = !!pd.verifiedByApi;
       const stale = pd.lastVerifiedAt ? (Date.now() - Date.parse(pd.lastVerifiedAt) > SIX_H) : false;
       if (verified && !stale) return false;
       if (stale) return true; // passou 6h → revalida
-      const plat = (pd.platform || '').toLowerCase();
       return plat === 'shopee' || !pd.price_from;
     }).slice(0, 20); // até 20 por rodada; o resto entra nas próximas cargas
 
@@ -264,7 +273,17 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
               ? { ...x, productData: { ...(x.productData as GlobalProduct), ...updates } }
               : x));
           }
-        } catch { /* segue para o próximo */ }
+        } catch (e: any) {
+          // Falha de rede (servidor fora do ar / cold start do Render): não adianta
+          // martelar os 20 produtos com "Failed to fetch" — encerra a rodada e tenta
+          // de novo na próxima carga, sem marcar o produto como verificado.
+          const emsg = String((e && e.message) || e || '');
+          if (/failed to fetch|networkerror|load failed|network request failed/i.test(emsg)) {
+            verifyingRef.current.delete(it.productId);
+            break;
+          }
+          /* outro erro pontual: segue para o próximo */
+        }
       }
     })();
 
@@ -372,10 +391,13 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
         </div>
       </div>
 
-      {/* ── Painel de Filtros (redesign) ───────────────────────────────── */}
+      {/* ── Painel de Filtros (abre ao clicar no botão) ─────────────────── */}
       <div className="bg-gradient-to-b from-[#0e1119] to-[#0b0e15] border border-[#1e2636] rounded-2xl overflow-hidden">
-        {/* Cabeçalho do painel */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1e2636] bg-[#0e1119]/60">
+        {/* Botão que abre/fecha os filtros */}
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0e1119]/60 hover:bg-[#0e1119] transition-colors cursor-pointer"
+        >
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
               <Filter className="w-3.5 h-3.5 text-blue-400" />
@@ -385,12 +407,19 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/30">{activeFilterCount} ativo{activeFilterCount > 1 ? 's' : ''}</span>
             )}
           </div>
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters} className="text-[11px] font-bold text-[#93a0b5] hover:text-red-400 transition-colors cursor-pointer">Limpar filtros</button>
-          )}
-        </div>
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <span
+                onClick={(e) => { e.stopPropagation(); clearFilters(); }}
+                className="text-[11px] font-bold text-[#93a0b5] hover:text-red-400 transition-colors cursor-pointer"
+              >Limpar</span>
+            )}
+            <ChevronDown className={`w-4 h-4 text-[#93a0b5] transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
 
-        <div className="p-4 space-y-4">
+        {showFilters && (
+        <div className="p-4 space-y-4 border-t border-[#1e2636] animate-fadeIn">
           {/* Status */}
           <div className="space-y-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Status</span>
@@ -423,35 +452,76 @@ export const MinedProductsTab: React.FC<MinedProductsTabProps> = ({
             </div>
           </div>
 
-          {/* Categoria */}
+          {/* Categoria — botão que abre um popup para selecionar */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Categoria</span>
-              <button onClick={createCategory} className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer">＋ Nova categoria</button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => setCategoryFilter('all')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${categoryFilter === 'all' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}>Todas</button>
-              {userCategories.map((c) => {
-                const isActive = categoryFilter === c.id;
-                return (
-                  <span key={c.id} className="inline-flex items-center rounded-full border text-xs font-semibold transition-all overflow-hidden" style={{ borderColor: isActive ? c.color : '#1e2636', background: isActive ? (c.color + '33') : '#151a26' }}>
-                    <button onClick={() => setCategoryFilter(c.id)} className={`inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 cursor-pointer ${isActive ? 'text-white' : 'text-[#93a0b5] hover:text-white'}`}>
-                      <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-                      {c.name}
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7a90]">Categoria</span>
+            <div className="relative">
+              <button
+                onClick={() => setCatPopupOpen((v) => !v)}
+                className="w-full sm:w-72 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border bg-[#151a26] border-[#1e2636] text-white hover:border-[#2a3548] cursor-pointer transition-all"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  {(() => {
+                    if (categoryFilter === 'all') return <span className="text-[#93a0b5]">Todas as categorias</span>;
+                    if (categoryFilter === 'none') return <span>Sem categoria</span>;
+                    const c = catById(categoryFilter);
+                    return c ? (<><span className="w-2.5 h-2.5 rounded-full" style={{ background: c.color }} />{c.name}</>) : <span className="text-[#93a0b5]">Selecionar categoria</span>;
+                  })()}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-[#93a0b5] shrink-0 transition-transform ${catPopupOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {catPopupOpen && (
+                <>
+                  {/* Backdrop para fechar ao clicar fora */}
+                  <div className="fixed inset-0 z-20" onClick={() => setCatPopupOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-30 w-full sm:w-72 max-h-72 overflow-y-auto bg-[#0e1119] border border-[#1e2636] rounded-xl shadow-2xl p-2 space-y-1 animate-fadeIn">
+                    <button onClick={() => { setCategoryFilter('all'); setCatPopupOpen(false); }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${categoryFilter === 'all' ? 'bg-blue-600 text-white' : 'text-[#93a0b5] hover:bg-[#151a26] hover:text-white'}`}>
+                      Todas as categorias
                     </button>
-                    <button onClick={() => deleteCategory(c.id)} title="Excluir categoria" className="pr-2 pl-0.5 py-1.5 text-[#6b7a90] hover:text-red-400 cursor-pointer">×</button>
-                  </span>
-                );
-              })}
-              <button onClick={() => setCategoryFilter('none')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${categoryFilter === 'none' ? 'bg-[#334155] text-white border-[#475569]' : 'bg-[#151a26] text-[#93a0b5] hover:text-white border-[#1e2636]'}`}>Sem categoria</button>
+                    <button onClick={() => { setCategoryFilter('none'); setCatPopupOpen(false); }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${categoryFilter === 'none' ? 'bg-[#334155] text-white' : 'text-[#93a0b5] hover:bg-[#151a26] hover:text-white'}`}>
+                      Sem categoria
+                    </button>
+
+                    {userCategories.length > 0 && <div className="h-px bg-[#1e2636] my-1" />}
+
+                    {userCategories.map((c) => {
+                      const isActive = categoryFilter === c.id;
+                      return (
+                        <div key={c.id} className="flex items-center gap-1">
+                          <button onClick={() => { setCategoryFilter(c.id); setCatPopupOpen(false); }}
+                            className={`flex-1 flex items-center gap-2 text-left px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isActive ? 'text-white' : 'text-[#93a0b5] hover:bg-[#151a26] hover:text-white'}`}
+                            style={isActive ? { background: (c.color || '#2563eb') + '33' } : undefined}>
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                          <button onClick={() => deleteCategory(c.id)} title="Excluir categoria"
+                            className="p-1.5 rounded-lg text-[#6b7a90] hover:text-red-400 hover:bg-red-500/10 cursor-pointer">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Criar categoria — SEMPRE disponível */}
+                    <div className="h-px bg-[#1e2636] my-1" />
+                    <button onClick={async () => { await createCategory(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-emerald-300 hover:bg-emerald-500/10 cursor-pointer transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                      Criar categoria
+                    </button>
+                    {userCategories.length === 0 && (
+                      <p className="text-[11px] text-[#6b7a90] px-3 pt-1 pb-0.5">Nenhuma categoria ainda. Crie a primeira acima — ela também aparece na extensão.</p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
-            {userCategories.length === 0 && (
-              <p className="text-[11px] text-[#6b7a90]">Crie categorias para organizar seus produtos — elas também aparecem na extensão para você classificar antes de enviar.</p>
-            )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Loading Skeleton State */}

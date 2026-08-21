@@ -478,6 +478,43 @@ async function _amazonGenerateInPage(productUrl) {
   } catch (e) { return { success: false, error: e && e.message || String(e) }; }
 }
 
+// Gera/lê o link de afiliado do TikTok Shop a partir da SESSÃO logada do usuário.
+// Estratégia (mesma ideia do ML/Amazon, adaptada ao TikTok):
+//  1) tenta achar um short link de afiliado já presente na página (vt/vm.tiktok.com,
+//     tiktok.com/t/...) — aparece quando você abre "Compartilhar / Obter link".
+//  2) se não achar, retorna diagnóstico para orientar o usuário a abrir o painel.
+// Roda no MAIN world de uma aba tiktok.com logada como afiliado/criador.
+async function _tiktokGenerateInPage(productUrl) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const diag = { url: productUrl, isProduct: false, found: null, scanned: 0 };
+  const RE = /https?:\/\/(?:vt|vm)\.tiktok\.com\/[A-Za-z0-9._-]+|https?:\/\/(?:www\.)?tiktok\.com\/t\/[A-Za-z0-9._-]+/i;
+  try {
+    diag.isProduct = /tiktok\.com\/(?:view\/product|shop|@[^/]+\/product)/i.test(String(productUrl || '')) ||
+                     /\/(?:product|goods|view)\//i.test(String(location.pathname || ''));
+    const findLink = () => {
+      // 1) campos de formulário (o painel "Compartilhar" costuma jogar o link aqui)
+      const fields = Array.from(document.querySelectorAll('input, textarea'));
+      for (const el of fields) { const v = (el.value || '').trim(); const m = v.match(RE); if (m) return m[0]; }
+      // 2) âncoras e textos com short link do TikTok
+      const nodes = Array.from(document.querySelectorAll('a[href], [class*="copy" i], [class*="link" i], [class*="share" i] *, span, div'));
+      diag.scanned = nodes.length;
+      for (const el of nodes) {
+        const v = (el.getAttribute && el.getAttribute('href')) || el.textContent || '';
+        const m = String(v).match(RE);
+        if (m) return m[0];
+      }
+      return null;
+    };
+    for (let i = 0; i < 16 && !diag.found; i++) { diag.found = findLink(); if (!diag.found) await wait(300); }
+    if (diag.found) return { success: true, short_link: diag.found, diag };
+    return {
+      success: false,
+      error: 'Abra no produto o painel “Compartilhar / Obter link” do TikTok Shop (logado como afiliado/criador) e, SEM fechar, toque em “Extrair link de afiliado”. Ainda não encontrei o link curto (vt.tiktok.com).',
+      diag,
+    };
+  } catch (e) { return { success: false, error: (e && e.message) || String(e), diag }; }
+}
+
 function _couponHash(s) {
   let h = 5381; s = String(s || '');
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
@@ -679,6 +716,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = sender.tab && sender.tab.id;
     if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }
     chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: _amazonGenerateInPage, args: [msg.url || ''] })
+      .then((results) => sendResponse(results && results[0] ? results[0].result : { success: false, error: 'Sem resultado da injeção.' }))
+      .catch((e) => sendResponse({ success: false, error: e && e.message || String(e) }));
+    return true;
+  }
+  if (msg.action === 'GENERATE_TIKTOK_LINK') {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) { sendResponse({ success: false, error: 'Sem aba ativa.' }); return true; }
+    chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: _tiktokGenerateInPage, args: [msg.url || ''] })
       .then((results) => sendResponse(results && results[0] ? results[0].result : { success: false, error: 'Sem resultado da injeção.' }))
       .catch((e) => sendResponse({ success: false, error: e && e.message || String(e) }));
     return true;

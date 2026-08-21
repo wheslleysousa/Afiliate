@@ -68,7 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const categoryChips       = document.getElementById('category-chips');
   const categoryEmpty       = document.getElementById('category-empty');
   const btnReloadCategories = document.getElementById('btn-reload-categories');
+  const btnCreateCategory   = document.getElementById('btn-create-category');
   let userCategories = [];
+  const CAT_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
   async function loadCategories() {
     const setHint = (msg) => { if (categoryEmpty) { categoryEmpty.style.display = 'block'; categoryEmpty.textContent = msg; } };
@@ -80,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Lê UM documento (GET) — evita a listagem de coleção que dava 403.
       const url = `${FS_BASE}/users/${state.uid}/userConfig/categories`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.status === 404) { userCategories = []; setHint('Nenhuma categoria ainda. Crie no app em Meus Produtos e toque em Recarregar.'); renderCategoryChips(); return; }
+      if (res.status === 404) { userCategories = []; setHint('Nenhuma categoria ainda. Toque em ＋ Criar para adicionar a primeira.'); renderCategoryChips(); return; }
       if (!res.ok) {
         let detail = '';
         try { const j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
@@ -99,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.selectedCategories = state.selectedCategories.filter((x) => ids.includes(x));
       }
       if (!userCategories.length) {
-        setHint(`Nenhuma categoria encontrada nesta conta (uid: ${String(state.uid).slice(0, 6)}…). Crie no app em Meus Produtos e toque em Recarregar.`);
+        setHint(`Nenhuma categoria encontrada nesta conta (uid: ${String(state.uid).slice(0, 6)}…). Toque em ＋ Criar para adicionar a primeira.`);
       }
       renderCategoryChips();
     } catch (e) { setHint('Falha de rede ao carregar categorias: ' + ((e && e.message) || 'erro')); }
@@ -135,6 +137,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnReloadCategories) btnReloadCategories.addEventListener('click', () => loadCategories());
+
+  // Criar categoria direto da extensão — grava no MESMO doc que o app lê
+  // (users/{uid}/userConfig/categories). PATCH cria o doc se ainda não existir.
+  async function createCategoryExt() {
+    if (!state.isLoggedIn || !state.uid) { showToast('Faça login para criar categorias'); return; }
+    const name = window.prompt('Nome da nova categoria:');
+    const n = (name || '').trim();
+    if (!n) return;
+    let token;
+    try { token = await ensureValidToken(); } catch (e) { showToast('Sessão expirada — entre novamente'); return; }
+    const id = 'cat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const color = CAT_COLORS[userCategories.length % CAT_COLORS.length];
+    const items = [
+      ...userCategories.map((c) => ({ id: c.id, name: c.name, color: c.color || '#2563eb' })),
+      { id, name: n, color, createdAt: new Date().toISOString() },
+    ];
+    const url = `${FS_BASE}/users/${state.uid}/userConfig/categories?updateMask.fieldPaths=items&updateMask.fieldPaths=updatedAt`;
+    try {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { items: toFsValue(items), updatedAt: { stringValue: new Date().toISOString() } } }),
+      });
+      if (!res.ok) {
+        let detail = '';
+        try { const j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
+        showToast(`Erro ao criar categoria (HTTP ${res.status})`);
+        return;
+      }
+      showToast('Categoria criada!');
+      await loadCategories();
+    } catch (e) { showToast('Falha de rede ao criar categoria'); }
+  }
+  if (btnCreateCategory) btnCreateCategory.addEventListener('click', () => createCategoryExt());
 
   // Cupons: a extração agora é feita pelo botão único "Extrair cupons" do painel
   // flutuante na loja (content.js), abaixo de "Extrair link de afiliado".
