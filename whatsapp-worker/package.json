@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "check": "node --check index.js && node --check doctor.js && node --check templateEngine.js && node --test test/*.test.js",
+    "check": "node --check index.js && node --check doctor.js && node --check templateEngine.js && node --check authRecovery.js && node --test test/*.test.js",
     "doctor": "node doctor.js"
   },
   "keywords": [
