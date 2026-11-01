@@ -48,3 +48,4 @@ logs/
 whatsapp-worker/auth/
 whatsapp-worker/session_data/
 whatsapp-worker/*.credentials.json
+whatsapp-worker/auth-rejected/
