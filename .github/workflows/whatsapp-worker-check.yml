@@ -21,4 +21,6 @@ jobs:
         run: |
           node --check index.js
           node --check doctor.js
+          node --check templateEngine.js
+          node --test test/*.test.js
           node -e "const p=require('./package.json'); if(!p.scripts.doctor || !p.scripts.check) process.exit(1);"
