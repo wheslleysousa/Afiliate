@@ -865,8 +865,10 @@ async function runCampaignCycle() {
         }
 
         if (filters.maxPrice && filters.maxPrice > 0) {
-          const numPrice = parseFloat((p.price_to || '0').replace(/\./g, '').replace(',', '.'));
-          if (numPrice > filters.maxPrice) return false;
+          const normalizedPrice = String(p.price_to || '').replace(/[^\\d,.]/g, '').replace(/\\./g, '').replace(',', '.');
+          const numPrice = Number.parseFloat(normalizedPrice);
+          // Preço desconhecido também deve ser excluído por filtros de teto.
+          if (!Number.isFinite(numPrice) || numPrice > filters.maxPrice) return false;
         }
 
         return true;
@@ -1035,6 +1037,24 @@ async function processSendQueue() {
           continue;
         }
         if (!isScheduleActive(campaignSnap.data()?.schedule)) continue;
+
+        // A fila pode ter sido criada antes de alguém editar os destinos.
+        // Sempre respeitar a seleção atual do Afiliate, não a configuração antiga.
+        const liveTargets = campaignSnap.data()?.targetGroupIds || [];
+        const queueTarget = String(item.groupId || '');
+        const isTargetStillSelected = liveTargets.some(target => {
+          const original = String(target);
+          return original === queueTarget ||
+            original === itemSessionId + '_' + queueTarget;
+        });
+        if (!isTargetStillSelected || campaignSnap.data()?.sessionId !== itemSessionId) {
+          await queueDoc.ref.update({
+            status: 'failed',
+            error: 'Grupo ou conta removidos da campanha antes do envio.',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
       }
 
       // Só grupos reais e previamente selecionados são permitidos.
@@ -1042,6 +1062,18 @@ async function processSendQueue() {
         await queueDoc.ref.update({
           status: 'failed',
           error: 'Destino inválido: apenas grupos do WhatsApp são suportados.',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        continue;
+      }
+
+      // O bot também precisa continuar participando do grupo na conta correta.
+      const groupDoc = await db.collection('users').doc(USER_UID)
+        .collection('waGroups').doc(itemSessionId + '_' + item.groupId).get();
+      if (!groupDoc.exists) {
+        await queueDoc.ref.update({
+          status: 'failed',
+          error: 'Grupo não sincronizado ou conta não participa mais do destino.',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         continue;
