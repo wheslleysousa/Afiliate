@@ -7,8 +7,9 @@
  * 2. O uso de automações não oficiais viola os Termos de Serviço do WhatsApp.
  * 3. RISCO DE BANIMENTO: Há risco real de bloqueio definitivo do número de telefone.
  * 4. RECOMENDAÇÃO ABSOLUTA: Use SEMPRE NÚMEROS EXCLUSIVOS E DEDICADOS para disparos!
- * 5. CONFORMIDADE LGPD: Este script salva APENAS a contagem agregada de membros
- *    dos grupos, sem armazenar números de telefone ou dados pessoais de participantes.
+ * 5. PRIVACIDADE: o código legado sincroniza metadados de participantes
+ *    (incluindo identificadores e telefones disponíveis) em waGroups. Restrinja
+ *    o acesso a esses dados e revise retenção/consentimento antes de operar.
  * ==============================================================================
  */
 
