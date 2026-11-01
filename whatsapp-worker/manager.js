@@ -89,9 +89,13 @@ function subscribeUser(doc) {
   }
   const info = { child: null, hasSessions: false, unsubscribe: null, retryTimer: null };
   users.set(uid, info);
-  info.unsubscribe = doc.ref.collection('waSessions').limit(1).onSnapshot(snap => {
+  info.unsubscribe = doc.ref.collection('waSessions').onSnapshot(snap => {
     if (quitting) return;
-    info.hasSessions = !snap.empty;
+    // Evita iniciar um worker para cada conta desconectada/inativa no Firestore.
+    info.hasSessions = snap.docs.some(session => {
+      const data = session.data() || {};
+      return data.requestedConnect === true || ['connected', 'connecting', 'qr'].includes(data.status);
+    });
     if (info.hasSessions) ensureWorker(uid);
     else if (info.child) {
       info.child.kill('SIGTERM');
