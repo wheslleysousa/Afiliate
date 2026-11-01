@@ -263,8 +263,55 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
     }
   };
 
+
+  const pairingFields = (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-xs font-bold text-[#eef2f9]">Como conectar?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setPairingMethod('code')}
+            className={`rounded-xl border px-3 py-3 text-xs font-bold ${pairingMethod === 'code'
+              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200'
+              : 'border-[#293246] bg-[#151a26] text-[#b7c3d9]'}`}>
+            Código no celular
+          </button>
+          <button type="button" onClick={() => setPairingMethod('qr')}
+            className={`rounded-xl border px-3 py-3 text-xs font-bold ${pairingMethod === 'qr'
+              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200'
+              : 'border-[#293246] bg-[#151a26] text-[#b7c3d9]'}`}>
+            QR Code
+          </button>
+        </div>
+      </div>
+      {pairingMethod === 'code' ? (
+        <div>
+          <label htmlFor="wa-pairing-phone" className="mb-1.5 block text-xs font-bold text-[#eef2f9]">
+            Número do WhatsApp com DDI e DDD
+          </label>
+          <input id="wa-pairing-phone" type="tel" inputMode="numeric" autoComplete="tel"
+            value={pairingPhone} onChange={e => setPairingPhone(e.target.value)}
+            placeholder="55 + DDD + número" maxLength={22}
+            className="w-full rounded-xl border border-[#293246] bg-[#151a26] px-3 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none" />
+          <p className="mt-1 text-[11px] text-[#93a0b5]">
+            O Afiliate mostrará um código. Digite esse código no WhatsApp em
+            Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone.
+          </p>
+          {!!pairingPhone && !phoneIsValid && <p className="mt-1 text-xs text-amber-300">Inclua DDI e DDD (10 a 15 dígitos).</p>}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-[#293246] bg-[#151a26] p-3 text-xs text-[#b7c3d9]">
+          O aplicativo exibirá um QR Code. Para ler, use o WhatsApp em outro celular
+          ou abra o Afiliate em outra tela. No mesmo celular, prefira o código.
+        </p>
+      )}
+      <p className="text-[11px] text-amber-200">
+        A conexão requer que o serviço WhatsApp do Afiliate esteja online.
+        Seus dados de sessão ficam no serviço, não dentro do APK.
+      </p>
+    </div>
+  );
   return (
-    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-6 relative overflow-hidden shadow-xl space-y-6">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 sm:p-6 relative overflow-hidden shadow-xl space-y-6">
       {/* Alert message banner if present */}
       {alertMessage && (
         <WhatsAppAlert
@@ -567,8 +614,8 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
       {/* MODAL: Adicionar Nova Conta */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto my-6 bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-5 space-y-5 shadow-2xl relative animate-fadeIn">
             <div className="flex items-center justify-between pb-3 border-b border-[#1e2636]">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-emerald-400" />
@@ -600,12 +647,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 </p>
               </div>
 
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-3.5 rounded-xl text-xs text-[#eef2f9] space-y-1">
-                <p className="font-bold text-emerald-400">Como funciona:</p>
-                <p className="text-[11px] leading-relaxed text-[#93a0b5]">
-                  Ao criar o cadastro, o sistema gera o QR Code na tela para você escanear com a câmera do seu celular no WhatsApp.
-                </p>
-              </div>
+              {pairingFields}
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
                 <button
@@ -617,7 +659,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating}
+                  disabled={isCreating || !canRequestPairing}
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
                 >
                   {isCreating ? (
@@ -625,10 +667,32 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                   ) : (
                     <Check className="w-4 h-4" />
                   )}
-                  Gerar QR Code
+                  {pairingMethod === 'code' ? 'Gerar código' : 'Gerar QR Code'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Reconectar conta existente sem excluir os grupos */}
+      {reconnectSession && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto my-6 w-full max-w-md space-y-5 rounded-2xl border border-[#293246] bg-[#0e1119] p-5 text-white shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold">Conectar WhatsApp</h3>
+              <button type="button" onClick={() => setReconnectSession(null)} aria-label="Fechar"
+                className="rounded-lg p-2 text-[#b7c3d9]"><X size={18} /></button>
+            </div>
+            <p className="text-xs text-[#b7c3d9]">
+              {reconnectSession.label || 'Minha conta'} — escolha como deseja conectar.
+              A conta e os grupos já cadastrados serão preservados.
+            </p>
+            {pairingFields}
+            <button type="button" disabled={!canRequestPairing || isRequestingConnection}
+              onClick={() => handleRequestConnect(reconnectSession)}
+              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+              {isRequestingConnection ? 'Solicitando...' : pairingMethod === 'code' ? 'Gerar código de conexão' : 'Gerar QR Code'}
+            </button>
           </div>
         </div>
       )}
