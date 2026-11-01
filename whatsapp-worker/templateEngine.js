@@ -123,7 +123,7 @@ function parseProductPrice(value) {
   const decimals = raw.length - decimalPos - 1;
   // Um separador com 3 dígitos finais indica milhares; com 1-2, centavos.
   const decimal = decimals >= 1 && decimals <= 2;
-  const whole = raw.slice(0, decimalPos + (decimal ? 0 : 1)).replace(/[^\d]/g, '');
+  const whole = (decimal ? raw.slice(0, decimalPos) : raw).replace(/[^\d]/g, '');
   const cents = decimal ? raw.slice(decimalPos + 1).replace(/[^\d]/g, '') : '';
   const num = Number(whole + (decimal ? '.' + cents : ''));
   return Number.isFinite(num) ? num : NaN;
