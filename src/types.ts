@@ -336,6 +336,11 @@ export interface WaSession {
   name?: string | null;
   requestedConnect?: boolean;
   requestedLogout?: boolean;
+  pairingMethod?: 'qr' | 'code';
+  pairingPhone?: string | null;
+  pairingCode?: string | null;
+  pairingCodeAt?: any;
+  pairingError?: string | null;
   reloginRequired?: boolean;
   lastDisconnectCode?: number | null;
   updatedAt?: any;
