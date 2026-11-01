@@ -835,12 +835,29 @@ async function runCampaignCycle() {
       if (minedSnap.empty) continue;
 
       const minedRefs = minedSnap.docs.map((d) => d.data());
+      // Categorias pessoais existem em minedProducts/categories (IDs) e seus
+      // nomes ficam em userConfig/categories. Não se pode usar só p.category.
+      const categoryNames = new Map();
+      if (campaign.filters?.categories?.length) {
+        try {
+          const catDoc = await db.collection('users').doc(USER_UID)
+            .collection('userConfig').doc('categories').get();
+          for (const cat of (catDoc.data()?.items || [])) {
+            if (cat.id && cat.name) categoryNames.set(cat.id, String(cat.name).trim().toLowerCase());
+          }
+        } catch (error) {
+          console.warn('⚠️ Falha ao carregar categorias pessoais da campanha:', error.message);
+        }
+      }
       const candidateProducts = [];
       for (const ref of minedRefs) {
         if (!ref.productId) continue;
         const pDoc = await db.collection('products').doc(ref.productId).get();
         if (pDoc.exists) {
-          candidateProducts.push({ id: pDoc.id, ...pDoc.data() });
+          candidateProducts.push({
+            id: pDoc.id, ...pDoc.data(),
+            minedCategoryIds: Array.isArray(ref.categories) ? ref.categories : []
+          });
         }
       }
 
@@ -851,6 +868,16 @@ async function runCampaignCycle() {
         if (filters.platforms && filters.platforms.length > 0) {
           const platSet = new Set(filters.platforms.map((pl) => pl.toLowerCase()));
           if (!platSet.has((p.platform || '').toLowerCase())) return false;
+        }
+
+        if (Array.isArray(filters.categories) && filters.categories.length > 0) {
+          const allowed = new Set(filters.categories.map(c => String(c).trim().toLowerCase()));
+          const labels = [
+            String(p.category || '').trim().toLowerCase(),
+            ...(p.minedCategoryIds || []).flatMap(id =>
+              [String(id).trim().toLowerCase(), categoryNames.get(id) || ''])
+          ];
+          if (!labels.some(label => label && allowed.has(label))) return false;
         }
 
         if (filters.minSales && filters.minSales > 0) {
