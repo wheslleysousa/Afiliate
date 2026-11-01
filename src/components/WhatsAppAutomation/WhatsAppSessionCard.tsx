@@ -409,7 +409,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                       >
                         <QrCode className="w-3.5 h-3.5" />
-                        Escanear QR Code
+                        {session.reloginRequired ? 'Parear novamente' : 'Escanear QR Code'}
                       </button>
                     )}
 
@@ -424,6 +424,15 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     </button>
                   </div>
                 </div>
+
+                {status === 'disconnected' && session.reloginRequired && (
+                  <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                    <strong>Sessão antiga recusada pelo WhatsApp (401).</strong>{' '}
+                    Para retomar, use <strong>Parear novamente</strong> e conecte a conta pelo QR Code
+                    ou código exibido no Termux. O worker atualizado arquiva as credenciais
+                    recusadas no próprio aparelho em vez de apagá-las.
+                  </div>
+                )}
 
                 {/* Card Content according to Status */}
                 {status === 'qr' && session.qr ? (
@@ -491,7 +500,9 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
                       <span>
-                        Conta desconectada. Clique em <strong>"Escanear QR Code"</strong> para conectar.
+                        {session.reloginRequired
+                          ? 'A sessão antiga não é mais aceita. Clique em Parear novamente.'
+                          : 'Conta desconectada. Clique em Escanear QR Code para conectar.'}
                       </span>
                     </div>
                     <button
@@ -499,7 +510,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5"
                     >
                       <QrCode className="w-3.5 h-3.5" />
-                      Conectar
+                      {session.reloginRequired ? 'Parear novamente' : 'Conectar'}
                     </button>
                   </div>
                 )}
