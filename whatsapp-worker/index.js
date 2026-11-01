@@ -21,6 +21,7 @@ const pino = require('pino');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } = require('./templateEngine');
+const { archiveRejectedAuth } = require('./authRecovery');
 
 const {
   default: makeWASocket,
@@ -302,13 +303,19 @@ async function connectToWhatsAppSession(sessionId, label) {
         console.log(`⚠️ [Sessão: ${sessionId}] Conexão encerrada (código: ${statusCode}). Reconectar: ${shouldReconnect}`);
 
         if (statusCode === DisconnectReason.loggedOut) {
-          console.error(`❌ [Sessão: ${sessionId}] Número deslogado. Limpando credenciais...`);
-          if (fs.existsSync(sessionAuthDir)) {
-            try {
-              fs.rmSync(sessionAuthDir, { recursive: true, force: true });
-            } catch (e) {
-              console.error('Erro ao remover diretório de auth:', e.message);
+          // 401 = sessão recusada. Não destruir credenciais antigas
+          // automaticamente: arquivar fora de auth/ para um novo pareamento
+          // usar o MESMO ID de sessão sem tentar novamente as chaves recusadas.
+          clearTimeout(sessionObj.reconnectTimer);
+          console.error(`❌ [Sessão: ${sessionId}] Autenticação recusada (401). É necessário parear novamente.`);
+          try {
+            const archivedAt = archiveRejectedAuth(AUTH_BASE_DIR, sessionId);
+            if (archivedAt) {
+              console.warn(`🔐 Sessão anterior preservada fora de auth/: ${archivedAt}`);
             }
+          } catch (archiveError) {
+            console.error('⚠️ Não foi possível preservar a sessão recusada; NENHUM arquivo foi apagado:', archiveError.message);
+            console.error('⚠️ Pare o worker e faça backup manual antes de solicitar reconexão.');
           }
           await updateSessionDoc(sessionId, {
             status: 'disconnected',
@@ -316,6 +323,8 @@ async function connectToWhatsAppSession(sessionId, label) {
             phoneNumber: null,
             name: null,
             requestedConnect: false,
+            reloginRequired: true,
+            lastDisconnectCode: statusCode,
           });
           sessionsMap.delete(sessionId);
         } else {
@@ -351,6 +360,8 @@ async function connectToWhatsAppSession(sessionId, label) {
           phoneNumber: phoneNum,
           name: name,
           requestedConnect: false,
+          reloginRequired: false,
+          lastDisconnectCode: null,
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
