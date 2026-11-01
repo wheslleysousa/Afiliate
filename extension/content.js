@@ -1,4 +1,4 @@
-/* Affiliate Miner Content Script v1.4.7 — Enhanced Shopee/TikTok Card & PDP Extraction */
+/* Afiliate miner Content Script v1.4.7 — Enhanced Shopee/TikTok Card & PDP Extraction */
 
 let extActive = false;
 let isLoggedIn = false;
@@ -637,7 +637,7 @@ function renderDraggableOverlay() {
         <div class="am-header-left">
           <div class="am-logo-icon">⚡</div>
           <div>
-            <div class="am-header-title">AFFILIATE MINER</div>
+            <div class="am-header-title">AFILIATE MINER</div>
             <div class="am-header-ver">v${(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.6'}</div>
           </div>
         </div>
@@ -759,7 +759,7 @@ function renderFloatingTrigger() {
   if (!trigger) {
     trigger = document.createElement('button');
     trigger.id = 'am-floating-trigger';
-    trigger.innerHTML = `<span>⚡ Affiliate Miner</span>`;
+    trigger.innerHTML = `<span>⚡ Afiliate miner</span>`;
     trigger.onclick = () => showOverlay();
     document.body.appendChild(trigger);
   }
@@ -4003,7 +4003,7 @@ function showDiagnosticErrorModal(errLog) {
   }
 
   const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.6';
-  const report = `### ⚠️ Diagnóstico - Affiliate Miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
+  const report = `### ⚠️ Diagnóstico - Afiliate miner v${amVer}\n**Hora**: ${errLog.time}\n**URL**: ${errLog.url}\n**Contexto**: ${errLog.context}\n\n**Erro**:\n\`\`\`\n${errLog.message}\n${errLog.stack}\n\`\`\`\n*Cole no chat do assistente AI!*`;
 
   modal.innerHTML = `
     <div class="am-err-box">

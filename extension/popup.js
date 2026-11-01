@@ -1,4 +1,4 @@
-/* Affiliate Miner Popup JS — versão sincronizada com o manifest (v1.4.6)
+/* Afiliate miner Popup JS — versão sincronizada com o manifest (v1.4.6)
    MUDANÇAS recentes:
    - Login agora usa Firebase Auth real (REST API)
    - "Enviar Todos" agora sincroniza com Firestore real
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function generateDiagnosticReport() {
     const err = state.lastError || { message: 'Nenhum erro crítico registrado recentemente.', stack: 'Operação limpa.' };
     const amVer = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : '1.4.6';
-    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Affiliate Miner v${amVer}
+    const report = `### ⚠️ Relatório de Diagnóstico de Erro - Afiliate miner v${amVer}
 **Data/Hora**: ${new Date().toLocaleString('pt-BR')}
 **Usuário**: ${state.userEmail || 'Desconectado'} (UID: ${state.uid || 'sem UID'})
 **Autenticado**: ${state.isLoggedIn ? 'Sim' : 'Não'}
