@@ -49,3 +49,4 @@ whatsapp-worker/auth/
 whatsapp-worker/session_data/
 whatsapp-worker/*.credentials.json
 whatsapp-worker/auth-rejected/
+whatsapp-worker/auth-users/
