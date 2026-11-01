@@ -20,6 +20,7 @@ const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate } = require('./templateEngine');
 
 const {
   default: makeWASocket,
@@ -643,8 +644,8 @@ function buildAffiliateLink(rawUrl, platform, apiKeys) {
 
 function formatProductCopy(product, affiliateLink) {
   const title = product.title || 'Produto de Oferta';
-  const priceTo = product.price_to ? `R$ ${product.price_to}` : '';
-  const priceFrom = product.price_from ? `~R$ ${product.price_from}~` : '';
+  const priceTo = formattedPrice(product.price_to);
+  const priceFrom = product.price_from ? `~${formattedPrice(product.price_from)}~` : '';
   const discount = product.discount_pct ? `🔥 *${product.discount_pct}% OFF*` : '';
   const link = affiliateLink || product.original_link || product.affiliate_link || '';
 
@@ -892,6 +893,25 @@ async function runCampaignCycle() {
         }
       });
 
+      // Respeita o modelo de mensagem escolhido no painel Afiliate.
+      // Também suporta templates personalizados em users/{uid}/templates.
+      let campaignTemplate = null;
+      if (campaign.templateId) {
+        campaignTemplate = BUILTIN_TEMPLATES[campaign.templateId] || null;
+        if (!campaignTemplate) {
+          try {
+            const templateSnap = await db.collection('users').doc(USER_UID)
+              .collection('templates').doc(campaign.templateId).get();
+            if (templateSnap.exists) campaignTemplate = templateSnap.data()?.template || null;
+          } catch (error) {
+            console.warn('⚠️ Não foi possível ler o template da campanha:', error.message);
+          }
+        }
+        if (!campaignTemplate) {
+          console.warn(`⚠️ Template "${campaign.templateId}" indisponível na campanha "${campaign.name}". Usando mensagem padrão.`);
+        }
+      }
+
       const qty = campaign.quantity || 30;
       const selectedProducts = filtered.slice(0, qty);
 
@@ -926,7 +946,8 @@ async function runCampaignCycle() {
         const rawLink = product.original_link || product.affiliate_link || '';
         // Preserva o link de afiliado já salvo pela extensão quando existir.
         const affiliateLink = product.affiliate_link || buildAffiliateLink(rawLink, product.platform, apiKeys);
-        const copyText = formatProductCopy(product, affiliateLink);
+        const copyText = (campaignTemplate && renderTemplate(campaignTemplate, product, affiliateLink))
+          || formatProductCopy(product, affiliateLink);
 
         for (const targetGId of campaign.targetGroupIds) {
           // Extrair groupId real se for no formato sessionId_groupId
