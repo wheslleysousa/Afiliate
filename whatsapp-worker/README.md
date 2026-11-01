@@ -91,3 +91,18 @@ Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp rea
 - **Categorias e preços:** filtros de categorias pessoais em `minedProducts.categories` usam o mapa de nomes de `userConfig/categories`; teto de preço reconhece valores brasileiros e decimais.
 - **Testes:** após `git pull --ff-only`, execute `npm run check` para checar sintaxe e testes de formato de preço e cópia. O teste com conexão real ao WhatsApp continua necessário.
 - **Dependências:** se `npm install` listar vulnerabilidades, use `npm audit --omit=dev` e `npm install-scripts ls` para análise. Não rode `npm audit fix --force` nem aprove scripts sem revisão.
+
+
+## Recuperar erro 401 (sessão antiga recusada)
+
+Quando o WhatsApp encerra a autenticação anterior, o Baileys comunica `DisconnectReason.loggedOut` (401). **Não é prova de bloqueio do número**; pode ser necessário parear novamente. **Não restaure `creds.json` rejeitado por cima da nova sessão.**
+
+Em versões anteriores, o worker apagava `auth/<sessionId>` no erro 401. A versão atual **arquiva o diretório recusado** em `whatsapp-worker/auth-rejected/<timestamp>-<sessionId>`, sem apagar os arquivos, e o deixa fora do escaneamento automático. A pasta `auth-rejected/` é ignorada pelo Git. Se o erro ocorreu antes desta correção, preserve o backup privado feito no Termux; o diretório antigo pode já ter sido excluído.
+
+1. Pare o processo com `Ctrl+C`; não rode duas instâncias. Atualize a main com `cd ~/Afiliate && git pull --ff-only`; em `whatsapp-worker`, execute `npm run check`.
+2. Mantenha `WA_SEND_ENABLED=false` e `WA_GROUP_COMMANDS_ENABLED=false`. Se for usar o **mesmo celular**, configure `WA_PAIRING_PHONE=55DDDNUMERO` no `.env` de forma privada, sem compartilhar o número. Alternativamente, leia o QR com outro aparelho/tela.
+3. Rode `WA_SEND_ENABLED=false WA_GROUP_COMMANDS_ENABLED=false node index.js` e abra **Automação WhatsApp → Contas**. Na sessão desconectada, toque em **Parear novamente** ou **Escanear QR Code**. **Não exclua a conta do Afiliate**, pois ela conserva o ID relacionado aos grupos.
+4. No WhatsApp, abra **Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone** para usar o código do Termux (ou leia o QR). Nunca envie QR, código ou `auth/` em chats. Confirme no terminal `CONECTADO COM SUCESSO AO WHATSAPP!`; `npm run doctor` sozinho não prova isso.
+5. Se aparecer outro 401, pare o worker e registre apenas o código e o estágio da conexão, sem chaves; não tente repetidamente. O protocolo de terceiros pode mudar sem aviso.
+
+**Importante:** entrar em modo seguro ainda atualiza `waSessions`, `workerStatus` e `waGroups`, incluindo metadados legados de participantes. Não é um modo somente leitura. As 15 vulnerabilidades reportadas pelo `npm audit --omit=dev` precisam de revisão antes de operação contínua.
