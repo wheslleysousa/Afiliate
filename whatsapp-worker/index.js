@@ -20,7 +20,7 @@ const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
-const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate } = require('./templateEngine');
+const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } = require('./templateEngine');
 
 const {
   default: makeWASocket,
@@ -866,8 +866,7 @@ async function runCampaignCycle() {
         }
 
         if (filters.maxPrice && filters.maxPrice > 0) {
-          const normalizedPrice = String(p.price_to || '').replace(/[^\d,.]/g, '').replace(/\./g, '').replace(',', '.');
-          const numPrice = Number.parseFloat(normalizedPrice);
+          const numPrice = parseProductPrice(p.price_to);
           // Preço desconhecido também deve ser excluído por filtros de teto.
           if (!Number.isFinite(numPrice) || numPrice > filters.maxPrice) return false;
         }
