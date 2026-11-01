@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "postinstall": "npx playwright install chromium || true"
+    "postinstall": "npx playwright install chromium || true",
+    "build:apk:termux": "bash scripts/build-termux.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
