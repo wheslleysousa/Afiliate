@@ -110,6 +110,25 @@ let isRunningCampaign = false;
 let isProcessingQueue = false;
 let sessionsListenerUnsub = null;
 
+// Sinal de vida real do Termux para evitar status "conectado" antigo no painel.
+const WORKER_RUN_ID = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 9);
+async function updateWorkerHealth() {
+  try {
+    const connectedSessions = Array.from(sessionsMap.values()).filter(s => s.status === 'connected' && s.sock).length;
+    await db.collection('users').doc(USER_UID).collection('workerStatus').doc('current').set({
+      runId: WORKER_RUN_ID,
+      heartbeatAt: admin.firestore.FieldValue.serverTimestamp(),
+      sendEnabled: WA_SEND_ENABLED,
+      groupCommandsEnabled: WA_GROUP_COMMANDS_ENABLED,
+      connectedSessions,
+      totalSessions: sessionsMap.size,
+      workerVersion: '1.1.0'
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Não foi possível atualizar o estado do worker:', error.message);
+  }
+}
+
 // ------------------------------------------------------------------------------
 // MIGRACÃO E SUPORTE A SESSÕES LEGADAS (waSession/current)
 // ------------------------------------------------------------------------------
@@ -1228,6 +1247,10 @@ async function main() {
 
   // 2. Iniciar gerenciador de sessões (carrega auth/ e escuta waSessions)
   startSessionsManager();
+
+  // Sinal a cada 60 s: mesmo se o Termux morrer, o painel detecta em ~3 min.
+  await updateWorkerHealth();
+  setInterval(updateWorkerHealth, 60 * 1000);
 
   // 3. Sincronização periódica de grupos (a cada X minutos)
   const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 15) * 60 * 1000;
