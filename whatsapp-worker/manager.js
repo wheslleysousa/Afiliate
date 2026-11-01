@@ -58,8 +58,10 @@ function ensureWorker(uid) {
       USER_UID: uid,
       AUTH_DIR: userAuthDir,
       // Modo seguro padrão. Não colocar credenciais Firebase no aplicativo.
-      WA_SEND_ENABLED: process.env.WA_SEND_ENABLED === 'true' ? 'true' : 'false',
-      WA_GROUP_COMMANDS_ENABLED: process.env.WA_GROUP_COMMANDS_ENABLED === 'true' ? 'true' : 'false',
+      // Onboarding público NÃO deve ativar campanhas de todos os usuários.
+      // Envios ficam desativados até existir autorização granular auditada.
+      WA_SEND_ENABLED: 'false',
+      WA_GROUP_COMMANDS_ENABLED: 'false',
       WA_PAIRING_PHONE: '', // Cada usuário deve escolher seu próprio número no app.
     },
     stdio: 'inherit',
@@ -124,7 +126,7 @@ async function main() {
   const db = createFirestore();
   console.log('[Manager] Afiliate multiusuário iniciado; sem site para o usuário final.');
   console.log('[Manager] Diretórios separados e privados, limite de workers:', MAX_RUNNING);
-  console.log('[Manager] Envio real:', process.env.WA_SEND_ENABLED === 'true' ? 'HABILITADO (cuidado)' : 'DESABILITADO');
+  console.log('[Manager] Apenas pareamento: envio e alterações em grupos bloqueados por padrão.');
   unsubscribeUsers = db.collection('users').onSnapshot(snap => {
     for (const change of snap.docChanges()) {
       if (change.type === 'added') subscribeUser(change.doc);
