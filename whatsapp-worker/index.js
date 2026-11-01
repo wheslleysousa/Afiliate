@@ -865,7 +865,7 @@ async function runCampaignCycle() {
         }
 
         if (filters.maxPrice && filters.maxPrice > 0) {
-          const normalizedPrice = String(p.price_to || '').replace(/[^\\d,.]/g, '').replace(/\\./g, '').replace(',', '.');
+          const normalizedPrice = String(p.price_to || '').replace(/[^\d,.]/g, '').replace(/\./g, '').replace(',', '.');
           const numPrice = Number.parseFloat(normalizedPrice);
           // Preço desconhecido também deve ser excluído por filtros de teto.
           if (!Number.isFinite(numPrice) || numPrice > filters.maxPrice) return false;
