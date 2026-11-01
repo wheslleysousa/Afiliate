@@ -201,8 +201,9 @@ async function updateSessionDoc(sessionId, data) {
 // 2. CONEXÃO BAILEYS POR SESSÃO
 // ------------------------------------------------------------------------------
 
-async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone = '') {
-  const pairingPhone = String(requestedPairingPhone || WA_PAIRING_PHONE || '').replace(/\D/g, '');
+async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone = null) {
+  // String vazia indica QR e desativa fallback de número global.
+  const pairingPhone = String(requestedPairingPhone === null ? WA_PAIRING_PHONE : requestedPairingPhone).replace(/\D/g, '');
   const validPairingPhone = /^\d{10,15}$/.test(pairingPhone) ? pairingPhone : '';
   let sessionObj = sessionsMap.get(sessionId);
 
