@@ -40,6 +40,14 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newAccountLabel, setNewAccountLabel] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [pairingMethod, setPairingMethod] = useState<'code' | 'qr'>('code');
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [reconnectSession, setReconnectSession] = useState<WaSession | null>(null);
+  const [isRequestingConnection, setIsRequestingConnection] = useState(false);
+
+  const normalizedPairingPhone = pairingPhone.replace(/\D/g, '');
+  const phoneIsValid = /^\d{10,15}$/.test(normalizedPairingPhone);
+  const canRequestPairing = pairingMethod === 'qr' || phoneIsValid;
 
   // Edit label inline state
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -95,6 +103,10 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
     e.preventDefault();
     if (!uid) return;
 
+    if (!canRequestPairing) {
+      setAlertMessage({ type: 'error', text: 'Informe o número com DDI e DDD, somente dígitos.' });
+      return;
+    }
     setIsCreating(true);
     setAlertMessage(null);
 
@@ -108,15 +120,23 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
         status: 'connecting',
         requestedConnect: true,
         requestedLogout: false,
+        pairingMethod,
+        pairingPhone: pairingMethod === 'code' ? normalizedPairingPhone : null,
+        pairingCode: null,
+        pairingCodeAt: null,
+        pairingError: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       setNewAccountLabel('');
+      setPairingPhone('');
       setIsAddModalOpen(false);
       setAlertMessage({
         type: 'success',
-        text: 'Nova conta cadastrada com sucesso! O QR Code para leitura será gerado abaixo.',
+        text: pairingMethod === 'code'
+          ? 'Conta criada. O código de conexão aparecerá abaixo quando o serviço responder.'
+          : 'Conta criada. O QR Code aparecerá abaixo quando o serviço responder.',
       });
     } catch (err: any) {
       console.error('Erro ao criar nova conta de WhatsApp:', err);
@@ -158,20 +178,33 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
   const handleRequestConnect = async (session: WaSession) => {
     const sId = session.sessionId || session.id;
     if (!uid || !sId) return;
-
+    if (!canRequestPairing) {
+      setAlertMessage({ type: 'error', text: 'Digite o número com DDI e DDD para conectar pelo código.' });
+      return;
+    }
+    setIsRequestingConnection(true);
     try {
       const sessionRef = doc(db, 'users', uid, 'waSessions', sId);
-      await setDoc(sessionRef, { requestedConnect: true, status: 'connecting', qr: null }, { merge: true });
-      setAlertMessage({
-        type: 'success',
-        text: 'Solicitando novo QR Code para o worker. Aguarde alguns segundos...',
-      });
+      await setDoc(sessionRef, {
+        requestedConnect: true,
+        requestedLogout: false,
+        status: 'connecting',
+        qr: null,
+        pairingMethod,
+        pairingPhone: pairingMethod === 'code' ? normalizedPairingPhone : null,
+        pairingCode: null,
+        pairingCodeAt: null,
+        pairingError: null,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setReconnectSession(null);
+      setPairingPhone('');
+      setAlertMessage({ type: 'success', text: 'Solicitação recebida. Acompanhe o código ou QR nesta tela.' });
     } catch (err: any) {
       console.error('Erro ao solicitar reconexão:', err);
-      setAlertMessage({
-        type: 'error',
-        text: 'Erro ao solicitar a geração do QR Code.',
-      });
+      setAlertMessage({ type: 'error', text: 'Não foi possível solicitar a conexão. Tente novamente.' });
+    } finally {
+      setIsRequestingConnection(false);
     }
   };
 
@@ -405,7 +438,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
                     {status === 'disconnected' && (
                       <button
-                        onClick={() => handleRequestConnect(session)}
+                        onClick={() => { setReconnectSession(session); setPairingMethod('code'); setPairingPhone(''); }}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                       >
                         <QrCode className="w-3.5 h-3.5" />
@@ -506,7 +539,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                       </span>
                     </div>
                     <button
-                      onClick={() => handleRequestConnect(session)}
+                      onClick={() => { setReconnectSession(session); setPairingMethod('code'); setPairingPhone(''); }}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5"
                     >
                       <QrCode className="w-3.5 h-3.5" />
