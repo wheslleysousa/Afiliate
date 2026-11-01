@@ -41,6 +41,12 @@ if (!USER_UID) {
 const AUTH_BASE_DIR = process.env.AUTH_DIR || './auth';
 const DEFAULT_APPLET_DB_ID = 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
 const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLET_DB_ID;
+// A instalação e o pareamento são permitidos em modo seguro. Envio real
+// e comandos que modificam grupos só são habilitados explicitamente no Termux.
+const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
+const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
+const WA_PAIRING_PHONE = (process.env.WA_PAIRING_PHONE || '').replace(/\D/g, '');
+const WA_MAX_QUEUE_AGE_MIN = Math.max(5, Number(process.env.WA_MAX_QUEUE_AGE_MIN || 180) || 180);
 
 // Garantir que diretório de autenticação exista
 if (!fs.existsSync(AUTH_BASE_DIR)) {
@@ -88,6 +94,12 @@ function initFirebase() {
 const db = initFirebase();
 console.log(`\n🚀 Worker Multi-Sessão Afiliate iniciado para o Usuário UID: ${USER_UID}`);
 console.log(`🗄️ Banco de Dados Firestore: ${FIRESTORE_DATABASE_ID || '(default)'}`);
+console.log(WA_SEND_ENABLED
+  ? '⚠️ MODO ATIVO: campanhas e envio real estão habilitados.'
+  : '🔒 MODO SEGURO: sem gerar filas nem disparar mensagens (WA_SEND_ENABLED=false).');
+console.log(WA_GROUP_COMMANDS_ENABLED
+  ? '⚠️ Comandos de criação/saída de grupos habilitados.'
+  : '🔒 Comandos de criação/saída de grupos desabilitados.');
 
 // Globais & Estado Multi-Sessão
 // Map<sessionId, { sessionId, sock, isConnecting, reconnectTimer, status, label }>
@@ -182,6 +194,7 @@ async function connectToWhatsAppSession(sessionId, label) {
       reconnectTimer: null,
       status: 'connecting',
       label: label || 'Conta WhatsApp',
+      pairingRequested: false,
     };
     sessionsMap.set(sessionId, sessionObj);
   } else {
@@ -234,9 +247,24 @@ async function connectToWhatsAppSession(sessionId, label) {
           qr: qr,
           label: sessionObj.label,
         });
+
+        // No mesmo celular, use o código no WhatsApp > Aparelhos conectados >
+        // Conectar um aparelho > Conectar com número de telefone.
+        if (WA_PAIRING_PHONE && !state.creds?.registered && !sessionObj.pairingRequested) {
+          sessionObj.pairingRequested = true;
+          try {
+            const code = await sock.requestPairingCode(WA_PAIRING_PHONE);
+            console.log(`\n🔑 [${sessionObj.label}] CÓDIGO DE PAREAMENTO: ${code}\n`);
+            console.log('No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.');
+          } catch (err) {
+            console.error('⚠️ Não foi possível gerar o código de pareamento. Use o QR exibido acima:', err.message);
+            sessionObj.pairingRequested = false;
+          }
+        }
       }
 
-      if (connection === 'connecting') {
+      // Não sobrescrever o QR/status com "connecting" no mesmo evento.
+      if (connection === 'connecting' && !qr) {
         sessionObj.status = 'connecting';
         await updateSessionDoc(sessionId, {
           status: 'connecting',
@@ -278,6 +306,7 @@ async function connectToWhatsAppSession(sessionId, label) {
           if (shouldReconnect) {
             clearTimeout(sessionObj.reconnectTimer);
             sessionObj.reconnectTimer = setTimeout(() => {
+              sessionObj.pairingRequested = false;
               connectToWhatsAppSession(sessionId, sessionObj.label);
             }, 5000);
           }
@@ -285,6 +314,8 @@ async function connectToWhatsAppSession(sessionId, label) {
       } else if (connection === 'open') {
         sessionObj.isConnecting = false;
         sessionObj.status = 'connected';
+        sessionObj.pairingRequested = false;
+        clearTimeout(sessionObj.reconnectTimer);
 
         const userJid = sock.user?.id || '';
         const phoneNum = userJid ? userJid.split(':')[0].split('@')[0] : null;
@@ -871,7 +902,8 @@ async function runCampaignCycle() {
         }
 
         const rawLink = product.original_link || product.affiliate_link || '';
-        const affiliateLink = buildAffiliateLink(rawLink, product.platform, apiKeys);
+        // Preserva o link de afiliado já salvo pela extensão quando existir.
+        const affiliateLink = product.affiliate_link || buildAffiliateLink(rawLink, product.platform, apiKeys);
         const copyText = formatProductCopy(product, affiliateLink);
 
         for (const targetGId of campaign.targetGroupIds) {
@@ -936,7 +968,7 @@ async function processSendQueue() {
       .collection('sendQueue')
       .where('status', '==', 'pending')
       .where('scheduledAt', '<=', nowTimestamp)
-      .limit(5)
+      .limit(10)
       .get();
 
     if (pendingSnap.empty) return;
@@ -949,41 +981,66 @@ async function processSendQueue() {
 
       const sessionObj = sessionsMap.get(itemSessionId);
 
-      // Se a sessão estiver offline ou desconectada, marcar erro claro
-      if (!sessionObj || sessionObj.status !== 'connected' || !sessionObj.sock) {
-        const errorMsg = `Sessão do WhatsApp (${itemSessionId}) não está conectada ou disponível no worker.`;
-        console.error(`❌ Falha no disparo (${item.id}): ${errorMsg}`);
-
-        await db
-          .collection('users')
-          .doc(USER_UID)
-          .collection('sendQueue')
-          .doc(item.id)
-          .update({
-            status: 'failed',
-            error: errorMsg,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-
-        await db
-          .collection('users')
-          .doc(USER_UID)
-          .collection('sendLog')
-          .add({
-            sessionId: itemSessionId,
-            productId: item.productId || '',
-            productName: item.productTitle || '',
-            groupId: item.groupId,
-            groupName: item.groupName || item.groupId,
-            campaignId: item.campaignId || '',
-            campaignName: item.campaignName || '',
-            sentAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'failed',
-            error: errorMsg,
-          });
-
+      // Mensagem antiga pode conter preço desatualizado: não disparar após o
+      // prazo configurado, mesmo que a sessão tenha estado offline.
+      const scheduledMs = item.scheduledAt?.toMillis?.();
+      if (scheduledMs && Date.now() - scheduledMs > WA_MAX_QUEUE_AGE_MIN * 60_000) {
+        await queueDoc.ref.update({
+          status: 'failed',
+          error: `Oferta expirada: mais de ${WA_MAX_QUEUE_AGE_MIN} minutos desde o horário agendado.`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.warn(`⏰ Oferta antiga descartada da fila: ${item.id}`);
         continue;
       }
+
+      // Não consumir a fila enquanto o WhatsApp estiver offline: ela poderá
+      // ser processada ao reconectar, respeitando o prazo acima.
+      if (!sessionObj || sessionObj.status !== 'connected' || !sessionObj.sock) {
+        continue;
+      }
+
+      // Pausar uma campanha no Afiliate interrompe também os envios já
+      // enfileirados. Mantemos o registro como falha, sem publicar no WhatsApp.
+      if (item.campaignId) {
+        const campaignSnap = await db
+          .collection('users').doc(USER_UID).collection('campaigns')
+          .doc(item.campaignId).get();
+        if (!campaignSnap.exists || campaignSnap.data()?.enabled !== true) {
+          await queueDoc.ref.update({
+            status: 'failed',
+            error: 'Campanha pausada ou removida antes do envio.',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
+        if (!isScheduleActive(campaignSnap.data()?.schedule)) continue;
+      }
+
+      // Só grupos reais e previamente selecionados são permitidos.
+      if (!item.groupId || !String(item.groupId).endsWith('@g.us')) {
+        await queueDoc.ref.update({
+          status: 'failed',
+          error: 'Destino inválido: apenas grupos do WhatsApp são suportados.',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        continue;
+      }
+
+      // Claim atômico: se duas instâncias iniciarem por engano, apenas uma
+      // poderá consumir a mesma mensagem. Um "processing" interrompido fica
+      // para revisão manual, evitando disparo duplicado após falha inesperada.
+      const claimed = await db.runTransaction(async (tx) => {
+        const latest = await tx.get(queueDoc.ref);
+        if (!latest.exists || latest.data()?.status !== 'pending') return false;
+        tx.update(queueDoc.ref, {
+          status: 'processing',
+          processingAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (!claimed) continue;
 
       const sock = sessionObj.sock;
 
@@ -991,7 +1048,7 @@ async function processSendQueue() {
         console.log(`📤 [Sessão: ${sessionObj.label}] Enviando "${item.productTitle}" para ${item.groupId}...`);
 
         // Simulação de presença "composing"
-        await sock.sendPresenceUpdate('composing', item.groupId);
+        try { await sock.sendPresenceUpdate('composing', item.groupId); } catch (_) { /* presença é opcional */ }
         const typingDelay = Math.floor(Math.random() * 2000) + 1500;
         await new Promise((resolve) => setTimeout(resolve, typingDelay));
 
@@ -1014,6 +1071,7 @@ async function processSendQueue() {
           .update({
             status: 'sent',
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
         await db
@@ -1160,6 +1218,10 @@ async function processCommands() {
 // ------------------------------------------------------------------------------
 
 async function main() {
+  // Validação de acesso antes de alterar sessões ou executar campanhas.
+  await db.collection('users').doc(USER_UID).get();
+  console.log('✅ Firestore acessível. Confira sua conta pelo npm run doctor.');
+
   // 1. Migração se houver sessão legada
   await checkAndMigrateLegacySession();
 
@@ -1170,19 +1232,22 @@ async function main() {
   const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 15) * 60 * 1000;
   setInterval(syncAllGroups, syncIntervalMs);
 
-  // 4. Ciclo de geração de campanhas (a cada 1 minuto)
-  const campaignIntervalMs = (parseInt(process.env.CAMPAIGN_CYCLE_INTERVAL_MIN) || 1) * 60 * 1000;
-  setInterval(runCampaignCycle, campaignIntervalMs);
-  runCampaignCycle();
+  // 4. Geração e consumo de filas só após habilitação explícita.
+  if (WA_SEND_ENABLED) {
+    const campaignIntervalMs = (parseInt(process.env.CAMPAIGN_CYCLE_INTERVAL_MIN) || 1) * 60 * 1000;
+    setInterval(runCampaignCycle, campaignIntervalMs);
+    runCampaignCycle();
+    setInterval(processSendQueue, 15 * 1000);
+  }
 
-  // 5. Consumidor de fila em tempo real (a cada 15 segundos)
-  setInterval(processSendQueue, 15 * 1000);
-
-  // 6. Fila de comandos de grupo (criar/sair) — a cada 8 segundos
-  setInterval(processCommands, 8 * 1000);
-  processCommands();
+  // 5. Comandos que criam/saem de grupos também exigem autorização explícita.
+  if (WA_GROUP_COMMANDS_ENABLED) {
+    setInterval(processCommands, 8 * 1000);
+    processCommands();
+  }
 }
 
 main().catch((err) => {
-  console.error('❌ Erro fatal no worker:', err);
+  console.error('❌ Erro fatal no worker:', err.message || err);
+  process.exitCode = 1;
 });

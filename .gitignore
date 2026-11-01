@@ -43,3 +43,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Dados locais do worker Termux (nunca versionar sessões/chaves)
+whatsapp-worker/auth/
+whatsapp-worker/session_data/
+whatsapp-worker/*.credentials.json

@@ -1,125 +1,83 @@
-# 🤖 Afiliate WhatsApp Worker (Baileys + Firestore)
+# Afiliate — Worker WhatsApp no Termux (Android)
+O worker usa **Baileys não oficial**. Há risco de bloqueio da conta. Envie ofertas somente a grupos onde a publicação é autorizada; nunca use disparos massivos sem consentimento.
 
-Este é um **Worker autônomo em Node.js** projetado para rodar em segundo plano (seja no seu celular via **Termux** ou em uma **VM / VPS / Render**). Ele conecta a uma conta de WhatsApp usando a biblioteca [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) e sincroniza automaticamente os disparos de ofertas agendados no painel **Afiliate App** através do **Google Cloud Firestore**.
+## Fluxo existente (não altera suas campanhas)
+**Afiliate miner → Firebase → Meus Produtos → Campanhas do Afiliate → fila → WhatsApp**.
+O worker usa o UID da mesma conta do Afiliate e preserva campanhas já salvas. Não é preciso Render para executar o worker; a plataforma Afiliate/site e os scrapers podem continuar dependendo de um backend hospedado.
 
----
-
-## ⚠️ AVISOS EXTREMAMENTE IMPORTANTES - LEIA COM ATENÇÃO!
-
-1. **BIBLIOTECA NÃO OFICIAL**: Este software utiliza o protocolo não-oficial `@whiskeysockets/baileys`. Ele NÃO utiliza a API Cloud oficial do WhatsApp (WhatsApp Business API).
-2. **RISCO REAL DE BANIMENTO**: O uso de scripts de automação ou disparadores em massa viola os Termos de Serviço do WhatsApp. Existe o risco real do seu número ser **bloqueado/banido permanentemente**.
-3. **USE UM NÚMERO EXCLUSIVO E DEDICADO**: **JAMAIS** conecte o seu número de telefone pessoal ou da sua empresa principal neste worker! Adquira um chip/número dedicado exclusivamente para o robô de ofertas.
-4. **VOLUME CONSERVADOR & RITMO ANTIBAN**:
-   - Utilize intervalos aleatórios moderados (ex: gaps de 30s a 120s entre mensagens).
-   - Não dispare para centenas de grupos ao mesmo tempo.
-   - Respeite horários comerciais (ex: 09h às 21h).
-5. **CONFORMIDADE LGPD**: Por privacidade e conformidade com a LGPD (Lei Geral de Proteção de Dados), este worker registra **apenas a contagem numérica de membros** dos grupos. Ele **NÃO** armazena contatos, nomes ou telefones dos participantes dos grupos no banco de dados.
-
----
-
-## 📂 Arquitetura do Worker
-
-- **Sincronização de Grupos**: Conecta ao WhatsApp, lê todos os grupos em que o robô é participante e grava o nome, contagem de membros, foto e status de admin em `users/{USER_UID}/waGroups/{groupId}`.
-- **Motor de Campanhas**: Consulta as campanhas ativas do usuário em `users/{USER_UID}/campaigns`, filtra os produtos do catálogo conforme os critérios (desconto, preço, vendas, plataforma) e agenda as mensagens na fila `users/{USER_UID}/sendQueue` com tempos de pausa sorteados (*pacing* aleatório).
-- **Consumidor de Fila (Send Queue)**: Processa as mensagens com status `pending`, simula o status "digitando..." por alguns segundos, envia a imagem com a legenda da oferta no grupo e registra o log em `users/{USER_UID}/sendLog`.
-
----
-
-## 🚀 Como Rodar no Termux (Android)
-
-Você pode transformar um celular Android antigo em um servidor de automação 24/7 para seus grupos de ofertas!
-
-### 1. Instalar o Termux
-Baixe a versão atualizada do Termux através do **F-Droid** (evite a versão desatualizada da Play Store).
-
-### 2. Preparar o Ambiente no Termux
-Abra o aplicativo Termux e execute os comandos:
-
-```bash
-# Atualizar pacotes
-pkg update && pkg upgrade -y
-
-# Instalar Node.js, Git e utilitários
-pkg install nodejs-lts git tmux -y
-
-# Impedir que o Android coloque o Termux em hibernação/economia de bateria
+## 1. Instalação
+Instale Termux pelo F-Droid. No Termux:
+```sh
+pkg update -y && pkg upgrade -y
+pkg install -y git nodejs tmux
 termux-wake-lock
-```
-
-### 3. Baixar ou Copiar os Arquivos
-Navegue até a pasta do worker:
-
-```bash
-cd whatsapp-worker
+cd ~
+git clone https://github.com/wheslleysousa/Afiliate.git
+cd Afiliate/whatsapp-worker
 npm install
-```
-
-### 4. Configurar as Variáveis de Ambiente
-Copie o arquivo `.env.example` para `.env`:
-
-```bash
-cp .env.example .env
+npm run check
+cp -n .env.example .env
 nano .env
 ```
+Se você já clonou antes: `cd ~/Afiliate && git pull --ff-only && cd whatsapp-worker`. **Não apague `auth/`** ao atualizar.
 
-Preencha as variáveis:
-- `USER_UID`: Copie o seu UID exibido no rodapé/perfil do Afiliate App.
-- `FIREBASE_SERVICE_ACCOUNT_PATH`: Adicione o caminho do arquivo JSON de credenciais baixado do seu projeto no Firebase Console (`serviceAccountKey.json`).
+## 2. Credenciais (não compartilhar nem subir ao GitHub)
+No Firebase Console do **mesmo projeto que o Afiliate utiliza**, gere uma chave privada em Configurações do Projeto → Contas de serviço. Salve em `whatsapp-worker/serviceAccountKey.json` no Termux (por exemplo, usando `termux-setup-storage` e copiando da pasta Downloads). Proteja:
+```sh
+chmod 600 serviceAccountKey.json
+```
+No `.env`, configure `USER_UID` igual ao da sua conta no Afiliate, `FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json` e mantenha o `FIRESTORE_DATABASE_ID` do exemplo. Não use UID inventado, não cole credenciais em chats e não comite `.env` ou `auth/`.
 
-### 5. Iniciar o Worker e Escanear o QR Code
-Para rodar pela primeira vez:
+**Primeiro teste, sem disparar:** deixe `WA_SEND_ENABLED=false` e `WA_GROUP_COMMANDS_ENABLED=false`. Para parear por código no mesmo telefone, adicione `WA_PAIRING_PHONE=55DDDNUMERO` (só números, com DDI 55); caso contrário, use QR em uma segunda tela.
 
-```bash
+## 3. Verificar Firestore sem enviar mensagens
+```sh
+npm run doctor
+```
+O comando confirma credenciais, UID, acesso ao banco nomeado e amostras de produtos, grupos, campanhas e filas. Não publica mensagens. Se der erro, corrija antes de ligar o worker.
+
+## 4. Conectar WhatsApp em modo seguro
+```sh
 node index.js
 ```
+Entre no **Afiliate → Automação Zap → Contas** e solicite conectar uma conta (ou reutilize uma já cadastrada). O worker lê `users/{uid}/waSessions` e gera o QR. Caso `WA_PAIRING_PHONE` esteja definido, mostrará um código no próprio Termux: no WhatsApp, abra **Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone**. Não é necessário escanear o QR exibido na própria tela.
 
-Um **QR Code em ASCII** será exibido no terminal do Termux.
-1. Abra o WhatsApp no seu celular dedicado.
-2. Acesse **Aparelhos Conectados > Conectar um Aparelho**.
-3. Escaneie o QR Code exibido na tela do Termux.
-4. Assim que conectar, você verá a mensagem: `✅ CONECTADO COM SUCESSO AO WHATSAPP!`.
+Quando conectar, o worker deve exibir `CONECTADO COM SUCESSO AO WHATSAPP!` e sincronizar os grupos para o painel. **Em modo seguro, não envia ofertas nem cria/sai de grupos.**
 
-### 6. Manter Rodando em Segundo Plano (com `tmux` ou `pm2`)
-Para evitar que o robô pare se você fechar a tela do Termux:
+## 5. Ativar só depois de testar
+No Afiliate, revise todas as campanhas já ativas. Pause as antigas que não quer executar; selecione **um único grupo de teste autorizado**, **um produto** e um horário válido, e confirme se a extensão salvou o produto em **Meus Produtos**.
 
-**Usando `tmux`:**
-```bash
-tmux new -s zapworker
+Pare o worker (`Ctrl+C`). Edite `.env`:
+```sh
+nano .env
+# altere WA_SEND_ENABLED=false para WA_SEND_ENABLED=true
 node index.js
-# Pressione CTRL + B e depois D para desanexar do terminal sem parar o robô!
 ```
+Acompanhe **Automação Zap → Fila & Logs** e confira se chegou uma mensagem real ao grupo. Para interromper, pare o worker e volte para `WA_SEND_ENABLED=false` antes de reiniciar. `WA_GROUP_COMMANDS_ENABLED` pode permanecer `false` para evitar criar ou sair de grupos por acidente.
 
-Para voltar ao terminal do robô depois:
-```bash
-tmux attach -t zapworker
+**Proteções:** em modo seguro não gera nem consome filas; offline deixa mensagens pendentes; ofertas antigas (>180 min, configurável) são descartadas; campanha pausada ou removida não publica; envios são reivindicados atomicamente para reduzir duplicações. Itens em `processing` após queda precisam revisão humana (para não mandar duplicado).
+
+## 6. Rodar no Android
+Para testar continuamente, use `tmux`:
+```sh
+tmux new -s afiliate
+node index.js
+# dentro do tmux: Ctrl+B, depois D para sair sem encerrar
+tmux attach -t afiliate
 ```
+Depois do teste, opcionalmente instale o PM2: `npm install -g pm2 && pm2 start index.js --name afiliate-worker && pm2 save`; consulte com `pm2 logs afiliate-worker` e pare com `pm2 stop afiliate-worker`. **Não rode tmux e PM2 simultaneamente.**
 
-**Usando `pm2`:**
-```bash
-npm install -g pm2
-pm2 start index.js --name afiliate-zap
-pm2 save
-```
+Em Android/HyperOS, configure **Termux → Bateria → Sem restrições**, permita execução em segundo plano, mantenha internet e evite “Forçar parada”. `termux-wake-lock` e PM2 ajudam, mas **Android ainda pode encerrar processos**, portanto não garantem 24/7. Opcionalmente use Termux:Boot para reiniciar após boot.
 
----
+## Diagnóstico comum
+- **UID sem perfil:** use a mesma conta Firebase do site e da extensão; confirme o UID.
+- **PERMISSION_DENIED/NOT_FOUND:** revise service account, projeto e `FIRESTORE_DATABASE_ID`.
+- **Nenhum QR/código:** antes crie/solicite conexão no painel Afiliate; verifique `waSessions`.
+- **Nenhum grupo:** confirme que a conta conectada participa de grupos válidos.
+- **Sem disparo:** revise `WA_SEND_ENABLED=true`, campanha habilitada, sessão, grupos, produto e horário.
+- **Erro de índice Firestore:** implante o índice de `sendQueue (status ASC, scheduledAt ASC)` contido em `firestore.indexes.json`.
+- **Caiu:** veja erros no terminal/PM2 e otimizador de bateria. Não apague `auth/` por reflexo.
+- **Segurança:** o código legado também salva metadados de participantes na coleção `waGroups`. Revise acesso e retenção antes de expandir para terceiros.
 
-## 🌐 Como Rodar numa VM / Servidor na Nuvem (Render, VPS, Railway)
-
-### 1. Arquivo de Credenciais
-Em plataformas como o **Render**, você pode definir a variável de ambiente `FIREBASE_SERVICE_ACCOUNT_JSON` colando o conteúdo do arquivo de credencial JSON diretamente na variável, sem precisar subir arquivos sensíveis para o Git.
-
-### 2. Variáveis de Ambiente Necessárias
-No painel do seu servidor (ex: Render Environment Variables):
-- `USER_UID`: Seu UID do Afiliate App.
-- `FIREBASE_SERVICE_ACCOUNT_JSON`: Conteúdo completo em texto do `serviceAccountKey.json`.
-- `AUTH_DIR`: `./auth` (Certifique-se de configurar um **Persistent Disk** / Volume se estiver em hospedagens serverless para manter a sessão do WhatsApp salva entre reinicializações do contêiner).
-
-> ℹ️ **Aviso do Plano Gratuito do Render**: No plano free do Render, a aplicação entra em modo de suspensão (*sleep*) após inatividade. Quando o contêiner dorme, o WebSocket do Baileys é desconectado. Recomenda-se utilizar uma VPS dedicada (como DigitalOcean, Hetzner) ou manter o worker no Termux.
-
----
-
-## 🛠️ Solução de Problemas & Dicas
-
-- **O QR Code expirou ou a sessão caiu**: Apague a pasta `./auth` e execute `node index.js` para ler um novo QR Code.
-- **Aviso de limite de envios**: Aumente os valores `minGapSec` e `maxGapSec` nas configurações de campanhas no painel do aplicativo.
-- **O robô não é admin nos grupos**: Sem permissão de administrador em alguns grupos, o robô conseguirá enviar mensagens normalmente, mas a foto e descrição do grupo no painel do app podem demorar mais para atualizar.
+## Limites
+Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp real. O envio de **canais** do WhatsApp não está demonstrado; o código usa somente identificadores de grupos `@g.us`. API não oficial pode parar de funcionar após mudanças no WhatsApp.
