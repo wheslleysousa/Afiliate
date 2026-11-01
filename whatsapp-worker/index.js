@@ -201,7 +201,9 @@ async function updateSessionDoc(sessionId, data) {
 // 2. CONEXÃO BAILEYS POR SESSÃO
 // ------------------------------------------------------------------------------
 
-async function connectToWhatsAppSession(sessionId, label) {
+async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone = '') {
+  const pairingPhone = String(requestedPairingPhone || WA_PAIRING_PHONE || '').replace(/\D/g, '');
+  const validPairingPhone = /^\d{10,15}$/.test(pairingPhone) ? pairingPhone : '';
   let sessionObj = sessionsMap.get(sessionId);
 
   if (sessionObj && sessionObj.isConnecting) {
@@ -234,6 +236,9 @@ async function connectToWhatsAppSession(sessionId, label) {
     await updateSessionDoc(sessionId, {
       status: 'connecting',
       qr: null,
+      pairingCode: null,
+      pairingCodeAt: null,
+      pairingError: null,
       label: sessionObj.label,
     });
 
@@ -272,14 +277,22 @@ async function connectToWhatsAppSession(sessionId, label) {
 
         // No mesmo celular, use o código no WhatsApp > Aparelhos conectados >
         // Conectar um aparelho > Conectar com número de telefone.
-        if (WA_PAIRING_PHONE && !state.creds?.registered && !sessionObj.pairingRequested) {
+        if (validPairingPhone && !state.creds?.registered && !sessionObj.pairingRequested) {
           sessionObj.pairingRequested = true;
           try {
-            const code = await sock.requestPairingCode(WA_PAIRING_PHONE);
-            console.log(`\n🔑 [${sessionObj.label}] CÓDIGO DE PAREAMENTO: ${code}\n`);
-            console.log('No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.');
+            const code = await sock.requestPairingCode(validPairingPhone);
+            if (!/^[A-Z0-9-]{4,16}$/i.test(String(code || ''))) throw new Error('Código inválido');
+            await updateSessionDoc(sessionId, {
+              status: 'qr', pairingCode: code,
+              pairingCodeAt: admin.firestore.FieldValue.serverTimestamp(), pairingError: null,
+            });
+            console.log('[WhatsApp] Código disponível no app Afiliate.');
           } catch (err) {
-            console.error('⚠️ Não foi possível gerar o código de pareamento. Use o QR exibido acima:', err.message);
+            console.error('[WhatsApp] Falha ao gerar código:', err.message);
+            await updateSessionDoc(sessionId, {
+              pairingCode: null, pairingCodeAt: null,
+              pairingError: 'Não foi possível gerar o código. Tente novamente ou use QR.',
+            });
             sessionObj.pairingRequested = false;
           }
         }
@@ -320,6 +333,9 @@ async function connectToWhatsAppSession(sessionId, label) {
           await updateSessionDoc(sessionId, {
             status: 'disconnected',
             qr: null,
+            pairingCode: null,
+            pairingCodeAt: null,
+            pairingError: null,
             phoneNumber: null,
             name: null,
             requestedConnect: false,
@@ -331,13 +347,15 @@ async function connectToWhatsAppSession(sessionId, label) {
           await updateSessionDoc(sessionId, {
             status: shouldReconnect ? 'connecting' : 'disconnected',
             qr: null,
+            pairingCode: null,
+            pairingCodeAt: null,
           });
 
           if (shouldReconnect) {
             clearTimeout(sessionObj.reconnectTimer);
             sessionObj.reconnectTimer = setTimeout(() => {
               sessionObj.pairingRequested = false;
-              connectToWhatsAppSession(sessionId, sessionObj.label);
+              connectToWhatsAppSession(sessionId, sessionObj.label, requestedPairingPhone);
             }, 5000);
           }
         }
@@ -357,6 +375,10 @@ async function connectToWhatsAppSession(sessionId, label) {
         await updateSessionDoc(sessionId, {
           status: 'connected',
           qr: null,
+          pairingCode: null,
+          pairingCodeAt: null,
+          pairingError: null,
+          pairingPhone: null,
           phoneNumber: phoneNum,
           name: name,
           requestedConnect: false,
@@ -455,7 +477,7 @@ function startSessionsManager() {
           const sessionObj = sessionsMap.get(sessionId);
           if (!sessionObj || sessionObj.status === 'disconnected') {
             console.log(`📲 [Sessão: ${sessionId}] Solicitação de conexão recebida! Gerando QR...`);
-            connectToWhatsAppSession(sessionId, data.label || 'Conta WhatsApp');
+            connectToWhatsAppSession(sessionId, data.label || 'Conta WhatsApp', data.pairingMethod === 'code' ? data.pairingPhone : '');
           }
         }
       });
