@@ -6,6 +6,7 @@ import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
 import { WhatsAppCampaignsView } from './WhatsAppAutomation/WhatsAppCampaignsView';
 import { WhatsAppQueueLogsView } from './WhatsAppAutomation/WhatsAppQueueLogsView';
 import { WhatsAppSessionCard } from './WhatsAppAutomation/WhatsAppSessionCard';
+import { WorkerHealthCard } from './WhatsAppAutomation/WorkerHealthCard';
 import {
   MessageSquare,
   Users,
@@ -116,6 +117,9 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Estado real do Termux: status atualizado por heartbeat */}
+      <WorkerHealthCard uid={uid} />
 
       {/* WhatsApp Connection Cards */}
       <WhatsAppSessionCard uid={uid} waGroupsCount={waGroups.length} />
