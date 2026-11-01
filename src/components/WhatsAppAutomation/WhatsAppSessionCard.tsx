@@ -515,7 +515,33 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                 )}
 
                 {/* Card Content according to Status */}
-                {status === 'qr' && session.qr ? (
+                {status === 'qr' && session.pairingMethod === 'code' ? (
+                  <div className="space-y-3 rounded-xl border border-[#293246] bg-[#101722] p-5 text-center">
+                    <p className="text-sm font-bold text-white">Conecte pelo código</p>
+                    {session.pairingCode ? (
+                      <>
+                        <p className="mx-auto max-w-sm break-all rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 font-mono text-2xl font-extrabold tracking-[0.12em] text-emerald-300 select-all" aria-label="Código de conexão">
+                          {session.pairingCode}
+                        </p>
+                        <p className="text-xs text-[#b7c3d9]">
+                          No WhatsApp do seu celular: Aparelhos conectados → Conectar um aparelho →
+                          Conectar com número de telefone. Digite o código acima.
+                        </p>
+                        <p className="text-[11px] text-amber-200">
+                          Código temporário. Se expirar, solicite outro.
+                        </p>
+                      </>
+                    ) : session.pairingError ? (
+                      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200" role="alert">
+                        {session.pairingError}
+                      </p>
+                    ) : (
+                      <p className="flex items-center justify-center gap-2 text-xs text-[#b7c3d9]">
+                        <RefreshCw size={14} className="animate-spin" /> Gerando código de conexão...
+                      </p>
+                    )}
+                  </div>
+                ) : status === 'qr' && session.qr ? (
                   /* QR CODE DISPLAY */
                   <div className="flex flex-col md:flex-row items-center gap-6 bg-[#0e1119] border border-[#1e2636] p-5 rounded-xl">
                     <div className="bg-white p-3.5 rounded-2xl shadow-2xl shrink-0 border-4 border-emerald-500/30">
@@ -538,6 +564,9 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                         <li>Aponte a câmera do seu celular para o QR Code ao lado.</li>
                       </ol>
 
+                      <p className="text-[11px] text-amber-200">
+                        No mesmo celular, use a opção Código no celular em vez de QR Code.
+                      </p>
                       <p className="text-[11px] text-[#93a0b5] italic flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin text-emerald-500" />
                         O QR Code é atualizado em tempo real.
