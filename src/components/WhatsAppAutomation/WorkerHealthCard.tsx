@@ -49,15 +49,15 @@ export const WorkerHealthCard: React.FC<{ uid: string }> = ({ uid }) => {
   const connected = online ? (data?.connectedSessions || 0) : 0;
   const safe = online && data?.sendEnabled !== true;
   const active = online && !safe && connected > 0;
-  const heading = loading ? 'Verificando worker...' : error ? 'Não foi possível consultar o worker' :
-    !online ? 'Worker offline' : safe ? 'Worker conectado · modo seguro' :
-    connected === 0 ? 'Worker online · WhatsApp desconectado' : 'Automação ativa';
+  const heading = loading ? 'Verificando conexão...' : error ? 'Não foi possível consultar o worker' :
+    !online ? 'Serviço WhatsApp indisponível' : safe ? 'Serviço disponível · envio pausado' :
+    connected === 0 ? 'Serviço disponível · WhatsApp desconectado' : 'Automação ativa';
   const description = loading ? 'Consultando o Firebase.' : error
     ? 'Confira sua conexão com o Firebase e tente atualizar.'
     : !online
-      ? 'O Termux não está enviando sinais de vida. Confira o processo no celular.'
+      ? 'O serviço de conexão do WhatsApp está indisponível para esta conta. Tente novamente mais tarde ou entre em contato com o suporte.'
       : safe
-        ? 'Conexão e sincronização disponíveis. Disparos desativados no Termux.'
+        ? 'Conexão e sincronização disponíveis. O envio de campanhas ainda está desativado.'
         : connected === 0
           ? 'O worker está online, mas falta conectar uma conta do WhatsApp.'
           : 'O worker está pronto para processar campanhas e enviar ofertas aos grupos configurados.';
@@ -91,7 +91,7 @@ export const WorkerHealthCard: React.FC<{ uid: string }> = ({ uid }) => {
       {!online && !loading && !error && (
         <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#293246] bg-[#151a26] p-3 text-xs text-[#b7c3d9]">
           <AlertTriangle size={15} className="shrink-0 text-amber-400" />
-          <span>No Termux, entre em <code className="text-emerald-300">~/Afiliate/whatsapp-worker</code> e execute <code className="text-emerald-300">npm run doctor</code> e <code className="text-emerald-300">node index.js</code>. O status deve aparecer aqui após a conexão.</span>
+          <span>O serviço de WhatsApp ainda não está disponível. Você pode consultar suas configurações, mas conectar uma nova conta exige o serviço online. Não é necessário instalar o Termux no seu celular.</span>
         </div>
       )}
     </section>
