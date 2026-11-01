@@ -112,4 +112,21 @@ function renderTemplate(template, product, affiliateLink) {
   return output.length >= 8 && output.includes(link) ? output : null;
 }
 
-module.exports = { BUILTIN_TEMPLATES, formattedPrice, renderTemplate };
+// Aceita tanto "1.299,90" quanto "1299.90" ou "R$ 1.299,90".
+function parseProductPrice(value) {
+  const raw = String(value || '').replace(/[^\d,.]/g, '');
+  if (!raw) return NaN;
+  const lastComma = raw.lastIndexOf(',');
+  const lastDot = raw.lastIndexOf('.');
+  const decimalPos = Math.max(lastComma, lastDot);
+  if (decimalPos < 0) return Number(raw);
+  const decimals = raw.length - decimalPos - 1;
+  // Um separador com 3 dígitos finais indica milhares; com 1-2, centavos.
+  const decimal = decimals >= 1 && decimals <= 2;
+  const whole = raw.slice(0, decimalPos + (decimal ? 0 : 1)).replace(/[^\d]/g, '');
+  const cents = decimal ? raw.slice(decimalPos + 1).replace(/[^\d]/g, '') : '';
+  const num = Number(whole + (decimal ? '.' + cents : ''));
+  return Number.isFinite(num) ? num : NaN;
+}
+
+module.exports = { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice };
