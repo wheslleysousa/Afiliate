@@ -1047,7 +1047,7 @@ async function processSendQueue() {
           return original === queueTarget ||
             original === itemSessionId + '_' + queueTarget;
         });
-        if (!isTargetStillSelected || campaignSnap.data()?.sessionId !== itemSessionId) {
+        if (!isTargetStillSelected || (campaignSnap.data()?.sessionId || 'current') !== itemSessionId) {
           await queueDoc.ref.update({
             status: 'failed',
             error: 'Grupo ou conta removidos da campanha antes do envio.',
