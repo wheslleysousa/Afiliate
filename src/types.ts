@@ -336,6 +336,8 @@ export interface WaSession {
   name?: string | null;
   requestedConnect?: boolean;
   requestedLogout?: boolean;
+  reloginRequired?: boolean;
+  lastDisconnectCode?: number | null;
   updatedAt?: any;
   lastConnectedAt?: any;
   createdAt?: any;
