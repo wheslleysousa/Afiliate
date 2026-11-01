@@ -81,3 +81,13 @@ Em Android/HyperOS, configure **Termux → Bateria → Sem restrições**, permi
 
 ## Limites
 Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp real. O envio de **canais** do WhatsApp não está demonstrado; o código usa somente identificadores de grupos `@g.us`. API não oficial pode parar de funcionar após mudanças no WhatsApp.
+
+
+## Melhorias de novembro/2026 — painel e campanhas
+
+- **Status real do Termux:** o worker atualiza `users/{uid}/workerStatus/current` a cada 60 segundos; a aba **Automação Zap** mostra online/offline (sem sinal há >180 segundos), modo seguro, WhatsApp desconectado e envio ativo. O status salvo de `waSessions` isoladamente não é prova de que o worker esteja rodando.
+- **Disparos respeitam alterações de campanhas:** o worker revalida a conta, o grupo e o status/horário da campanha no momento do envio. Grupo que deixou de ser selecionado é descartado da fila.
+- **Templates de mensagem:** `templateId` das campanhas passa a ser considerado. Há templates nativos WhatsApp (urgência, direto, avaliação, PIX), grupo de ofertas e minimalista; templates personalizados são lidos de `users/{uid}/templates`. Templates desconhecidos ou com variáveis não reconhecidas usam a mensagem padrão, evitando envio de placeholders crus.
+- **Categorias e preços:** filtros de categorias pessoais em `minedProducts.categories` usam o mapa de nomes de `userConfig/categories`; teto de preço reconhece valores brasileiros e decimais.
+- **Testes:** após `git pull --ff-only`, execute `npm run check` para checar sintaxe e testes de formato de preço e cópia. O teste com conexão real ao WhatsApp continua necessário.
+- **Dependências:** se `npm install` listar vulnerabilidades, use `npm audit --omit=dev` e `npm install-scripts ls` para análise. Não rode `npm audit fix --force` nem aprove scripts sem revisão.
