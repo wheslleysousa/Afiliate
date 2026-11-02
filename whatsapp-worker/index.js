@@ -23,12 +23,14 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } = require('./templateEngine');
 const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
+const { getCurrentWaWebVersion } = require('./waVersion');
 
 const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
+  Browsers,
 } = require('@whiskeysockets/baileys');
 
 // ------------------------------------------------------------------------------
@@ -258,7 +260,9 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
     });
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionAuthDir);
-    const { version, isLatest } = await fetchLatestBaileysVersion();
+    // A versão obtida do repositório Baileys pode estar atrasada. A versão do
+    // WhatsApp Web é obtida diretamente; se falhar, não emitir código inválido.
+    const version = await getCurrentWaWebVersion(fetchLatestWaWebVersion);
 
     console.log(`\n📱 [Sessão: ${sessionObj.label} (${sessionId})] Iniciando Baileys v${version.join('.')}...`);
 
@@ -267,7 +271,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
       logger: pino({ level: 'silent' }),
       auth: state,
       printQRInTerminal: false,
-      browser: ['Afiliate Worker', 'Chrome', '1.0.0'],
+      browser: Browsers.windows('Chrome'),
       syncFullHistory: false,
     });
 
@@ -419,7 +423,14 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
     await updateSessionDoc(sessionId, {
       status: 'disconnected',
       qr: null,
+      pairingCode: null,
+      pairingCodeAt: null,
+      pairingError: err?.message?.includes('versão') || err?.message?.includes('fetchLatestWaWebVersion')
+        ? 'Não foi possível consultar uma versão compatível do WhatsApp Web. Confira a internet e tente mais tarde.'
+        : 'Não foi possível iniciar a conexão. Confira o serviço e tente novamente.',
+      requestedConnect: false,
     });
+    sessionsMap.delete(sessionId);
   }
 }
 
