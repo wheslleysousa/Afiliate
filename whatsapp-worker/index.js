@@ -408,6 +408,13 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
           requestedConnect: false,
           reloginRequired: false,
           lastDisconnectCode: null,
+          groupCapabilities: {
+            createGroup: typeof sock.groupCreate === 'function',
+            createCommunity: typeof sock.communityCreate === 'function',
+            createChannel: typeof sock.newsletterCreate === 'function',
+            linkGroupToCommunity: typeof sock.communityLinkGroup === 'function',
+            commandsEnabled: WA_GROUP_COMMANDS_ENABLED,
+          },
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -661,6 +668,8 @@ async function syncGroups(sessionId, sock) {
         participantsCount: totalSize,
         participants: participants,
         description: group.desc || null,
+        isCommunity: !!group.isCommunity,
+        linkedParent: group.linkedParent || null,
         isAdmin: isBotAdmin,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -1397,17 +1406,49 @@ async function processCommands() {
         if (!sock) throw new Error('Nenhuma sessão do WhatsApp conectada.');
 
         if (cmd.action === 'createGroup') {
-          if (cmd.type && cmd.type !== 'group') throw new Error('Comunidades não estão disponíveis nesta versão do worker. Nenhum grupo foi criado.');
-          const name = (cmd.name || 'Novo Grupo').toString().trim().slice(0, 100);
+          const name = (cmd.name || '').toString().trim().slice(0, 100);
+          if (!name) throw new Error('Informe o nome do grupo, comunidade ou canal.');
           const participants = Array.isArray(cmd.participants) ? cmd.participants.map(normalizeJid).filter(Boolean) : [];
-          const created = await sock.groupCreate(name, participants);
-          const gid = created && created.id;
-          if (gid && cmd.description) { try { await sock.groupUpdateDescription(gid, String(cmd.description)); } catch (e) {} }
+          const type = cmd.type || 'group';
+          let gid = null;
           let inviteLink = null;
-          if (gid) { try { const code = await sock.groupInviteCode(gid); inviteLink = code ? `https://chat.whatsapp.com/${code}` : null; } catch (e) {} }
-          await ref.update({ status: 'done', groupId: gid || null, inviteLink: inviteLink || null, doneAt: admin.firestore.FieldValue.serverTimestamp() });
-          await syncGroups(sessionId, sock);
-          console.log(`✅ [Comando] Grupo criado: "${name}" (${gid})`);
+          let linkWarning = null;
+          if (type === 'community') {
+            if (typeof sock.communityCreate !== 'function') throw new Error('A versão de Baileys instalada não suporta criar comunidades. Nenhuma ação foi realizada.');
+            const created = await sock.communityCreate(name, String(cmd.description || ''));
+            gid = created?.id || null;
+          } else if (type === 'channel') {
+            if (typeof sock.newsletterCreate !== 'function') throw new Error('A versão de Baileys instalada não suporta criar canais. Nenhuma ação foi realizada.');
+            const created = await sock.newsletterCreate(name, String(cmd.description || ''));
+            gid = created?.id || null;
+          } else if (type === 'group') {
+            const created = await sock.groupCreate(name, participants);
+            gid = created?.id || null;
+            if (gid && cmd.description) {
+              try { await sock.groupUpdateDescription(gid, String(cmd.description)); }
+              catch (e) { linkWarning = 'Grupo criado, mas não foi possível adicionar a descrição.'; }
+            }
+            if (gid && cmd.parentCommunityJid) {
+              if (typeof sock.communityLinkGroup !== 'function') {
+                linkWarning = 'Grupo criado, mas esta versão do WhatsApp Web não permite vinculá-lo à comunidade.';
+              } else {
+                try { await sock.communityLinkGroup(gid, String(cmd.parentCommunityJid)); }
+                catch (e) { linkWarning = 'Grupo criado, mas não foi possível vinculá-lo à comunidade.'; }
+              }
+            }
+          } else {
+            throw new Error('Tipo de criação desconhecido: ' + type);
+          }
+          if (!gid) throw new Error('WhatsApp não confirmou o identificador do item criado.');
+          if (type === 'group') {
+            try { const code = await sock.groupInviteCode(gid); inviteLink = code ? `https://chat.whatsapp.com/${code}` : null; } catch (e) {}
+          }
+          await ref.update({
+            status: 'done', groupId: gid, inviteLink, warning: linkWarning,
+            doneAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          if (type !== 'channel') await syncGroups(sessionId, sock);
+          console.log(`✅ [Comando] ${type} criado no WhatsApp: ${gid}`);
         } else if (cmd.action === 'leaveGroup') {
           const gid = cmd.groupId;
           if (!gid) throw new Error('groupId ausente');
