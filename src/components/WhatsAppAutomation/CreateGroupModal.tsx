@@ -29,7 +29,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [type, setType] = useState<'group' | 'community'>('group');
+  // Nesta versão do Baileys a ação validada é apenas createGroup.
+  const type = 'group' as const;
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
@@ -115,6 +116,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
       // Envia um COMANDO para o worker criar o grupo REAL no WhatsApp.
       // (O worker cria via Baileys e a sincronização já traz o grupo verdadeiro.)
+      // Criar o documento confirma apenas a solicitação, não a criação no WhatsApp.
       await addDoc(collection(db, 'users', uid, 'waCommands'), {
         action: 'createGroup',
         sessionId: selectedSessionId,
@@ -148,7 +150,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Criar Grupo ou Comunidade</h3>
+              <h3 className="text-base font-bold text-white">Criar grupo no WhatsApp</h3>
               <p className="text-xs text-stone-400">
                 O grupo será criado no seu WhatsApp através da sessão conectada.
               </p>
@@ -180,7 +182,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setType('group')}
+                aria-pressed="true"
                 className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between space-y-2 ${
                   type === 'group'
                     ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-lg'
@@ -201,11 +203,13 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setType('community')}
+                disabled
+                aria-disabled="true"
+                title="Comunidades ainda não são suportadas por este worker"
                 className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between space-y-2 ${
                   type === 'community'
                     ? 'bg-blue-500/10 border-blue-500 text-white shadow-lg'
-                    : 'bg-[#151a26] border-[#1e2636] text-stone-400 hover:text-stone-200'
+                    : 'bg-[#151a26] border-[#1e2636] text-stone-500 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -213,9 +217,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   {type === 'community' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white">Comunidade de Canais</div>
+                  <div className="text-xs font-bold text-white">Comunidades · em breve</div>
                   <div className="text-[11px] text-stone-400 mt-0.5">
-                    Comunidade central para agrupar múltiplos subgrupos.
+                    Estamos validando o suporte real a comunidades e canais.
                   </div>
                 </div>
               </button>
@@ -302,7 +306,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           <div className="bg-[#151a26] border border-[#1e2636] p-3 rounded-xl text-xs text-stone-400 flex items-start gap-2.5">
             <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <p className="text-[11px] leading-relaxed">
-              O worker sincronizado criará o grupo na sua conta selecionada e atribuirá a você o papel de <strong>Administrador</strong> do grupo automaticamente.
+              A solicitação será processada pelo worker somente quando os comandos de grupos estiverem habilitados. A criação real depende da confirmação do WhatsApp.
             </p>
           </div>
 
@@ -321,7 +325,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Criar {type === 'group' ? 'Grupo' : 'Comunidade'}
+              Solicitar criação do grupo
             </button>
           </div>
         </form>
