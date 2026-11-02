@@ -470,6 +470,8 @@ function startSessionsManager() {
   // 2. Escutar Firestore em tempo real
   const sessionsColRef = db.collection('users').doc(USER_UID).collection('waSessions');
 
+  // Impede duas sincronizações concorrentes quando o listener vê alterações do próprio worker.
+  const groupSyncInFlight = new Set();
   sessionsListenerUnsub = sessionsColRef.onSnapshot(
     (snapshot) => {
       snapshot.docChanges().forEach((change) => {
@@ -517,6 +519,37 @@ function startSessionsManager() {
             requestedConnect: false,
           });
           return;
+        }
+
+        // O botão "Sincronizar" no aplicativo solicita atualização imediata.
+        // Antes, requestedSyncGroups era escrito no Firestore mas nunca consumido.
+        if (data.requestedSyncGroups && !groupSyncInFlight.has(sessionId)) {
+          groupSyncInFlight.add(sessionId);
+          const connected = sessionsMap.get(sessionId);
+          (async () => {
+            try {
+              if (!connected || connected.status !== 'connected' || !connected.sock) {
+                await updateSessionDoc(sessionId, {
+                  requestedSyncGroups: false,
+                  groupSyncError: 'Conecte esta conta WhatsApp antes de sincronizar os grupos.',
+                });
+              } else {
+                const ok = await syncGroups(sessionId, connected.sock);
+                await updateSessionDoc(sessionId, {
+                  requestedSyncGroups: false,
+                  lastGroupSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+                  groupSyncError: ok ? null : 'O WhatsApp não conseguiu atualizar os grupos. Tente novamente.',
+                });
+              }
+            } catch (err) {
+              console.error('[WhatsApp] Falha na sincronização solicitada:', err.message);
+              await updateSessionDoc(sessionId, {
+                requestedSyncGroups: false, groupSyncError: 'Falha na atualização dos grupos.',
+              }).catch(() => {});
+            } finally {
+              groupSyncInFlight.delete(sessionId);
+            }
+          })();
         }
 
         // Se pediu conexão
@@ -665,8 +698,10 @@ async function syncGroups(sessionId, sock) {
     }
 
     console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
+    return true;
   } catch (err) {
     console.error(`⚠️ [Sessão: ${sessionId}] Erro ao sincronizar grupos:`, err.message);
+    return false;
   }
 }
 
@@ -1334,6 +1369,8 @@ function pickConnectedSock(preferredSessionId) {
   if (preferredSessionId) {
     const s = sessionsMap.get(preferredSessionId);
     if (s && s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: preferredSessionId };
+    // Nunca executar saída/criação de grupo em outra conta WhatsApp.
+    return { sock: null, sessionId: null };
   }
   for (const [sid, s] of sessionsMap.entries()) {
     if (s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: sid };
@@ -1360,6 +1397,7 @@ async function processCommands() {
         if (!sock) throw new Error('Nenhuma sessão do WhatsApp conectada.');
 
         if (cmd.action === 'createGroup') {
+          if (cmd.type && cmd.type !== 'group') throw new Error('Comunidades não estão disponíveis nesta versão do worker. Nenhum grupo foi criado.');
           const name = (cmd.name || 'Novo Grupo').toString().trim().slice(0, 100);
           const participants = Array.isArray(cmd.participants) ? cmd.participants.map(normalizeJid).filter(Boolean) : [];
           const created = await sock.groupCreate(name, participants);
@@ -1373,8 +1411,10 @@ async function processCommands() {
         } else if (cmd.action === 'leaveGroup') {
           const gid = cmd.groupId;
           if (!gid) throw new Error('groupId ausente');
-          try { await sock.groupLeave(gid); } catch (e) { /* pode já ter saído */ }
-          try { await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${cmd.sessionId || sessionId}_${gid}`).delete(); } catch (e) {}
+          if (!String(gid).endsWith('@g.us')) throw new Error('Identificador de grupo inválido.');
+          // Erros devem ficar visíveis no waCommands e não virar sucesso falso.
+          await sock.groupLeave(gid);
+          await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${sessionId}_${gid}`).delete();
           await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
           console.log(`✅ [Comando] Saiu do grupo: ${gid}`);
         } else {
@@ -1412,7 +1452,7 @@ async function main() {
   setInterval(updateWorkerHealth, 60 * 1000);
 
   // 3. Sincronização periódica de grupos (a cada X minutos)
-  const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 15) * 60 * 1000;
+  const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 5) * 60 * 1000;
   setInterval(syncAllGroups, syncIntervalMs);
 
   // 4. Geração e consumo de filas só após habilitação explícita.
