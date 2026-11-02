@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { WhatsAppAlert } from './WhatsAppAlert';
+import { GroupCommandStatus } from './GroupCommandStatus';
 
 interface WhatsAppGroupsViewProps {
   uid: string;
@@ -679,6 +680,8 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           A conta está conectada, mas os comandos de grupos estão desativados no worker. Você pode sincronizar a lista; criar grupos ou sair deles exigirá habilitar os comandos no Termux.
         </p>
       )}
+
+      <GroupCommandStatus uid={uid} />
 
       {/* Disconnected groups info banner */}
       {disconnectedGroups.length > 0 && accountFilter === 'connected' && (
