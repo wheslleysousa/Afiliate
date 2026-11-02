@@ -4,7 +4,10 @@
  * apenas esse parâmetro de roteamento antes de passar a chamada ao Express.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import app from '../server';
+// O build existente gera dist/server.cjs com o Express e suas dependências.
+// Referência explícita à extensão .cjs permite ao runtime Node ESM localizar o arquivo.
+import serverModule from '../dist/server.cjs';
+const app = (serverModule as any).default ?? serverModule;
 
 const MAX_ROUTE_LENGTH = 256;
 export default function handler(req: IncomingMessage, res: ServerResponse) {
