@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import type { WaSession } from '../../types';
+import type { WaSession, WaGroup } from '../../types';
 import {
   Users,
   Plus,
@@ -19,6 +19,7 @@ import { WhatsAppAlert } from './WhatsAppAlert';
 interface CreateGroupModalProps {
   uid: string;
   waSessions: WaSession[];
+  groups?: WaGroup[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -26,11 +27,12 @@ interface CreateGroupModalProps {
 export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   uid,
   waSessions,
+  groups = [],
   onClose,
   onSuccess,
 }) => {
-  // Nesta versão do Baileys a ação validada é apenas createGroup.
-  const type = 'group' as const;
+  const [type, setType] = useState<'group' | 'community' | 'channel'>('group');
+  const [parentCommunityJid, setParentCommunityJid] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
@@ -43,6 +45,12 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const connectedSessions = waSessions.filter((s) => s.status === 'connected');
+  const activeSession = connectedSessions.find(s => (s.sessionId || s.id) === selectedSessionId);
+  const caps = activeSession?.groupCapabilities;
+  const canCreate = !!caps?.commandsEnabled && (
+    type === 'group' ? !!caps.createGroup : type === 'community' ? !!caps.createCommunity : !!caps.createChannel
+  );
+  const communities = groups.filter(g => g.isCommunity && g.sessionId === selectedSessionId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +58,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
     if (!name.trim()) {
       setErrorMessage('Por favor, informe o nome do grupo ou comunidade.');
+      return;
+    }
+
+    if (!canCreate) {
+      setErrorMessage('O worker não confirmou suporte para esta ação. Verifique a sessão e habilite comandos de grupos no Termux.');
       return;
     }
 
@@ -123,7 +136,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
         name: name.trim(),
         description: description.trim() || null,
         type,
-        participants: rawNumbers,
+        parentCommunityJid: type === 'group' ? parentCommunityJid || null : null,
+        participants: type === 'group' ? rawNumbers : [],
         status: 'pending',
         createdAt: serverTimestamp(),
       });
@@ -150,9 +164,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Criar grupo no WhatsApp</h3>
+              <h3 className="text-base font-bold text-white">Criar no WhatsApp</h3>
               <p className="text-xs text-stone-400">
-                O grupo será criado no seu WhatsApp através da sessão conectada.
+                Selecione o tipo disponível na conta conectada.
               </p>
             </div>
           </div>
@@ -179,10 +193,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             <label className="block text-xs font-bold text-stone-300 mb-2">
               Tipo de Estrutura
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                aria-pressed="true"
+                onClick={() => setType('group')}
+                aria-pressed={type === 'group'}
                 className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between space-y-2 ${
                   type === 'group'
                     ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-lg'
@@ -203,9 +218,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
               <button
                 type="button"
-                disabled
-                aria-disabled="true"
-                title="Comunidades ainda não são suportadas por este worker"
+                disabled={!caps?.commandsEnabled || !caps?.createCommunity}
+                aria-disabled={!caps?.commandsEnabled || !caps?.createCommunity}
+                onClick={() => setType('community')}
+                title={!caps?.createCommunity ? 'Sua versão do Baileys não suporta comunidades' : 'Criar comunidade'}
                 className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between space-y-2 ${
                   type === 'community'
                     ? 'bg-blue-500/10 border-blue-500 text-white shadow-lg'
@@ -217,11 +233,23 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   {type === 'community' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white">Comunidades · em breve</div>
+                  <div className="text-xs font-bold text-white">Comunidade</div>
                   <div className="text-[11px] text-stone-400 mt-0.5">
-                    Estamos validando o suporte real a comunidades e canais.
+                    {caps?.createCommunity ? 'Criar e organizar subgrupos' : 'Não disponível nesta versão'}
                   </div>
                 </div>
+              </button>
+              <button
+                type="button"
+                disabled={!caps?.commandsEnabled || !caps?.createChannel}
+                aria-disabled={!caps?.commandsEnabled || !caps?.createChannel}
+                onClick={() => setType('channel')}
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${type === 'channel' ? 'bg-blue-500/10 border-blue-500 text-white' : 'bg-[#151a26] border-[#1e2636] text-stone-400'}`}
+                title={!caps?.createChannel ? 'Sua versão do Baileys não suporta canais' : 'Criar canal'}
+              >
+                <MessageSquare className="w-5 h-5 text-blue-400" />
+                <span className="text-xs font-bold text-white">Canal</span>
+                <span className="text-[11px]">{caps?.createChannel ? 'Novidades' : 'Indisponível'}</span>
               </button>
             </div>
           </div>
@@ -229,14 +257,14 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           {/* Nome */}
           <div>
             <label className="block text-xs font-bold text-stone-300 mb-1.5">
-              Nome do {type === 'group' ? 'Grupo' : 'Comunidade'} *
+              Nome do {type === 'group' ? 'Grupo' : type === 'community' ? 'Comunidade' : 'Canal'} *
             </label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={type === 'group' ? 'Ex: Achadinhos e Ofertas VIP #1' : 'Ex: Central de Promoções Shein & Shopee'}
+              placeholder={type === 'group' ? 'Ex: Ofertas VIP' : type === 'community' ? 'Ex: Comunidade de ofertas' : 'Ex: Canal de promoções'}
               className="w-full bg-[#151a26] border border-[#1e2636] text-white text-xs px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500"
             />
           </div>
@@ -285,8 +313,18 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             )}
           </div>
 
+          {type === 'group' && communities.length > 0 && caps?.linkGroupToCommunity && (
+            <div>
+              <label className="block text-xs font-bold text-stone-300 mb-2">Adicionar à comunidade (opcional)</label>
+              <select value={parentCommunityJid} onChange={e => setParentCommunityJid(e.target.value)} className="w-full bg-[#151a26] border border-[#1e2636] text-white px-3 py-3 rounded-xl">
+                <option value="">Grupo independente</option>
+                {communities.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}
+              </select>
+            </div>
+          )}
+
           {/* Contatos Iniciais */}
-          <div>
+          {type === 'group' && <div>
             <label className="block text-xs font-bold text-stone-300 mb-1.5">
               Adicionar Participantes Iniciais (Opcional)
             </label>
@@ -300,7 +338,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             <p className="text-[11px] text-stone-500 mt-1">
               Você pode adicionar membros agora ou convidar via link mais tarde.
             </p>
-          </div>
+          </div>}
 
           {/* Info Box */}
           <div className="bg-[#151a26] border border-[#1e2636] p-3 rounded-xl text-xs text-stone-400 flex items-start gap-2.5">
@@ -321,11 +359,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || connectedSessions.length === 0}
+              disabled={loading || !canCreate}
               className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Solicitar criação do grupo
+              Solicitar criação de {type === 'group' ? 'grupo' : type === 'community' ? 'comunidade' : 'canal'}
             </button>
           </div>
         </form>
