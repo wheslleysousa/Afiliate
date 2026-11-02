@@ -669,10 +669,16 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
           >
             <Plus className="w-4 h-4" />
-            Criar Grupo
+            Criar
           </button>
         </div>
       </div>
+
+      {connectedSessions.length > 0 && connectedSessions.some(s => s.groupCapabilities?.commandsEnabled === false) && (
+        <p role="status" className="px-4 py-3 text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs leading-relaxed">
+          A conta está conectada, mas os comandos de grupos estão desativados no worker. Você pode sincronizar a lista; criar grupos ou sair deles exigirá habilitar os comandos no Termux.
+        </p>
+      )}
 
       {/* Disconnected groups info banner */}
       {disconnectedGroups.length > 0 && accountFilter === 'connected' && (
@@ -1121,11 +1127,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         <CreateGroupModal
           uid={uid}
           waSessions={waSessions}
+          groups={groups}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={() => {
             setAlertMessage({
               type: 'success',
-              text: 'Solicitação de criação de grupo registrada com sucesso! Seu WhatsApp criará o grupo em instantes.',
+              text: 'Solicitação registrada. A criação ainda depende do worker e da confirmação do WhatsApp. Confira o andamento dos comandos.',
             });
           }}
         />
