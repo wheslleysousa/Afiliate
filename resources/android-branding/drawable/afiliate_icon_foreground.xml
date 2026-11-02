@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="512" android:viewportHeight="512">
+    <!-- Marca original A azul com detalhe branco. Arte vetorial para launcher. -->
+    <group android:pivotX="256" android:pivotY="256" android:scaleX="0.88" android:scaleY="0.88">
+        <path android:fillColor="#116CF5" android:pathData="M239,99 L273,99 C285,99 291,103 296,112 L432,396 L364,396 C359,396 357,394 354,388 L256,179 L157,390 C155,394 151,396 145,396 L79,396 L215,113 C221,102 227,99 239,99 Z" />
+        <path android:fillColor="#FAFAFA" android:pathData="M254,280 C257,279 260,281 263,284 L332,340 L355,390 L323,360 C300,343 280,335 256,335 C229,335 209,344 187,361 L156,391 L180,339 L249,283 C251,281 253,280 254,280 Z" />
+    </group>
+</vector>
