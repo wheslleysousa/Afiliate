@@ -434,8 +434,24 @@ function startSessionsManager() {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const sessionId = entry.name;
-        console.log(`📂 Sessão detectada no disco: ${sessionId}. Inicializando...`);
-        connectToWhatsAppSession(sessionId, 'Conta WhatsApp');
+        const credsPath = path.join(AUTH_BASE_DIR, sessionId, 'creds.json');
+        // Sessão recém-criada (ainda não registrada) NÃO deve gerar QR ou
+        // código automaticamente ao iniciar o Termux. O usuário deve iniciar
+        // o pareamento no aplicativo, com seu número e método selecionados.
+        let registered = false;
+        try {
+          if (fs.existsSync(credsPath)) {
+            registered = JSON.parse(fs.readFileSync(credsPath, 'utf8')).registered === true;
+          }
+        } catch (error) {
+          console.warn(`⚠️ [Sessão: ${sessionId}] Arquivo de autenticação ilegível; preservado para revisão.`);
+        }
+        if (registered) {
+          console.log(`📂 Sessão vinculada encontrada no disco: ${sessionId}. Reconectando...`);
+          connectToWhatsAppSession(sessionId, 'Conta WhatsApp', '');
+        } else {
+          console.log(`📂 Sessão incompleta ${sessionId} preservada. Aguardando pedido no app.`);
+        }
       }
     }
   }
