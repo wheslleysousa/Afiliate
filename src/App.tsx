@@ -1067,15 +1067,15 @@ export default function App() {
       >
         {/* Top Navbar Header */}
         <header className="h-16 px-3 sm:px-6 border-b border-[#243146] bg-[#0e1119]/95 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {/* Marca consistente com o ícone instalado no Android */}
             <img src={afiliateMark} alt="afiliate" className="md:hidden w-9 h-9 rounded-[11px] shrink-0" />
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="text-xs font-bold text-[#93a0b5] uppercase tracking-wider hidden sm:inline">
                 Painel do Afiliado /
               </span>
-              <span className="text-xs sm:text-sm font-extrabold text-white">
+              <span className="text-sm font-extrabold text-white truncate max-w-[calc(100vw-115px)] sm:max-w-none">
                 {activeTab === 'dashboard' && 'Dashboard'}
                 {activeTab === 'new-product' && 'Gerar Copy'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
@@ -1098,7 +1098,7 @@ export default function App() {
             <button
               onClick={() => setShowTimezoneModal(true)}
               title="Clique para alterar o fuso horário"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#151a26] hover:bg-[#1f2738] border border-[#1e2636] hover:border-blue-500/40 text-[#eef2f9] transition-all cursor-pointer font-medium"
+              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#151a26] hover:bg-[#1f2738] border border-[#1e2636] hover:border-blue-500/40 text-[#eef2f9] transition-all cursor-pointer font-medium"
             >
               <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <span className="font-bold">{getTimezoneInfo(currentTimezone).flag} {getTimezoneInfo(currentTimezone).offset}</span>
@@ -1108,7 +1108,7 @@ export default function App() {
             </button>
 
             {/* Daily Mine Counter Badge */}
-            <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+            <div className={`hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
               dailyMineCount >= PLAN_LIMITS.free
                 ? 'bg-red-500/15 border-red-500/30 text-red-400 font-semibold'
                 : 'bg-[#151a26] border-[#1e2636] text-[#eef2f9] font-medium'
