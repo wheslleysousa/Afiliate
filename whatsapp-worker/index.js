@@ -22,6 +22,7 @@ const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } = require('./templateEngine');
 const { archiveRejectedAuth } = require('./authRecovery');
+const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 
 const {
   default: makeWASocket,
@@ -48,7 +49,8 @@ const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLE
 // e comandos que modificam grupos só são habilitados explicitamente no Termux.
 const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
-const WA_PAIRING_PHONE = (process.env.WA_PAIRING_PHONE || '').replace(/\D/g, '');
+const WA_PAIRING_PHONE = process.env.WA_PAIRING_PHONE || '';
+const WA_PRINT_QR_IN_TERMINAL = process.env.WA_PRINT_QR_IN_TERMINAL === 'true';
 const WA_MAX_QUEUE_AGE_MIN = Math.max(5, Number(process.env.WA_MAX_QUEUE_AGE_MIN || 180) || 180);
 
 // Garantir que diretório de autenticação exista
@@ -202,9 +204,21 @@ async function updateSessionDoc(sessionId, data) {
 // ------------------------------------------------------------------------------
 
 async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone = null) {
-  // String vazia indica QR e desativa fallback de número global.
-  const pairingPhone = String(requestedPairingPhone === null ? WA_PAIRING_PHONE : requestedPairingPhone).replace(/\D/g, '');
-  const validPairingPhone = /^\d{10,15}$/.test(pairingPhone) ? pairingPhone : '';
+  // O campo brasileiro é DDD+número; adicionar 55 no servidor também
+  // para proteger clientes antigos e entradas enviadas diretamente ao Firestore.
+  const rawPairingPhone = requestedPairingPhone === null ? WA_PAIRING_PHONE : requestedPairingPhone;
+  const validPairingPhone = normalizeBRWhatsAppPhone(rawPairingPhone);
+  if (String(rawPairingPhone || '').trim() && !validPairingPhone) {
+    console.warn('[WhatsApp] Número para pareamento inválido. Informe DDD + número brasileiro.');
+    await updateSessionDoc(sessionId, {
+      status: 'disconnected',
+      pairingCode: null,
+      pairingCodeAt: null,
+      pairingError: 'Número inválido. Informe somente DDD + número brasileiro. O +55 é automático.',
+      requestedConnect: false,
+    });
+    return;
+  }
   let sessionObj = sessionsMap.get(sessionId);
 
   if (sessionObj && sessionObj.isConnecting) {
@@ -265,10 +279,12 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log(`\n================================================================`);
-        console.log(`📲 QR CODE PARA CONTA "${sessionObj.label}" (${sessionId}):`);
-        console.log(`================================================================\n`);
-        qrcode.generate(qr, { small: true });
+        // Não registrar QR de autenticação em logs do PM2 por padrão.
+        // Para depuração local, WA_PRINT_QR_IN_TERMINAL=true permite a saída.
+        if (WA_PRINT_QR_IN_TERMINAL) {
+          console.log(`\n📲 QR para sessão ${sessionId}:`);
+          qrcode.generate(qr, { small: true });
+        }
 
         await updateSessionDoc(sessionId, {
           status: 'qr',
@@ -321,7 +337,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
           // automaticamente: arquivar fora de auth/ para um novo pareamento
           // usar o MESMO ID de sessão sem tentar novamente as chaves recusadas.
           clearTimeout(sessionObj.reconnectTimer);
-          console.error(`❌ [Sessão: ${sessionId}] Autenticação recusada (401). É necessário parear novamente.`);
+          console.error(`❌ [Sessão: ${sessionId}] Erro 401: WhatsApp encerrou ou recusou a tentativa de conexão.`);
           try {
             const archivedAt = archiveRejectedAuth(AUTH_BASE_DIR, sessionId);
             if (archivedAt) {
@@ -336,7 +352,10 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
             qr: null,
             pairingCode: null,
             pairingCodeAt: null,
-            pairingError: null,
+            pairingError: validPairingPhone
+              ? 'O WhatsApp recusou ou encerrou o pareamento (401). Confirme o DDD + número, peça outro código e tente novamente. Se persistir, tente QR em outra tela.'
+              : 'Sessão desconectada pelo WhatsApp (401). Solicite uma nova conexão.',
+            pairingPhone: null,
             phoneNumber: null,
             name: null,
             requestedConnect: false,
