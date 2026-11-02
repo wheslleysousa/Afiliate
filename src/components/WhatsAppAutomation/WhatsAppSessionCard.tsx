@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import type { WaSession } from '../../types';
+import { normalizeBRWhatsAppPhone } from '../../utils/brWhatsAppPhone';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Smartphone,
@@ -45,8 +46,8 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
   const [reconnectSession, setReconnectSession] = useState<WaSession | null>(null);
   const [isRequestingConnection, setIsRequestingConnection] = useState(false);
 
-  const normalizedPairingPhone = pairingPhone.replace(/\D/g, '');
-  const phoneIsValid = /^\d{10,15}$/.test(normalizedPairingPhone);
+  const normalizedPairingPhone = normalizeBRWhatsAppPhone(pairingPhone);
+  const phoneIsValid = normalizedPairingPhone !== null;
   const canRequestPairing = pairingMethod === 'qr' || phoneIsValid;
 
   // Edit label inline state
@@ -104,7 +105,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
     if (!uid) return;
 
     if (!canRequestPairing) {
-      setAlertMessage({ type: 'error', text: 'Informe o número com DDI e DDD, somente dígitos.' });
+      setAlertMessage({ type: 'error', text: 'Informe somente DDD + número do WhatsApp brasileiro.' });
       return;
     }
     setIsCreating(true);
@@ -179,7 +180,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
     const sId = session.sessionId || session.id;
     if (!uid || !sId) return;
     if (!canRequestPairing) {
-      setAlertMessage({ type: 'error', text: 'Digite o número com DDI e DDD para conectar pelo código.' });
+      setAlertMessage({ type: 'error', text: 'Digite somente DDD + número do WhatsApp brasileiro.' });
       return;
     }
     setIsRequestingConnection(true);
@@ -286,17 +287,23 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
       {pairingMethod === 'code' ? (
         <div>
           <label htmlFor="wa-pairing-phone" className="mb-1.5 block text-xs font-bold text-[#eef2f9]">
-            Número do WhatsApp com DDI e DDD
+            Seu WhatsApp (DDD + número)
           </label>
-          <input id="wa-pairing-phone" type="tel" inputMode="numeric" autoComplete="tel"
-            value={pairingPhone} onChange={e => setPairingPhone(e.target.value)}
-            placeholder="55 + DDD + número" maxLength={22}
-            className="w-full rounded-xl border border-[#293246] bg-[#151a26] px-3 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none" />
+          <div className="flex items-stretch gap-2">
+            <div className="flex shrink-0 items-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 font-semibold text-emerald-200" aria-label="Brasil, código 55">
+              🇧🇷 +55
+            </div>
+            <input id="wa-pairing-phone" type="tel" inputMode="numeric" autoComplete="tel-national"
+              value={pairingPhone} onChange={e => setPairingPhone(e.target.value.replace(/\D/g, '').slice(0, 13))}
+              placeholder="95 98404-9808" maxLength={13}
+              aria-invalid={!!pairingPhone && !phoneIsValid}
+              className="min-w-0 flex-1 rounded-xl border border-[#293246] bg-[#151a26] px-3 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none" />
+          </div>
           <p className="mt-1 text-[11px] text-[#93a0b5]">
             O Afiliate mostrará um código. Digite esse código no WhatsApp em
             Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone.
           </p>
-          {!!pairingPhone && !phoneIsValid && <p className="mt-1 text-xs text-amber-300">Inclua DDI e DDD (10 a 15 dígitos).</p>}
+          {!!pairingPhone && !phoneIsValid && <p className="mt-1 text-xs text-amber-300">Informe somente DDD + número (10 ou 11 dígitos). O +55 é automático.</p>}
         </div>
       ) : (
         <p className="rounded-xl border border-[#293246] bg-[#151a26] p-3 text-xs text-[#b7c3d9]">
@@ -457,7 +464,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     {status === 'qr' && (
                       <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
                         <QrCode className="w-3.5 h-3.5 animate-pulse" />
-                        Aguardando Leitura do QR
+                        {session.pairingMethod === 'code' ? 'Aguardando código do WhatsApp' : 'Aguardando leitura do QR'}
                       </span>
                     )}
                     {status === 'connecting' && (
@@ -507,10 +514,10 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
 
                 {status === 'disconnected' && session.reloginRequired && (
                   <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                    <strong>Sessão antiga recusada pelo WhatsApp (401).</strong>{' '}
-                    Para retomar, use <strong>Parear novamente</strong> e conecte a conta pelo QR Code
-                    ou código exibido no Termux. O worker atualizado arquiva as credenciais
-                    recusadas no próprio aparelho em vez de apagá-las.
+                    <strong>Não foi possível concluir a conexão (erro 401).</strong>{' '}
+                    O WhatsApp rejeitou ou encerrou o pareamento. Confira o número, solicite
+                    um novo código e digite-o na área <strong>Aparelhos conectados</strong> do WhatsApp.
+                    Se continuar, tente QR Code em outra tela; não há confirmação de bloqueio do número.
                   </div>
                 )}
 
