@@ -122,6 +122,12 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
         </div>
       </div>
 
+      {waSessions.some(sess => sess.groupSyncError) && (
+        <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+          {waSessions.find(sess => sess.groupSyncError)?.groupSyncError}
+        </div>
+      )}
+
       {/* Estado real do Termux: status atualizado por heartbeat */}
       <WorkerHealthCard uid={uid} />
 
