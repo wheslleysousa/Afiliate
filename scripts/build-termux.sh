@@ -97,9 +97,9 @@ PY
 step "Copiando para Downloads"
 OUT=""
 if [ -d "$HOME/storage/downloads" ] && [ -w "$HOME/storage/downloads" ]; then
-  OUT="$HOME/storage/downloads/Afiliate-debug.apk"
+  OUT="$HOME/storage/downloads/afiliate.apk"
 elif [ -d "/storage/emulated/0/Download" ] && [ -w "/storage/emulated/0/Download" ]; then
-  OUT="/storage/emulated/0/Download/Afiliate-debug.apk"
+  OUT="/storage/emulated/0/Download/afiliate.apk"
 fi
 if [ -n "$OUT" ]; then
   cp "$APK" "$OUT"
