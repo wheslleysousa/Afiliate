@@ -62,6 +62,31 @@ fi
 
 [ -f android/gradlew ] || die "Wrapper Gradle não foi gerado. Verifique o erro do cap add/sync."
 
+# A logo enviada pelo usuário é salva como um pacote ZIP em Downloads.
+# Quando existe, aplicar recursos Android antigos e adaptativos em cada build.
+BRAND_ZIP="${AFILIATE_BRAND_ZIP:-$HOME/storage/downloads/afiliate-icone.zip}"
+if [ -s "$BRAND_ZIP" ]; then
+  step "Aplicando ícone personalizado do afiliate"
+  python - "$BRAND_ZIP" "$ROOT/android/app/src/main/res" <<'PY'
+import pathlib, sys, zipfile
+source, destination = sys.argv[1:]
+root = pathlib.Path(destination).resolve()
+with zipfile.ZipFile(source) as archive:
+    corrupt = archive.testzip()
+    if corrupt:
+        raise SystemExit(f"Pacote do ícone corrompido: {corrupt}")
+    for member in archive.infolist():
+        name = member.filename
+        target = (root / name).resolve()
+        allowed = name.startswith("mipmap-") or name == "drawable/afiliate_icon_background.xml"
+        if not allowed or not target.is_relative_to(root) or member.is_dir():
+            raise SystemExit(f"Arquivo inesperado no pacote: {name}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(archive.read(member))
+print("Ícone personalizado aplicado com sucesso.")
+PY
+fi
+
 # local.properties é gerado localmente; não versionar caminhos absolutos.
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
 
