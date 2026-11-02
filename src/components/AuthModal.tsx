@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import afiliateMark from '../assets/afiliate-mark.svg';
 import { UserProfile } from '../types';
 import { Lock, Mail, User, CheckCircle2, XCircle, Eye, EyeOff, Sparkles, ArrowRight, LogIn, UserPlus, ShieldCheck, Loader2 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
@@ -152,10 +153,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
         
         {/* Header Branding */}
         <div className="text-center space-y-2 mb-6">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 mb-1">
-            <Sparkles className="w-7 h-7" />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Afiliate</h1>
+          <img src={afiliateMark} alt="Logo do afiliate" className="w-16 h-16 rounded-2xl mb-1 mx-auto" />
+          <h1 className="text-2xl font-black tracking-tight text-white">afiliate</h1>
           <p className="text-xs text-[#93a0b5]">
             {mode === 'register' ? 'Crie sua conta para gerenciar e extrair copies' : 'Acesse seu painel de afiliado'}
           </p>
