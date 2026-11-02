@@ -1401,6 +1401,12 @@ async function processCommands() {
       const cmd = cmdDoc.data() || {};
       const ref = cmdDoc.ref;
       try {
+        // Nunca executar de surpresa comandos antigos quando a automação for ligada.
+        const requestTime = cmd.createdAt?.toMillis?.();
+        if (!requestTime || Date.now() - requestTime > 30 * 60 * 1000) {
+          await ref.update({ status: 'failed', error: 'Comando expirado ou sem data. Solicite novamente.', doneAt: admin.firestore.FieldValue.serverTimestamp() });
+          continue;
+        }
         await ref.update({ status: 'processing', startedAt: admin.firestore.FieldValue.serverTimestamp() });
         const { sock, sessionId } = pickConnectedSock(cmd.sessionId);
         if (!sock) throw new Error('Nenhuma sessão do WhatsApp conectada.');
