@@ -294,7 +294,10 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
               🇧🇷 +55
             </div>
             <input id="wa-pairing-phone" type="tel" inputMode="numeric" autoComplete="tel-national"
-              value={pairingPhone} onChange={e => setPairingPhone(e.target.value.replace(/\D/g, '').slice(0, 13))}
+              value={pairingPhone} onChange={e => {
+                const entered = e.target.value.replace(/\D/g, '').slice(0, 13);
+                setPairingPhone(entered.startsWith('55') && [12, 13].includes(entered.length) ? entered.slice(2) : entered);
+              }}
               placeholder="95 98404-9808" maxLength={13}
               aria-invalid={!!pairingPhone && !phoneIsValid}
               className="min-w-0 flex-1 rounded-xl border border-[#293246] bg-[#151a26] px-3 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none" />
@@ -464,7 +467,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     {status === 'qr' && (
                       <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
                         <QrCode className="w-3.5 h-3.5 animate-pulse" />
-                        {session.pairingMethod === 'code' ? 'Aguardando código do WhatsApp' : 'Aguardando leitura do QR'}
+                        {session.pairingMethod === 'code' ? (session.pairingCode ? 'Código disponível' : 'Gerando código') : 'Aguardando leitura do QR'}
                       </span>
                     )}
                     {status === 'connecting' && (
@@ -586,7 +589,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
                     <p className="text-xs font-bold text-white">Solicitando conexão ao worker...</p>
                     <p className="text-[11px] text-[#93a0b5]">
-                      O worker está gerando o QR Code para a conta "{session.label}". Aparecerá em instantes.
+                      O serviço está preparando {session.pairingMethod === 'code' ? 'o código' : 'o QR Code'} para "{session.label}".
                     </p>
                   </div>
                 ) : status === 'connected' ? (
@@ -616,9 +619,10 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
                       <span>
+                        {session.pairingError && !session.reloginRequired && <span className="block text-amber-200">{session.pairingError}</span>}
                         {session.reloginRequired
-                          ? 'A sessão antiga não é mais aceita. Clique em Parear novamente.'
-                          : 'Conta desconectada. Clique em Escanear QR Code para conectar.'}
+                          ? 'O WhatsApp encerrou o pareamento. Toque em Parear novamente.'
+                          : 'Conta desconectada. Toque em Conectar para escolher código ou QR.'}
                       </span>
                     </div>
                     <button
