@@ -239,6 +239,8 @@ export interface WaGroupParticipant {
 
 export interface WaGroup {
   groupId: string;
+  isCommunity?: boolean;
+  linkedParent?: string | null;
   sessionId?: string;
   name: string;
   photoUrl?: string | null;
@@ -341,6 +343,16 @@ export interface WaSession {
   pairingCode?: string | null;
   pairingCodeAt?: any;
   pairingError?: string | null;
+  requestedSyncGroups?: boolean;
+  lastGroupSyncAt?: any;
+  groupSyncError?: string | null;
+  groupCapabilities?: {
+    createGroup?: boolean;
+    createCommunity?: boolean;
+    createChannel?: boolean;
+    linkGroupToCommunity?: boolean;
+    commandsEnabled?: boolean;
+  };
   reloginRequired?: boolean;
   lastDisconnectCode?: number | null;
   updatedAt?: any;
