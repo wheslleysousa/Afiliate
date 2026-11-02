@@ -34,7 +34,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
   customTemplates = [],
   defaultTemplateId,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'queue-logs'>('campaigns');
+  const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'queue-logs'>('groups');
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
@@ -84,8 +84,9 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
             ...data,
           } as unknown as WaGroup;
 
-          if (!uniqueMap.has(gid)) {
-            uniqueMap.set(gid, groupObj);
+          const key = `${data.sessionId || 'legacy'}_${gid}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, groupObj);
           }
         });
         const list = Array.from(uniqueMap.values());
@@ -101,6 +102,9 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
     return () => unsubscribe();
   }, [uid]);
 
+  const connectedSessionIds = new Set(waSessions.filter(s => s.status === 'connected').map(s => s.sessionId || s.id));
+  const connectedGroups = waGroups.filter(g => !!g.sessionId && connectedSessionIds.has(g.sessionId));
+
   const handleSelectGroupForCampaign = (groupId: string) => {
     setPreselectedGroupId(groupId);
     setActiveSubTab('campaigns');
@@ -113,7 +117,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
         <div>
           <h1 className="text-lg font-extrabold text-white">Automação WhatsApp</h1>
           <p className="text-xs text-[#93a0b5]">
-            Envio automático de ofertas, gerenciamento de grupos e monitoramento da fila.
+            Gerencie sua conta, grupos e campanhas em um só lugar.
           </p>
         </div>
       </div>
@@ -122,11 +126,13 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
       <WorkerHealthCard uid={uid} />
 
       {/* WhatsApp Connection Cards */}
-      <WhatsAppSessionCard uid={uid} waGroupsCount={waGroups.length} />
+      <WhatsAppSessionCard uid={uid} waGroupsCount={connectedGroups.length} />
 
       {/* Subtab Selector */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Área do WhatsApp" className="flex items-center gap-1.5 overflow-x-auto pb-2 snap-x">
         <button
+          role="tab"
+          aria-selected={activeSubTab === 'campaigns'}
           onClick={() => setActiveSubTab('campaigns')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'campaigns'
@@ -139,6 +145,8 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeSubTab === 'groups'}
           onClick={() => setActiveSubTab('groups')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'groups'
@@ -147,10 +155,12 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
           }`}
         >
           <Users className="w-3.5 h-3.5 text-emerald-400" />
-          Grupos ({waGroups.length})
+          Grupos ({connectedGroups.length})
         </button>
 
         <button
+          role="tab"
+          aria-selected={activeSubTab === 'queue-logs'}
           onClick={() => setActiveSubTab('queue-logs')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
             activeSubTab === 'queue-logs'
@@ -167,7 +177,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
       {activeSubTab === 'campaigns' && (
         <WhatsAppCampaignsView
           uid={uid}
-          waGroups={waGroups}
+          waGroups={connectedGroups}
           waSessions={waSessions}
           apiKeys={apiKeys}
           preselectedGroupId={preselectedGroupId}
