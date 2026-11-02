@@ -5543,4 +5543,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// O serviço Express continua executável localmente (npm run dev/start), mas
+// exporta a mesma aplicação para a função serverless do Vercel.
+export default app;
+
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
