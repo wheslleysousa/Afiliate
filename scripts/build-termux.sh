@@ -54,6 +54,12 @@ if [ ! -d android ]; then
 fi
 ./node_modules/.bin/cap sync android
 
+# cap sync pode manter o label antigo se android/ já existe.
+STRINGS_XML="android/app/src/main/res/values/strings.xml"
+if [ -f "$STRINGS_XML" ]; then
+  sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">afiliate</string>#; s#<string name="title_activity_main">[^<]*</string>#<string name="title_activity_main">afiliate</string>#' "$STRINGS_XML"
+fi
+
 [ -f android/gradlew ] || die "Wrapper Gradle não foi gerado. Verifique o erro do cap add/sync."
 
 # local.properties é gerado localmente; não versionar caminhos absolutos.
