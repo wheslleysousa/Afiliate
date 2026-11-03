@@ -14,19 +14,19 @@ export const ApiDocsModal: React.FC = () => {
     }
   };
 
-  const curlExample = `curl -X POST "https://seu-app.onrender.com/scrape" \\
+  const curlExample = `curl -X POST "https://api.lkrm.site/api/scrape" \\
   -H "Content-Type: application/json" \\
   -d '{"url": "https://www.mercadolivre.com.br/p/MLB28503810"}'`;
 
   const pythonExample = `import httpx
 
-url = "https://seu-app.onrender.com/scrape"
+url = "https://api.lkrm.site/api/scrape"
 payload = {"url": "https://s.shopee.com.br/exemplo"}
 
 response = httpx.post(url, json=payload, timeout=20.0)
 print(response.json())`;
 
-  const jsExample = `const response = await fetch("https://seu-app.onrender.com/scrape", {
+  const jsExample = `const response = await fetch("https://api.lkrm.site/api/scrape", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ url: "https://www.amazon.com.br/dp/B09SW1CXGQ" })
@@ -41,7 +41,7 @@ console.log(data);`;
           <Code2 className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-white">Documentação da API de Scraping (/scrape)</h2>
+          <h2 className="text-lg font-bold text-white">Documentação da API de Scraping (/api/scrape)</h2>
           <p className="text-xs text-[#93a0b5]">Integração backend para extração de dados de afiliados</p>
         </div>
       </div>
@@ -53,7 +53,7 @@ console.log(data);`;
             <span className="bg-emerald-500 text-[#07090f] font-black text-[10px] px-2 py-0.5 rounded uppercase">
               POST
             </span>
-            <code className="text-xs text-emerald-400 font-bold font-mono">/scrape</code>
+            <code className="text-xs text-emerald-400 font-bold font-mono">/api/scrape</code>
           </div>
           <p className="text-xs text-[#eef2f9]">
             Recebe a URL do produto e retorna os dados extraídos (título, preço, parcelas, cupom e link).
