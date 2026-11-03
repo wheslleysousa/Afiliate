@@ -11,7 +11,7 @@
 const FIREBASE_API_KEY  = 'AIzaSyDw59KOShDxjw0AKiQDYtHDJSVD5Ru1-KU';
 const FIREBASE_PROJECT  = 'afiliateoficial2026';
 const FIREBASE_DATABASE = 'ai-studio-afiliate-06286741-5088-42ae-9702-cf4c78eb1a07';
-const APP_URL           = 'https://afiliate.onrender.com';
+const APP_URL           = 'https://lkrm.site';
 const FS_BASE           = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/${FIREBASE_DATABASE}/documents`;
 
 document.addEventListener('DOMContentLoaded', () => {
