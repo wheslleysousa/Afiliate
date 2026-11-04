@@ -222,7 +222,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const visibleGroupRecords = groups.filter(g => g.isActive !== false);
+  const visibleGroupRecords = groups.filter(g => g.isActive === true && g.membershipVerified === true);
   const hiddenGroupCount = visibleGroupRecords.filter(g => g.hidden === true).length;
   const filteredGroups = visibleGroupRecords.filter((g) => {
     if (g.hidden === true && !showHiddenGroups) return false;
@@ -738,13 +738,41 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         </div>
       </div>
 
-      {connectedSessions.length > 0 && connectedSessions.some(s => s.groupCapabilities?.commandsEnabled === false) && (
-        <p role="status" className="px-4 py-3 text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs leading-relaxed">
-          A conta está conectada, mas os comandos de grupos estão desativados no worker. Você pode sincronizar a lista; criar grupos ou sair deles exigirá habilitar os comandos no Termux.
+      {connectedSessions.length > 0 && connectedSessions.some(s => !s.groupCapabilities?.commandsEnabled) && (
+        <p role="status" className="px-4 py-3 text-[#b9c7dc] bg-[#101723] border border-[#293246] rounded-xl text-xs leading-relaxed">
+          Criar grupos está desativado. A saída individual é uma permissão separada:
+          {connectedSessions.some(s => s.groupCapabilities?.leaveGroup) ? ' disponível para sua conta.' : ' atualize o worker no Termux para disponibilizá-la.'}
         </p>
       )}
 
       <GroupCommandStatus uid={uid} />
+      {excludedGroups.length > 0 && (
+        <section className="rounded-xl border border-[#293246] bg-[#101723] p-3.5 space-y-3">
+          <button type="button" onClick={() => setShowExcluded(!showExcluded)}
+            aria-expanded={showExcluded}
+            className="flex w-full items-center justify-between gap-3 text-xs font-semibold text-[#c8d4e8]">
+            <span className="flex items-center gap-2"><Trash2 size={15} /> Excluídos do Afiliate ({excludedGroups.length})</span>
+            <span className="text-blue-300">{showExcluded ? 'Recolher' : 'Ver e restaurar'}</span>
+          </button>
+          {showExcluded && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {excludedGroups.map(item => (
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#293246] p-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{item.name}</p>
+                    <p className="text-[11px] text-[#a6b4c9]">Apenas removido da lista</p>
+                  </div>
+                  <button type="button" disabled={!!restoringGroupId}
+                    onClick={() => void restoreExcludedGroup(item)}
+                    className="shrink-0 rounded-lg border border-blue-500/30 px-2.5 py-2 text-xs font-semibold text-blue-300 disabled:opacity-50 flex items-center gap-1">
+                    <RotateCcw size={13} /> Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Disconnected groups info banner */}
       {disconnectedGroups.length > 0 && accountFilter === 'connected' && (
@@ -902,32 +930,29 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-[#93a0b5]">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); void toggleGroupVisibility(group); }}
-                      className="p-1 text-[#93a0b5] hover:text-blue-300 hover:bg-[#151a26] rounded-md transition-colors"
-                      title={group.hidden ? 'Mostrar grupo no Afiliate' : 'Ocultar grupo no Afiliate sem sair do WhatsApp'}
-                      aria-label={group.hidden ? 'Mostrar grupo' : 'Ocultar grupo'}
-                    >
-                      {group.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                <div className="mt-4 pt-3 border-t border-[#1e2636] flex flex-col gap-3">
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); setSelectedGroup(group); setDetailTab('info'); }}
+                    className="flex items-center justify-between text-xs font-semibold text-emerald-300 hover:underline">
+                    Ver contatos e detalhes <ArrowRight size={15} />
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={(e) => { e.stopPropagation(); setLeaveConfirmGroup(group); }}
+                      disabled={!group.sessionId || !connectedSessionIds.has(group.sessionId) ||
+                        !waSessions.some(s => (s.sessionId || s.id) === group.sessionId &&
+                          (s.groupCapabilities?.leaveGroup || s.groupCapabilities?.commandsEnabled))}
+                      title="Sair do grupo no WhatsApp (requer conexão e confirmação)"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/20 disabled:opacity-40">
+                      <LogOut size={14} /> Sair do grupo
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirmGroup(group);
-                      }}
-                      className="p-1 text-[#93a0b5] hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
-                      title="Sair do grupo no WhatsApp"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button type="button"
+                      onClick={(e) => { e.stopPropagation(); setRemoveConfirmGroup(group); }}
+                      title="Excluir somente do Afiliate, sem sair do grupo"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 py-2.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/20">
+                      <Trash2 size={14} /> Excluir do Afiliate
                     </button>
                   </div>
-
-                  <span className="text-emerald-400 font-semibold group-hover:underline flex items-center gap-1 text-[11px]">
-                    Ver Contatos & Detalhes
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
                 </div>
               </div>
             );
@@ -1298,7 +1323,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       )}
 
       {/* Confirmation Modal - Single Group Deletion */}
-      {deleteConfirmGroup && (
+      {leaveConfirmGroup && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
             <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
@@ -1318,18 +1343,18 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
               <button
-                disabled={isDeletingGroup}
+                disabled={isLeavingGroup}
                 onClick={() => setDeleteConfirmGroup(null)}
                 className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
               </button>
               <button
-                disabled={isDeletingGroup}
-                onClick={handleConfirmDeleteSingleGroup}
+                disabled={isLeavingGroup}
+                onClick={handleConfirmLeaveGroup}
                 className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-red-950/50 transition-all"
               >
-                {isDeletingGroup ? (
+                {isLeavingGroup ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     Solicitando...
