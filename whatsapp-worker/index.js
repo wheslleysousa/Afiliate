@@ -722,9 +722,12 @@ async function saveVerifiedChannel(sessionId, sock, input) {
   if (typeof sock.newsletterMetadata !== 'function') throw new Error('Baileys não oferece consulta de canais nesta instalação.');
   const ref = typeof input === 'string' ? parseChannelReference(input) : { type: 'jid', value: getChannelId(input) };
   if (!ref?.value) throw new Error('Informe um link https://whatsapp.com/channel/... ou um ID @newsletter válido.');
-  const metadata = await sock.newsletterMetadata(ref.type, ref.value);
-  const channelId = getChannelId(metadata) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
-  if (!channelId || !canPublishToChannel(metadata)) throw new Error('Canal não confirmado como administrado por esta conta; nenhum destino foi habilitado.');
+  const initialMetadata = await sock.newsletterMetadata(ref.type, ref.value);
+  const channelId = getChannelId(initialMetadata) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
+  if (!channelId) throw new Error('Identificador do canal não encontrado no WhatsApp.');
+  // Links de convite retornam metadados de visitante; revalidar role pela conta conectada.
+  const metadata = await sock.newsletterMetadata('jid', channelId);
+  if (!canPublishToChannel(metadata)) throw new Error('Esta conta não administra o canal; nenhum envio foi habilitado.');
   const name = typeof metadata.name === 'string' ? metadata.name : (metadata.name?.text || 'Canal WhatsApp');
   await db.collection('users').doc(USER_UID).collection('waChannels').doc(`${sessionId}_${channelId}`).set({
     channelId, sessionId, name, canPost: true, verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
