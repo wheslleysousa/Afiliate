@@ -53,6 +53,8 @@ const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLE
 // e comandos que modificam grupos só são habilitados explicitamente no Termux.
 const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
+// Concessão isolada: sair de grupos não libera criação nem disparos.
+const WA_GROUP_LEAVE_ENABLED = process.env.WA_GROUP_LEAVE_ENABLED === 'true';
 const WA_PAIRING_PHONE = process.env.WA_PAIRING_PHONE || '';
 const WA_PRINT_QR_IN_TERMINAL = process.env.WA_PRINT_QR_IN_TERMINAL === 'true';
 const WA_MAX_QUEUE_AGE_MIN = Math.max(5, Number(process.env.WA_MAX_QUEUE_AGE_MIN || 180) || 180);
@@ -108,7 +110,10 @@ console.log(WA_SEND_ENABLED
   : '🔒 MODO SEGURO: sem gerar filas nem disparar mensagens (WA_SEND_ENABLED=false).');
 console.log(WA_GROUP_COMMANDS_ENABLED
   ? '⚠️ Comandos de criação/saída de grupos habilitados.'
-  : '🔒 Comandos de criação/saída de grupos desabilitados.');
+  : '🔒 Comandos de criação de grupos desabilitados.');
+console.log(WA_GROUP_LEAVE_ENABLED || WA_GROUP_COMMANDS_ENABLED
+  ? '✅ Saída de grupos habilitada por permissão separada.'
+  : '🔒 Saída de grupos desabilitada.');
 
 // Globais & Estado Multi-Sessão
 // Map<sessionId, { sessionId, sock, isConnecting, reconnectTimer, status, label }>
@@ -417,6 +422,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
             createChannel: typeof sock.newsletterCreate === 'function',
             linkGroupToCommunity: typeof sock.communityLinkGroup === 'function',
             commandsEnabled: WA_GROUP_COMMANDS_ENABLED,
+            leaveGroup: WA_GROUP_LEAVE_ENABLED || WA_GROUP_COMMANDS_ENABLED,
           },
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -608,8 +614,13 @@ async function syncGroups(sessionId, sock) {
     console.log(`📋 [Sessão: ${sessionId}] ${groupList.length} grupo(s) candidatos. Confirmando participação...`);
     const botJid = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : '';
     const authState = sessionsMap.get(sessionId)?.authState;
+    // Registro de exclusão local é persistente: sincronizar não deve recriar.
+    const exclusionSnap = await db.collection('users').doc(USER_UID)
+      .collection('waGroupExclusions').where('sessionId', '==', sessionId).get();
+    const excludedGroupIds = new Set(exclusionSnap.docs.map(d => d.data()?.groupId).filter(Boolean));
 
     for (const candidate of groupList) {
+      if (candidate?.id && excludedGroupIds.has(candidate.id)) continue;
       if (!candidate?.id || !candidate.id.endsWith('@g.us')) continue;
       let group = candidate;
       let verification = { member: false, verified: false, reason: 'metadata_unavailable' };
@@ -1541,8 +1552,35 @@ async function processCommands() {
         if (cmd.action === 'registerChannel') {
           const channelId = await saveVerifiedChannel(sessionId, sock, cmd.channelReference);
           await ref.update({ status: 'done', channelId, doneAt: admin.firestore.FieldValue.serverTimestamp() });
+        } else if (cmd.action === 'leaveGroup') {
+          if (!(WA_GROUP_LEAVE_ENABLED || WA_GROUP_COMMANDS_ENABLED)) {
+            throw new Error('Saída de grupos desativada no worker. Habilite WA_GROUP_LEAVE_ENABLED sem liberar criação ou envios.');
+          }
+          // Saída real nunca pode usar o fallback de outra conta/sessão.
+          if (!cmd.sessionId || sessionId !== cmd.sessionId) throw new Error('Sessão do grupo inválida.');
+          const gid = String(cmd.groupId || '');
+          if (!/^\\d{6,30}@g\\.us$/.test(gid)) throw new Error('Identificador de grupo inválido.');
+          const groupDocRef = db.collection('users').doc(USER_UID).collection('waGroups').doc(`${sessionId}_${gid}`);
+          const groupSnapshot = await groupDocRef.get();
+          if (!groupSnapshot.exists || groupSnapshot.data()?.sessionId !== sessionId ||
+              groupSnapshot.data()?.groupId !== gid) throw new Error('Grupo não pertence à sessão selecionada.');
+          const activeSession = sessionsMap.get(sessionId);
+          const metadata = await sock.groupMetadata(gid);
+          const membership = checkGroupMembership(metadata, sock, activeSession?.authState);
+          if (!membership.verified || !membership.member) {
+            throw new Error('Não foi possível confirmar participação da conta no grupo. Sincronize antes de sair.');
+          }
+          await sock.groupLeave(gid);
+          // O histórico segue guardado, mas o grupo deixa imediatamente de
+          // ser oferecido como destino de campanha.
+          await groupDocRef.set({
+            isActive: false, membershipVerified: false, membershipReason: 'left_from_afiliate',
+            hidden: true, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
+          console.log(`✅ [Comando] Conta saiu do grupo ${gid}`);
         } else if (!WA_GROUP_COMMANDS_ENABLED) {
-          throw new Error('Comandos de criação/saída desativados; apenas cadastro seguro de canais está disponível.');
+          throw new Error('Criação de grupos desativada. Apenas saída individual pode estar habilitada.');
         } else if (cmd.action === 'createGroup') {
           const name = (cmd.name || '').toString().trim().slice(0, 100);
           if (!name) throw new Error('Informe o nome do grupo, comunidade ou canal.');
@@ -1591,15 +1629,6 @@ async function processCommands() {
           });
           if (type !== 'channel') await syncGroups(sessionId, sock);
           console.log(`✅ [Comando] ${type} criado no WhatsApp: ${gid}`);
-        } else if (cmd.action === 'leaveGroup') {
-          const gid = cmd.groupId;
-          if (!gid) throw new Error('groupId ausente');
-          if (!String(gid).endsWith('@g.us')) throw new Error('Identificador de grupo inválido.');
-          // Erros devem ficar visíveis no waCommands e não virar sucesso falso.
-          await sock.groupLeave(gid);
-          await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${sessionId}_${gid}`).delete();
-          await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
-          console.log(`✅ [Comando] Saiu do grupo: ${gid}`);
         } else {
           await ref.update({ status: 'failed', error: 'Ação desconhecida: ' + cmd.action });
         }
