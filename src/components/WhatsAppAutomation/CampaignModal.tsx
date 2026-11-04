@@ -147,11 +147,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setShortStyle('default');
       setCustomShortSlug('');
       
-      const filteredDefaults = waGroups
-        .filter((g) => !defaultSId || !g.sessionId || g.sessionId === defaultSId)
-        .map((g) => g.groupId);
-
-      setTargetGroupIds(filteredDefaults);
+      // Nenhum destino é pré-selecionado para evitar envios involuntários.
+      setTargetGroupIds([]);
       setObjective('mais_vendidos');
       setMinSales('');
       setMinDiscount('');
@@ -482,7 +479,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-400" />
-                Grupos do WhatsApp Alvo ({targetGroupIds.length} selecionados)
+                Grupos e canais ({targetGroupIds.length} selecionados)
               </label>
               {availableGroups.length > 0 && (
                 <button
@@ -497,7 +494,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
             {availableGroups.length === 0 ? (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs rounded-xl">
-                Nenhum grupo encontrado para a conta selecionada. Conecte o WhatsApp no worker para sincronizar os grupos.
+                Nenhum grupo ou canal autorizado encontrado. Conecte o worker e cadastre seu canal na aba Canais.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto p-2 bg-[#151a26]/30 rounded-xl border border-[#1e2636]">
@@ -518,7 +515,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                         <span className="font-semibold truncate">{g.name}</span>
                       </div>
                       <span className="text-[10px] text-[#93a0b5] shrink-0">
-                        {g.size || g.participantsCount || 0} membros
+                        {g.kind === 'channel' ? 'Canal' : `${g.size || g.participantsCount || 0} membros`}
                       </span>
                     </div>
                   );
