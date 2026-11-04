@@ -745,14 +745,16 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             Sincronizar Grupos
           </button>
 
-          {/* Button: Create Group */}
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Criar
-          </button>
+          {/* Criação somente aparece quando explicitamente habilitada no worker. */}
+          {connectedSessions.some(s => s.groupCapabilities?.commandsEnabled) && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              Criar
+            </button>
+          )}
         </div>
       </div>
 
