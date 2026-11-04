@@ -306,11 +306,28 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <span className="rounded-full bg-[#182337] border border-[#33455f] px-3 py-1.5">2 · Destinos e links</span>
             <span className="rounded-full bg-[#182337] border border-[#33455f] px-3 py-1.5">3 · Filtros e horários</span>
           </div>
+          <section className="space-y-3 bg-[#131c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-blue-600 text-white text-xs font-bold">1</span>
+              <h4 className="text-sm font-bold text-white">Identificação da campanha</h4>
+              <span className="text-[11px] text-[#a6b4c9]">Dê um nome fácil de reconhecer</span>
+            </div>
+            <label htmlFor="wa-campaign-name" className="text-xs font-semibold text-[#d7e3f5] block">
+              Nome da campanha <span className="text-rose-400">*</span>
+            </label>
+            <input id="wa-campaign-name" type="text" autoComplete="off" maxLength={100}
+              value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Ofertas da manhã · Eletrônicos"
+              className="w-full bg-[#0b121e] border border-[#35455d] text-white placeholder-[#72829b] text-sm rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+              required />
+            <p className="text-[11px] text-[#a6b4c9]">Depois de salvar, você poderá ativar ou pausar a campanha na lista.</p>
+          </section>
+
           {/* Seleção de Conta de WhatsApp (MANDATÓRIO) */}
           <div className="bg-[#111c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d] space-y-3">
             <label className="text-xs font-bold text-emerald-300 flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-emerald-400" />
-              Conta do WhatsApp de Disparo (Obrigatório) *
+              2 · Conta do WhatsApp (obrigatório) *
             </label>
             <select
               required
@@ -344,29 +361,12 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             )}
           </div>
 
-          <section className="space-y-3 bg-[#131c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d]">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-blue-600 text-white text-xs font-bold">1</span>
-              <h4 className="text-sm font-bold text-white">Identificação da campanha</h4>
-              <span className="text-[11px] text-[#a6b4c9]">Dê um nome fácil de reconhecer</span>
-            </div>
-            <label htmlFor="wa-campaign-name" className="text-xs font-semibold text-[#d7e3f5] block">
-              Nome da campanha <span className="text-rose-400">*</span>
-            </label>
-            <input id="wa-campaign-name" type="text" autoComplete="off" maxLength={100}
-              value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="Ex.: Ofertas da manhã · Eletrônicos"
-              className="w-full bg-[#0b121e] border border-[#35455d] text-white placeholder-[#72829b] text-sm rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
-              required />
-            <p className="text-[11px] text-[#a6b4c9]">Depois de salvar, você poderá ativar ou pausar a campanha na lista.</p>
-          </section>
-
           {/* Template de Mensagem para Disparos */}
           <div className="space-y-1.5 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                Template de Copy (Mensagem)
+                Modelo da mensagem
               </label>
               {templateId === defaultTemplateId && (
                 <span className="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full font-bold border border-amber-400/20">
@@ -406,7 +406,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-emerald-400" />
-                Estilo do Link Encurtado nos Disparos
+                Estilo do link da campanha
               </label>
               <span className="text-[10px] text-blue-400 font-mono font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                 lkrm.site
@@ -729,7 +729,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-blue-400" />
-                Horário de Agendamento & Fuso Horário
+                Dias, horários e fuso
               </h4>
               <button
                 type="button"
