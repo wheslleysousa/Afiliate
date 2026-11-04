@@ -55,7 +55,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-400 text-xs font-bold tracking-wide">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>AFILIATE MINER v{EXT_VERSION} • EXTENSÃO OFICIAL</span>
+              <span>Afiliate Miner v{EXT_VERSION} • EXTENSÃO OFICIAL</span>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -73,7 +73,7 @@ export const ExtensionTab: React.FC = () => {
 
           {/* Direct Sales Copy Subheadline */}
           <p className="text-sm sm:text-base text-[#93a0b5] leading-relaxed">
-            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Afiliate miner v{EXT_VERSION}</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
+            A ferramenta essencial para afiliados que buscam alta produtividade. O <strong className="text-white font-semibold">Afiliate Miner v{EXT_VERSION}</strong> detecta preços atualizados, descontos, cupons ativos, histórico de vendas e injeta automaticamente seu ID de afiliado na Amazon, Mercado Livre, Shopee, TikTok Shop, AliExpress e Shein.
           </p>
 
           {/* Primary & Secondary Call to Action */}
@@ -123,7 +123,7 @@ export const ExtensionTab: React.FC = () => {
             Tecnologia de Alta Performance
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            O que torna o Afiliate miner v{EXT_VERSION} imbatível?
+            O que torna o Afiliate Miner v{EXT_VERSION} imbatível?
           </h2>
           <p className="text-xs sm:text-sm text-[#93a0b5]">
             Projetado para eliminar gargalos operacionais e maximizar a taxa de conversão dos seus links.
@@ -431,7 +431,7 @@ export const ExtensionTab: React.FC = () => {
             A Escolha Estratégica dos Afiliados de Elite
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-white">
-            Trabalhar Manualmente x Usar o Afiliate miner v{EXT_VERSION}
+            Trabalhar Manualmente x Usar o Afiliate Miner v{EXT_VERSION}
           </h2>
         </div>
 
@@ -467,7 +467,7 @@ export const ExtensionTab: React.FC = () => {
           <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm uppercase">
               <CheckCircle2 className="w-5 h-5" />
-              <span>Com o Afiliate miner v{EXT_VERSION}</span>
+              <span>Com o Afiliate Miner v{EXT_VERSION}</span>
             </div>
 
             <ul className="space-y-3 text-xs text-[#eef2f9] font-medium">
@@ -601,7 +601,7 @@ export const ExtensionTab: React.FC = () => {
                 <span>Carregue sem Compactar:</span>
               </div>
               <p className="text-[#93a0b5] pl-8">
-                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Afiliate miner v{EXT_VERSION} estará ativo.
+                Clique no botão <strong className="text-white">"Carregar sem compactar"</strong> (Load Unpacked) e selecione a pasta descompactada do Passo 2. Pronto! O ícone do Afiliate Miner v{EXT_VERSION} estará ativo.
               </p>
             </li>
           </ol>
@@ -630,7 +630,7 @@ export const ExtensionTab: React.FC = () => {
               },
               {
                 q: "Preciso pagar algo para usar a extensão?",
-                a: `Não. A extensão Afiliate miner v${EXT_VERSION} é 100% gratuita para todos os usuários da plataforma.`
+                a: `Não. A extensão Afiliate Miner v${EXT_VERSION} é 100% gratuita para todos os usuários da plataforma.`
               }
             ].map((item, idx) => (
               <div key={idx} className="bg-[#151a26] border border-[#1e2636] rounded-xl overflow-hidden">

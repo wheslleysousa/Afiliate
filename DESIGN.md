@@ -12,8 +12,9 @@ Marca: SVG `src/assets/afiliate-mark.svg`, fiel aos paths vetoriais do launcher 
 - Ações destrutivas exigem confirmação com resultado explícito.
 
 ## Navegação responsiva
-- Mobile <768 px: bottom nav fixa em cinco destinos. Quatro ações diárias + "Mais" para ferramentas raras. Conteúdo com espaço inferior e área segura.
-- Desktop: sidebar colapsável; no celular sidebar vira drawer completo com rolagem.
+- Mobile <768 px: sem barra de navegação inferior. Botão de menu no cabeçalho abre a sidebar pela esquerda com todas as seções, rolagem própria, fechamento por X, backdrop, Escape ou seleção de item.
+- Desktop: sidebar colapsável; no celular, drawer completo acessível sem deixar os controles da página sobrepostos.
+- A marca exibida em toda a interface é **Afiliate** (A maiúsculo); nomes técnicos, chaves, pacote, Firebase, URLs e IDs não são renomeados.
 - Aba inicial do módulo WhatsApp: grupos, pois acompanhamento de campanhas está desabilitado quando o worker tem envio desligado.
 - Focus visível, touch targets >=44px, inputs >=16px no mobile.
 
@@ -36,4 +37,4 @@ Marca: SVG `src/assets/afiliate-mark.svg`, fiel aos paths vetoriais do launcher 
 - QA visual: screenshots reais em 360, 390 e 768 px; login, grupos vazio/cheio, erros, teclado aberto, gestos e acessibilidade.
 
 ## Guardrails
-Não fundir mudanças visuais na main antes de teste no aparelho; não mesclar junto com migração Render. Não alegar "canal/comunidade funcional" apenas porque a API de Baileys existe em outra versão. 
+Validar mudanças visuais no preview e revisar no aparelho após atualização; a migração Render já foi integrada à main. Não alegar "canal/comunidade funcional" apenas porque a API de Baileys existe em outra versão. 

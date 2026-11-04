@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
-import { MobileNav } from './components/MobileNav';
 import afiliateMark from './assets/afiliate-mark.svg';
 import { NewProductTab } from './components/NewProductTab';
 import { DashboardTab } from './components/DashboardTab';
@@ -1053,12 +1052,6 @@ export default function App() {
         setMobileOpen={setMobileMenuOpen}
       />
 
-      <MobileNav
-        activeTab={activeTab}
-        onNavigate={(tab) => { setActiveTab(tab); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-        onMore={() => setMobileMenuOpen(true)}
-      />
-
       {/* Main Content Area */}
       <div
         className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
@@ -1068,8 +1061,18 @@ export default function App() {
         {/* Top Navbar Header */}
         <header className="h-16 px-3 sm:px-6 border-b border-[#243146] bg-[#0e1119]/95 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            {/* Marca consistente com o ícone instalado no Android */}
-            <img src={afiliateMark} alt="afiliate" className="md:hidden w-9 h-9 rounded-[11px] shrink-0" />
+            {/* No celular, o menu completo abre na lateral. Não há barra inferior. */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Abrir menu lateral"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="afiliate-sidebar"
+              className="md:hidden flex items-center justify-center w-11 h-11 -ml-1 rounded-xl text-[#eef2f9] hover:bg-[#1f2738] active:bg-blue-600/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 shrink-0"
+            >
+              <Menu className="w-6 h-6" aria-hidden="true" />
+            </button>
+            <img src={afiliateMark} alt="Afiliate" className="md:hidden w-9 h-9 rounded-[11px] shrink-0" />
 
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-xs font-bold text-[#93a0b5] uppercase tracking-wider hidden sm:inline">
@@ -1125,7 +1128,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Page Views */}
-        <main className="flex-1 px-3 pt-4 pb-28 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto motion-safe:animate-fadeIn">
+        <main className="flex-1 px-3 pt-4 pb-8 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto motion-safe:animate-fadeIn">
           {oauthSuccess && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-2">
@@ -1336,7 +1339,7 @@ export default function App() {
         <footer className="hidden md:block border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-white">afiliate</span>
+              <span className="font-bold text-white">Afiliate</span>
               <span>© {new Date().getFullYear()} — Todos os direitos reservados.</span>
             </div>
           </div>

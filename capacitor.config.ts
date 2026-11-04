@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.lkrm.app',
-  appName: 'afiliate',
+  appName: 'Afiliate',
   webDir: 'dist',
   plugins: {
     SplashScreen: {
