@@ -135,6 +135,11 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   const handleToggleEnabled = async (camp: WaCampaign) => {
     if (!camp.id || !uid || togglingId) return;
     setStatusError('');
+    if (!camp.enabled && !(camp.targetGroupIds || []).some(id =>
+      waGroups.some(g => g.groupId === id && (!camp.sessionId || g.sessionId === camp.sessionId)))) {
+      setStatusError('Escolha ao menos um grupo ou canal disponível antes de ativar esta campanha.');
+      return;
+    }
     setTogglingId(camp.id);
     try {
       await updateDoc(doc(db, 'users', uid, 'campaigns', camp.id), {
