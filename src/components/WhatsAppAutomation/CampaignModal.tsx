@@ -73,7 +73,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [sessionId, setSessionId] = useState('');
-  const [enabled, setEnabled] = useState(true);
+  // O status de ativação só é alterado após salvar, no card da campanha.
+  const enabled = campaign?.enabled ?? false;
   const [targetGroupIds, setTargetGroupIds] = useState<string[]>([]);
   const [objective, setObjective] = useState<CampaignObjective>('mais_vendidos');
   const [templateId, setTemplateId] = useState<string>('');
@@ -112,10 +113,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   });
 
   useEffect(() => {
+    if (!isOpen) return;
     if (campaign) {
       setName(campaign.name || '');
       setSessionId(campaign.sessionId || (waSessions[0]?.sessionId || waSessions[0]?.id || ''));
-      setEnabled(campaign.enabled ?? true);
       setTargetGroupIds(campaign.targetGroupIds || []);
       setObjective(campaign.objective || 'mais_vendidos');
       setTemplateId(campaign.templateId || defaultTemplateId || 'whatsapp-urgency');
@@ -145,7 +146,6 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       const matchingDestination = waGroups.find(g => g.groupId === preselectedDestinationId);
       const defaultSId = matchingDestination?.sessionId || waSessions.find(s => s.status === 'connected')?.sessionId || waSessions[0]?.sessionId || waSessions[0]?.id || '';
       setSessionId(defaultSId);
-      setEnabled(true);
       setTemplateId(defaultTemplateId || 'whatsapp-urgency');
       setShortStyle('default');
       setCustomShortSlug('');
@@ -169,7 +169,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTimezone(getUserLocalTimezone());
     }
     setError(null);
-  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId, preselectedDestinationId]);
+  }, [isOpen, campaign?.id, preselectedDestinationId]); // snapshots da lista não reinicializam os campos em edição
 
   if (!isOpen) return null;
 
@@ -232,7 +232,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       await onSave({
         name: name.trim(),
         sessionId: sessionId,
-        enabled,
+        enabled: campaign?.enabled ?? false,
         targetGroupIds,
         objective,
         templateId,
@@ -268,19 +268,19 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-3xl rounded-2xl p-6 my-8 space-y-6 animate-fadeIn relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#0c1420] border border-[#344259] w-full max-w-3xl rounded-3xl p-4 sm:p-6 my-4 sm:my-8 space-y-5 shadow-2xl relative max-h-[93vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1e2636] pb-4">
+        <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 pt-4 pb-4 bg-[#0c1420]/95 backdrop-blur-xl flex items-center justify-between gap-3 border-b border-[#2b394f] rounded-t-3xl">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-xl">
               <Zap className="w-6 h-6" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-white">
-                {campaign ? 'Editar Campanha de Disparo' : 'Nova Campanha de Disparo'}
+                {campaign ? 'Editar campanha' : 'Criar campanha'}
               </h3>
               <p className="text-xs text-[#93a0b5]">
-                Configure a conta de WhatsApp, grupos-alvo, filtros de produtos e ritmo de envios.
+                Defina os destinos, personalize os links e organize o agendamento.
               </p>
             </div>
           </div>
@@ -300,9 +300,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div aria-label="Etapas da configuração" className="flex flex-wrap items-center gap-2 text-[11px] text-[#d1e0f4]">
+            <span className="rounded-full bg-blue-600/20 border border-blue-500/30 px-3 py-1.5">1 · Identificação</span>
+            <span className="rounded-full bg-[#182337] border border-[#33455f] px-3 py-1.5">2 · Destinos e links</span>
+            <span className="rounded-full bg-[#182337] border border-[#33455f] px-3 py-1.5">3 · Filtros e horários</span>
+          </div>
           {/* Seleção de Conta de WhatsApp (MANDATÓRIO) */}
-          <div className="bg-[#151a26]/80 p-4 rounded-xl border border-emerald-500/30 space-y-2">
+          <div className="bg-[#111c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d] space-y-3">
             <label className="text-xs font-bold text-emerald-300 flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-emerald-400" />
               Conta do WhatsApp de Disparo (Obrigatório) *
@@ -339,42 +344,22 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             )}
           </div>
 
-          {/* Nome e Toggle Ativo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-bold text-[#eef2f9]">
-                Nome da Campanha <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Ofertas Quentes - Manhã (Gr. Vips)"
-                className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] placeholder-[#64708a] text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500"
-                required
-              />
+          <section className="space-y-3 bg-[#131c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-blue-600 text-white text-xs font-bold">1</span>
+              <h4 className="text-sm font-bold text-white">Identificação da campanha</h4>
+              <span className="text-[11px] text-[#a6b4c9]">Dê um nome fácil de reconhecer</span>
             </div>
-
-            <div className="flex items-center justify-between sm:justify-end gap-3 bg-[#0e1119] border border-[#1e2636] px-4 py-2.5 rounded-xl">
-              <span className="text-xs font-bold text-[#eef2f9]">Status:</span>
-              <button
-                type="button"
-                onClick={() => setEnabled(!enabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  enabled ? 'bg-emerald-600' : 'bg-[#151a26]'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className={`text-xs font-bold ${enabled ? 'text-emerald-400' : 'text-[#93a0b5]'}`}>
-                {enabled ? 'Ativa' : 'Pausada'}
-              </span>
-            </div>
-          </div>
+            <label htmlFor="wa-campaign-name" className="text-xs font-semibold text-[#d7e3f5] block">
+              Nome da campanha <span className="text-rose-400">*</span>
+            </label>
+            <input id="wa-campaign-name" type="text" autoComplete="off" maxLength={100}
+              value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Ofertas da manhã · Eletrônicos"
+              className="w-full bg-[#0b121e] border border-[#35455d] text-white placeholder-[#72829b] text-sm rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+              required />
+            <p className="text-[11px] text-[#a6b4c9]">Depois de salvar, você poderá ativar ou pausar a campanha na lista.</p>
+          </section>
 
           {/* Template de Mensagem para Disparos */}
           <div className="space-y-1.5 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
@@ -417,7 +402,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
 
           {/* Estilo do Link de Afiliado nos Disparos */}
-          <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-xl border border-[#1e2636]">
+          <div className="space-y-3 bg-[#111c2b] p-4 sm:p-5 rounded-2xl border border-[#35455d]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-emerald-400" />
@@ -844,7 +829,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1e2636]">
+          <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 py-4 border-t border-[#35455d] bg-[#0c1420]/95 backdrop-blur-xl flex items-center justify-end gap-3 rounded-b-3xl">
             <button
               type="button"
               onClick={onClose}
@@ -863,7 +848,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  {campaign ? 'Atualizar Campanha' : 'Criar Campanha'}
+                  {campaign ? 'Salvar alterações' : 'Salvar campanha'}
                 </>
               )}
             </button>
