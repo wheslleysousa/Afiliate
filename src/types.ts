@@ -239,6 +239,7 @@ export interface WaGroupParticipant {
 
 export interface WaGroup {
   groupId: string;
+  kind?: 'group' | 'channel';
   isCommunity?: boolean;
   linkedParent?: string | null;
   sessionId?: string;
@@ -249,6 +250,16 @@ export interface WaGroup {
   isAdmin?: boolean;
   participantsCount?: number;
   participants?: WaGroupParticipant[];
+  updatedAt?: any;
+}
+
+export interface WaChannel {
+  id?: string;
+  channelId: string;
+  sessionId: string;
+  name: string;
+  canPost: boolean;
+  verifiedAt?: any;
   updatedAt?: any;
 }
 
