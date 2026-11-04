@@ -18,7 +18,7 @@ function lastHeartbeatMs(heartbeat: WorkerHealth['heartbeatAt']): number | null 
   return null;
 }
 
-export const WorkerHealthCard: React.FC<{ uid: string }> = ({ uid }) => {
+export const WorkerHealthCard: React.FC<{ uid: string; compact?: boolean }> = ({ uid, compact = false }) => {
   const [data, setData] = useState<WorkerHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -64,6 +64,21 @@ export const WorkerHealthCard: React.FC<{ uid: string }> = ({ uid }) => {
   const tone = active ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' :
     online ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' :
     'border-rose-500/30 text-rose-300 bg-rose-500/10';
+  if (compact) {
+    return (
+      <div role="status" aria-label="Status do WhatsApp" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#293246] bg-[#101723] px-3.5 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={'h-2 w-2 rounded-full shrink-0 ' + (online ? 'bg-emerald-400' : 'bg-rose-400')} />
+          <span className="text-sm font-semibold text-white">{loading ? 'Verificando conexão' : online ? 'WhatsApp online' : 'Serviço indisponível'}</span>
+          {online && <span className="text-xs text-[#a6b4c9]">{connected} conta(s)</span>}
+        </div>
+        <span className={'text-xs rounded-lg px-2 py-1 font-semibold ' + (safe ? 'bg-amber-500/10 text-amber-300' : active ? 'bg-emerald-500/10 text-emerald-300' : 'bg-[#222a38] text-[#a6b4c9]')}>
+          {safe ? 'Envio pausado' : active ? 'Envio ativo' : 'Aguardando'}
+        </span>
+        {!online && !loading && <span className="w-full text-xs text-rose-200">Verifique a conexão do worker no Termux.</span>}
+      </div>
+    );
+  }
   return (
     <section aria-label="Saúde da automação WhatsApp" className="rounded-2xl border border-[#293246] bg-[#0e1119] p-4 sm:p-5 shadow-lg">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
