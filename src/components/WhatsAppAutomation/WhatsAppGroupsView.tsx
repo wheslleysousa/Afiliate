@@ -259,7 +259,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     try {
       const groupId = leaveConfirmGroup.groupId || '';
       const sessionId = leaveConfirmGroup.sessionId || '';
-      if (!/^\\d[\\d-]{5,50}@g\\.us$/.test(groupId)) {
+      if (!/^\d[\d-]{5,50}@g\.us$/.test(groupId)) {
         throw new Error('Este registro não tem um ID de grupo válido do WhatsApp.');
       }
       const session = connectedSessions.find(s => (s.sessionId || s.id) === sessionId);
