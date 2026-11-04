@@ -13,8 +13,8 @@ function normalizeImageUrl(value) {
     const hostname = url.hostname.toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.local') ||
       hostname.endsWith('.internal') ||
-      /^(?:127|10|0|169\\.254|192\\.168)\\./.test(hostname) ||
-      /^172\\.(?:1[6-9]|2\\d|3[01])\\./.test(hostname) ||
+      /^(?:127|10|0|169\.254|192\.168)\./.test(hostname) ||
+      /^172\.(?:1[6-9]|2\d|3[01])\./.test(hostname) ||
       hostname === '[::1]') return null;
     return url.href;
   } catch { return null; }
