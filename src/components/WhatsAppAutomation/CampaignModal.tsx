@@ -39,6 +39,7 @@ interface CampaignModalProps {
   onSave: (campaignData: Partial<WaCampaign>) => Promise<void>;
   customTemplates?: CopyTemplate[];
   defaultTemplateId?: string;
+  preselectedDestinationId?: string | null;
 }
 
 const ALL_PLATFORMS = [
@@ -68,6 +69,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   onSave,
   customTemplates = [],
   defaultTemplateId,
+  preselectedDestinationId,
 }) => {
   const [name, setName] = useState('');
   const [sessionId, setSessionId] = useState('');
@@ -140,15 +142,16 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     } else {
       // Default reset
       setName('');
-      const defaultSId = waSessions[0]?.sessionId || waSessions[0]?.id || '';
+      const matchingDestination = waGroups.find(g => g.groupId === preselectedDestinationId);
+      const defaultSId = matchingDestination?.sessionId || waSessions.find(s => s.status === 'connected')?.sessionId || waSessions[0]?.sessionId || waSessions[0]?.id || '';
       setSessionId(defaultSId);
       setEnabled(true);
       setTemplateId(defaultTemplateId || 'whatsapp-urgency');
       setShortStyle('default');
       setCustomShortSlug('');
       
-      // Nenhum destino é pré-selecionado para evitar envios involuntários.
-      setTargetGroupIds([]);
+      // Só o destino explicitamente escolhido na aba Canais/Grupos é pré-selecionado.
+      setTargetGroupIds(matchingDestination ? [matchingDestination.groupId] : []);
       setObjective('mais_vendidos');
       setMinSales('');
       setMinDiscount('');
@@ -166,7 +169,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTimezone(getUserLocalTimezone());
     }
     setError(null);
-  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId]);
+  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId, preselectedDestinationId]);
 
   if (!isOpen) return null;
 
