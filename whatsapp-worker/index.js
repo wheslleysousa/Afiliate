@@ -25,6 +25,7 @@ const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 const { getCurrentWaWebVersion } = require('./waVersion');
 const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId, listChannels } = require('./channelSupport');
+const { getProductImageUrl, createDispatchPayload } = require('./channelMedia');
 const { checkGroupMembership } = require('./groupMembership');
 
 const {
@@ -52,6 +53,11 @@ const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLE
 // A instalação e o pareamento são permitidos em modo seguro. Envio real
 // e comandos que modificam grupos só são habilitados explicitamente no Termux.
 const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
+// Envio de mídia para canais requer autorização explícita após teste real.
+const WA_CHANNEL_MEDIA_ENABLED = process.env.WA_CHANNEL_MEDIA_ENABLED === 'true';
+// Guardas de teste: não gerar novos lotes e limitar tentativas por execução PM2.
+const WA_DISABLE_CAMPAIGN_GENERATION = process.env.WA_DISABLE_CAMPAIGN_GENERATION === 'true';
+const WA_SEND_TEST_MAX_ATTEMPTS = Math.max(0, Math.floor(Number(process.env.WA_SEND_TEST_MAX_ATTEMPTS || 0) || 0));
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
 // Concessão isolada: sair de grupos não libera criação nem disparos.
 const WA_GROUP_LEAVE_ENABLED = process.env.WA_GROUP_LEAVE_ENABLED === 'true';
@@ -121,6 +127,7 @@ const sessionsMap = new Map();
 
 let isRunningCampaign = false;
 let isProcessingQueue = false;
+let sendAttemptsInProcess = 0;
 let sessionsListenerUnsub = null;
 
 // Sinal de vida real do Termux para evitar status "conectado" antigo no painel.
@@ -132,6 +139,7 @@ async function updateWorkerHealth() {
       runId: WORKER_RUN_ID,
       heartbeatAt: admin.firestore.FieldValue.serverTimestamp(),
       sendEnabled: WA_SEND_ENABLED,
+      channelMediaEnabled: WA_CHANNEL_MEDIA_ENABLED,
       groupCommandsEnabled: WA_GROUP_COMMANDS_ENABLED,
       connectedSessions,
       totalSessions: sessionsMap.size,
@@ -1293,7 +1301,7 @@ async function runCampaignCycle() {
             campaignId: campaign.id,
             campaignName: campaign.name,
             copyText: copyText,
-            imageUrl: product.image_url || null,
+            imageUrl: getProductImageUrl(product),
             affiliateLink: affiliateLink,
             scheduledAt: admin.firestore.Timestamp.fromMillis(currentTimeMs),
             status: 'pending',
@@ -1329,7 +1337,7 @@ async function runCampaignCycle() {
 // ------------------------------------------------------------------------------
 
 async function processSendQueue() {
-  if (isProcessingQueue) return;
+  if (isProcessingQueue || (WA_SEND_TEST_MAX_ATTEMPTS > 0 && sendAttemptsInProcess >= WA_SEND_TEST_MAX_ATTEMPTS)) return;
   isProcessingQueue = true;
 
   try {
@@ -1349,6 +1357,7 @@ async function processSendQueue() {
     console.log(`⚡ Processando ${pendingSnap.docs.length} disparo(s) agendado(s) da fila...`);
 
     for (const queueDoc of pendingSnap.docs) {
+      if (WA_SEND_TEST_MAX_ATTEMPTS > 0 && sendAttemptsInProcess >= WA_SEND_TEST_MAX_ATTEMPTS) break;
       const item = { id: queueDoc.id, ...queueDoc.data() };
       const itemSessionId = item.sessionId || 'current';
 
@@ -1457,6 +1466,10 @@ async function processSendQueue() {
         return true;
       });
       if (!claimed) continue;
+      sendAttemptsInProcess += 1;
+      if (WA_SEND_TEST_MAX_ATTEMPTS > 0) {
+        console.log(`🧪 Teste de mídia: tentativa ${sendAttemptsInProcess}/${WA_SEND_TEST_MAX_ATTEMPTS}; o restante da fila ficará parado nesta execução.`);
+      }
 
       const sock = sessionObj.sock;
 
@@ -1470,19 +1483,22 @@ async function processSendQueue() {
           await new Promise((resolve) => setTimeout(resolve, typingDelay));
         }
 
-        // Upload de mídia em @newsletter é instável no Baileys: começar com texto.
-        // Só habilitar fotos em canais após comprovação em um canal próprio.
-        const sendMedia = !!item.imageUrl && (!isChannel || process.env.WA_CHANNEL_MEDIA_ENABLED === 'true');
-        if (sendMedia) {
-          await sock.sendMessage(item.groupId, {
-            image: { url: item.imageUrl },
-            caption: item.copyText,
-          });
-        } else {
-          await sock.sendMessage(item.groupId, {
-            text: item.copyText,
-          });
+        // Opt-in de mídia em canais: foto com legenda numa única publicação.
+        // Se a foto faltar ou falhar, NÃO publicar texto como alternativa:
+        // isso pode duplicar ofertas ou repetir o bug de post sem imagem.
+        const payload = createDispatchPayload({
+          imageUrl: item.imageUrl,
+          copyText: item.copyText,
+          isChannel,
+          channelMediaEnabled: WA_CHANNEL_MEDIA_ENABLED,
+        });
+        console.log(`🖼️ [Sessão: ${sessionObj.label}] Modo da publicação: ${payload.kind === 'image' ? 'imagem + legenda' : 'somente texto'}`);
+        const sendResult = await sock.sendMessage(item.groupId, payload.content);
+        if (!sendResult) {
+          throw new Error('O WhatsApp não confirmou o recebimento da solicitação de envio.');
         }
+        // Um ACK do Baileys não prova que a imagem apareceu no canal.
+        // A verificação visual continua obrigatória antes da automação em escala.
 
         await db
           .collection('users')
@@ -1491,6 +1507,8 @@ async function processSendQueue() {
           .doc(item.id)
           .update({
             status: 'sent',
+            mediaType: payload.kind,
+            mediaDeliveryVerified: false,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -1509,12 +1527,14 @@ async function processSendQueue() {
             campaignName: item.campaignName || '',
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'sent',
+            mediaType: payload.kind,
+            mediaDeliveryVerified: false,
             affiliateLink: item.affiliateLink || '',
             copyText: item.copyText || '',
             imageUrl: item.imageUrl || null,
           });
 
-        console.log(`✅ [Sessão: ${sessionObj.label}] Disparo concluído para ${item.groupId}!`);
+        console.log(`✅ [Sessão: ${sessionObj.label}] Envio aceito pelo Baileys (${payload.kind}); presença da mídia no canal ainda não verificada.`);
 
         const interMessageDelay = Math.floor(Math.random() * 5000) + 3000;
         await new Promise((resolve) => setTimeout(resolve, interMessageDelay));
@@ -1729,9 +1749,12 @@ async function main() {
 
   // 4. Geração e consumo de filas só após habilitação explícita.
   if (WA_SEND_ENABLED) {
+    if (WA_DISABLE_CAMPAIGN_GENERATION) console.log('🧪 Modo de teste: geração de novos lotes de campanha bloqueada.');
     const campaignIntervalMs = (parseInt(process.env.CAMPAIGN_CYCLE_INTERVAL_MIN) || 1) * 60 * 1000;
-    setInterval(runCampaignCycle, campaignIntervalMs);
-    runCampaignCycle();
+    if (!WA_DISABLE_CAMPAIGN_GENERATION) {
+      setInterval(runCampaignCycle, campaignIntervalMs);
+      runCampaignCycle();
+    }
     setInterval(processSendQueue, 15 * 1000);
   }
 

@@ -99,6 +99,21 @@ Depois de um reboot, o Termux:Boot tentará recuperar o worker. Isso não signif
 - **Caiu:** veja erros no terminal/PM2 e otimizador de bateria. Não apague `auth/` por reflexo.
 - **Segurança:** o código legado também salva metadados de participantes na coleção `waGroups`. Revise acesso e retenção antes de expandir para terceiros.
 
+## Teste controlado de imagem em canal próprio
+
+**Atenção:** a versão do Baileys usada no worker pode aceitar upload de imagem e mesmo assim não exibir a foto no WhatsApp Channel. O sucesso no log significa resposta do SDK, **não** confirmação visual de entrega. Não altere automaticamente a dependência do Baileys ou as credenciais.
+
+O worker suporta agora `WA_CHANNEL_MEDIA_ENABLED=true` (experimentação com `{image: {url}, caption}`) e lê URLs de imagem dos campos `image_url`, `imageUrl`, `images`, `thumbnail` e outros. Com a mídia ligada, imagem ausente/inválida impede envio de texto como fallback; o erro fica registrado na fila.
+
+O teste deve usar **um único canal administrado** e apenas um produto selecionado, com confirmação explícita de que a campanha não contém outros destinos. Nunca ligue o envio apenas para descobrir se fotos funcionam quando houver lotes antigos pendentes. Primeiro examine a fila e descarte os registros indesejados com confirmação humana. **Não apague ou reenvie registros `processing` sem revisar, pois podem já ter sido publicados.**
+
+Controles adicionais por processo PM2:
+- `WA_DISABLE_CAMPAIGN_GENERATION=true` impede gerar novos lotes, mas permite consumir fila existente.
+- `WA_SEND_TEST_MAX_ATTEMPTS=1` limita a 1 tentativa de envio (sucesso ou erro) até o próximo restart do worker; não redefine/limpa filas.
+- `WA_SEND_ENABLED=false` tem prioridade e impede tanto geração quanto consumo, mesmo que mídia esteja habilitada.
+
+Depois de confirmar que não há fila antiga indesejada, habilite a campanha e faça um único teste na janela de horário. Compare **a foto visível no canal do WhatsApp** com a mensagem do log. Se imagem não aparecer, volte a `WA_SEND_ENABLED=false`. Não prometa funcionamento contínuo de mídia sem prova de campo.
+
 ## Limites
 Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp real. O worker agora admite canais `@newsletter` verificados administrativamente, mas **a entrega de posts em canal real ainda depende de teste na conta do usuário**. Em canais, mídia fica desativada por padrão; confira `docs/WHATSAPP_CANAIS.md`. API não oficial pode parar de funcionar após mudanças no WhatsApp.
 
