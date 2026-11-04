@@ -55,6 +55,9 @@ const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLE
 const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
 // Envio de mídia para canais requer autorização explícita após teste real.
 const WA_CHANNEL_MEDIA_ENABLED = process.env.WA_CHANNEL_MEDIA_ENABLED === 'true';
+// Guardas de teste: não gerar novos lotes e limitar tentativas por execução PM2.
+const WA_DISABLE_CAMPAIGN_GENERATION = process.env.WA_DISABLE_CAMPAIGN_GENERATION === 'true';
+const WA_SEND_TEST_MAX_ATTEMPTS = Math.max(0, Math.floor(Number(process.env.WA_SEND_TEST_MAX_ATTEMPTS || 0) || 0));
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
 // Concessão isolada: sair de grupos não libera criação nem disparos.
 const WA_GROUP_LEAVE_ENABLED = process.env.WA_GROUP_LEAVE_ENABLED === 'true';
@@ -124,6 +127,7 @@ const sessionsMap = new Map();
 
 let isRunningCampaign = false;
 let isProcessingQueue = false;
+let sendAttemptsInProcess = 0;
 let sessionsListenerUnsub = null;
 
 // Sinal de vida real do Termux para evitar status "conectado" antigo no painel.
@@ -1333,7 +1337,7 @@ async function runCampaignCycle() {
 // ------------------------------------------------------------------------------
 
 async function processSendQueue() {
-  if (isProcessingQueue) return;
+  if (isProcessingQueue || (WA_SEND_TEST_MAX_ATTEMPTS > 0 && sendAttemptsInProcess >= WA_SEND_TEST_MAX_ATTEMPTS)) return;
   isProcessingQueue = true;
 
   try {
@@ -1353,6 +1357,7 @@ async function processSendQueue() {
     console.log(`⚡ Processando ${pendingSnap.docs.length} disparo(s) agendado(s) da fila...`);
 
     for (const queueDoc of pendingSnap.docs) {
+      if (WA_SEND_TEST_MAX_ATTEMPTS > 0 && sendAttemptsInProcess >= WA_SEND_TEST_MAX_ATTEMPTS) break;
       const item = { id: queueDoc.id, ...queueDoc.data() };
       const itemSessionId = item.sessionId || 'current';
 
@@ -1461,6 +1466,10 @@ async function processSendQueue() {
         return true;
       });
       if (!claimed) continue;
+      sendAttemptsInProcess += 1;
+      if (WA_SEND_TEST_MAX_ATTEMPTS > 0) {
+        console.log(`🧪 Teste de mídia: tentativa ${sendAttemptsInProcess}/${WA_SEND_TEST_MAX_ATTEMPTS}; o restante da fila ficará parado nesta execução.`);
+      }
 
       const sock = sessionObj.sock;
 
@@ -1740,9 +1749,12 @@ async function main() {
 
   // 4. Geração e consumo de filas só após habilitação explícita.
   if (WA_SEND_ENABLED) {
+    if (WA_DISABLE_CAMPAIGN_GENERATION) console.log('🧪 Modo de teste: geração de novos lotes de campanha bloqueada.');
     const campaignIntervalMs = (parseInt(process.env.CAMPAIGN_CYCLE_INTERVAL_MIN) || 1) * 60 * 1000;
-    setInterval(runCampaignCycle, campaignIntervalMs);
-    runCampaignCycle();
+    if (!WA_DISABLE_CAMPAIGN_GENERATION) {
+      setInterval(runCampaignCycle, campaignIntervalMs);
+      runCampaignCycle();
+    }
     setInterval(processSendQueue, 15 * 1000);
   }
 
