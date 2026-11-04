@@ -25,6 +25,7 @@ const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 const { getCurrentWaWebVersion } = require('./waVersion');
 const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId, listChannels } = require('./channelSupport');
+const { getProductImageUrl, createDispatchPayload } = require('./channelMedia');
 const { checkGroupMembership } = require('./groupMembership');
 
 const {
@@ -52,6 +53,8 @@ const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || DEFAULT_APPLE
 // A instalação e o pareamento são permitidos em modo seguro. Envio real
 // e comandos que modificam grupos só são habilitados explicitamente no Termux.
 const WA_SEND_ENABLED = process.env.WA_SEND_ENABLED === 'true';
+// Envio de mídia para canais requer autorização explícita após teste real.
+const WA_CHANNEL_MEDIA_ENABLED = process.env.WA_CHANNEL_MEDIA_ENABLED === 'true';
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
 // Concessão isolada: sair de grupos não libera criação nem disparos.
 const WA_GROUP_LEAVE_ENABLED = process.env.WA_GROUP_LEAVE_ENABLED === 'true';
@@ -132,6 +135,7 @@ async function updateWorkerHealth() {
       runId: WORKER_RUN_ID,
       heartbeatAt: admin.firestore.FieldValue.serverTimestamp(),
       sendEnabled: WA_SEND_ENABLED,
+      channelMediaEnabled: WA_CHANNEL_MEDIA_ENABLED,
       groupCommandsEnabled: WA_GROUP_COMMANDS_ENABLED,
       connectedSessions,
       totalSessions: sessionsMap.size,
@@ -1293,7 +1297,7 @@ async function runCampaignCycle() {
             campaignId: campaign.id,
             campaignName: campaign.name,
             copyText: copyText,
-            imageUrl: product.image_url || null,
+            imageUrl: getProductImageUrl(product),
             affiliateLink: affiliateLink,
             scheduledAt: admin.firestore.Timestamp.fromMillis(currentTimeMs),
             status: 'pending',
@@ -1470,19 +1474,22 @@ async function processSendQueue() {
           await new Promise((resolve) => setTimeout(resolve, typingDelay));
         }
 
-        // Upload de mídia em @newsletter é instável no Baileys: começar com texto.
-        // Só habilitar fotos em canais após comprovação em um canal próprio.
-        const sendMedia = !!item.imageUrl && (!isChannel || process.env.WA_CHANNEL_MEDIA_ENABLED === 'true');
-        if (sendMedia) {
-          await sock.sendMessage(item.groupId, {
-            image: { url: item.imageUrl },
-            caption: item.copyText,
-          });
-        } else {
-          await sock.sendMessage(item.groupId, {
-            text: item.copyText,
-          });
+        // Opt-in de mídia em canais: foto com legenda numa única publicação.
+        // Se a foto faltar ou falhar, NÃO publicar texto como alternativa:
+        // isso pode duplicar ofertas ou repetir o bug de post sem imagem.
+        const payload = createDispatchPayload({
+          imageUrl: item.imageUrl,
+          copyText: item.copyText,
+          isChannel,
+          channelMediaEnabled: WA_CHANNEL_MEDIA_ENABLED,
+        });
+        console.log(`🖼️ [Sessão: ${sessionObj.label}] Modo da publicação: ${payload.kind === 'image' ? 'imagem + legenda' : 'somente texto'}`);
+        const sendResult = await sock.sendMessage(item.groupId, payload.content);
+        if (!sendResult) {
+          throw new Error('O WhatsApp não confirmou o recebimento da solicitação de envio.');
         }
+        // Um ACK do Baileys não prova que a imagem apareceu no canal.
+        // A verificação visual continua obrigatória antes da automação em escala.
 
         await db
           .collection('users')
@@ -1491,6 +1498,8 @@ async function processSendQueue() {
           .doc(item.id)
           .update({
             status: 'sent',
+            mediaType: payload.kind,
+            mediaDeliveryVerified: false,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -1509,12 +1518,14 @@ async function processSendQueue() {
             campaignName: item.campaignName || '',
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'sent',
+            mediaType: payload.kind,
+            mediaDeliveryVerified: false,
             affiliateLink: item.affiliateLink || '',
             copyText: item.copyText || '',
             imageUrl: item.imageUrl || null,
           });
 
-        console.log(`✅ [Sessão: ${sessionObj.label}] Disparo concluído para ${item.groupId}!`);
+        console.log(`✅ [Sessão: ${sessionObj.label}] Envio aceito pelo Baileys (${payload.kind}); presença da mídia no canal ainda não verificada.`);
 
         const interMessageDelay = Math.floor(Math.random() * 5000) + 3000;
         await new Promise((resolve) => setTimeout(resolve, interMessageDelay));
