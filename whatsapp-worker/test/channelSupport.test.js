@@ -31,3 +31,19 @@ test('lists followed and administered channels from maps or arrays', () => {
   assert.equal(canPublishToChannel(following), false);
   assert.deepEqual(listChannels({ nonsense: { id: 'invalid@g.us' } }), []);
 });
+
+const { checkGroupMembership } = require('../groupMembership');
+
+test('keeps group inactive when current account is absent', () => {
+  const me = { user: { id: '1234567890:1@s.whatsapp.net' } };
+  assert.equal(checkGroupMembership({ participants: [{ id: '2345678901@s.whatsapp.net' }] }, me).member, false);
+  assert.equal(checkGroupMembership({ participants: [{ id: '1234567890@s.whatsapp.net' }] }, me).member, true);
+  assert.equal(checkGroupMembership({ participants: [] }, me).verified, false);
+});
+
+test('supports own LID identity without guessing other LIDs', () => {
+  const me = { user: { id: '1234567890@s.whatsapp.net' } };
+  const group = { participants: [{ id: '2222222222@lid' }] };
+  assert.equal(checkGroupMembership(group, me).member, false);
+  assert.equal(checkGroupMembership(group, me, { creds: { me: { lid: '2222222222@lid' } } }).member, true);
+});

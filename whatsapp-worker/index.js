@@ -25,6 +25,7 @@ const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 const { getCurrentWaWebVersion } = require('./waVersion');
 const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId, listChannels } = require('./channelSupport');
+const { checkGroupMembership } = require('./groupMembership');
 
 const {
   default: makeWASocket,
@@ -261,6 +262,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
     });
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionAuthDir);
+    sessionObj.authState = state;
     // A versão obtida do repositório Baileys pode estar atrasada. A versão do
     // WhatsApp Web é obtida diretamente; se falhar, não emitir código inválido.
     const version = await getCurrentWaWebVersion(fetchLatestWaWebVersion);
@@ -600,15 +602,39 @@ async function syncGroups(sessionId, sock) {
 
   try {
     const groupsMap = await sock.groupFetchAllParticipating();
-    const groupList = Object.values(groupsMap);
-
-    console.log(`📋 [Sessão: ${sessionId}] ${groupList.length} grupo(s) detectado(s). Atualizando Firestore...`);
-
+    const groupList = Object.values(groupsMap || {});
+    const liveGroupIds = new Set();
+    let unverifiedGroups = 0;
+    console.log(`📋 [Sessão: ${sessionId}] ${groupList.length} grupo(s) candidatos. Confirmando participação...`);
     const botJid = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : '';
+    const authState = sessionsMap.get(sessionId)?.authState;
 
-    for (const group of groupList) {
-      if (!group.id.endsWith('@g.us')) continue;
-
+    for (const candidate of groupList) {
+      if (!candidate?.id || !candidate.id.endsWith('@g.us')) continue;
+      let group = candidate;
+      let verification = { member: false, verified: false, reason: 'metadata_unavailable' };
+      try {
+        // A lista agregada pode conter registros antigos. Requer consulta
+        // individual e identidade confirmada antes de marcar grupo ativo.
+        if (typeof sock.groupMetadata === 'function') {
+          group = await sock.groupMetadata(candidate.id);
+          verification = checkGroupMembership(group, sock, authState);
+        }
+      } catch (verifyErr) {
+        console.warn(`[Grupos] Validação falhou para ${candidate.id}:`, verifyErr?.message);
+      }
+      if (!verification.member || !verification.verified) {
+        unverifiedGroups++;
+        await db.collection('users').doc(USER_UID).collection('waGroups')
+          .doc(`${sessionId}_${candidate.id}`).set({
+            groupId: candidate.id, sessionId, name: candidate.subject || 'Grupo WhatsApp',
+            isActive: false, membershipVerified: false,
+            membershipReason: verification.reason || 'unverified',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        continue;
+      }
+      liveGroupIds.add(candidate.id);
       const rawParticipants = group.participants || [];
       const participants = [];
 
@@ -671,6 +697,8 @@ async function syncGroups(sessionId, sock) {
         participantsCount: totalSize,
         participants: participants,
         isActive: true,
+        membershipVerified: true,
+        membershipReason: null,
         description: group.desc || null,
         isCommunity: !!group.isCommunity,
         linkedParent: group.linkedParent || null,
@@ -689,9 +717,7 @@ async function syncGroups(sessionId, sock) {
     // Reconciliar APENAS após resposta válida do WhatsApp. Não apagar histórico
     // nem grupos de outras sessões; apenas ocultar os que não existem mais.
     try {
-      const liveGroupIds = new Set(groupList
-        .filter((g) => typeof g.id === 'string' && g.id.endsWith('@g.us'))
-        .map((g) => g.id));
+
       const existingSnap = await db.collection('users').doc(USER_UID)
         .collection('waGroups').where('sessionId', '==', sessionId).get();
       const stale = existingSnap.docs.filter((docSnap) => {
@@ -700,7 +726,7 @@ async function syncGroups(sessionId, sock) {
       });
       if (stale.length) {
         for (const docSnap of stale) {
-          await docSnap.ref.set({ isActive: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+          await docSnap.ref.set({ isActive: false, membershipVerified: false, membershipReason: 'not_in_live_list', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
         console.log(`📁 [Sessão: ${sessionId}] ${stale.length} grupo(s) antigos ocultados (histórico preservado).`);
       }
@@ -708,7 +734,16 @@ async function syncGroups(sessionId, sock) {
       console.error(`⚠️ [Sessão: ${sessionId}] Erro ao reconciliar grupos antigos:`, cleanupErr.message);
     }
 
-    console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
+    await updateSessionDoc(sessionId, {
+      groupSyncCandidateCount: groupList.length,
+      groupSyncVerifiedCount: liveGroupIds.size,
+      groupSyncIssueCount: unverifiedGroups,
+      lastGroupSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+      groupSyncWarning: unverifiedGroups
+        ? `Verificação de participação: ${unverifiedGroups} grupo(s) não confirmados e ocultados. Nenhuma sessão foi apagada.`
+        : null,
+    });
+    console.log(`✅ [Sessão: ${sessionId}] ${liveGroupIds.size} grupo(s) confirmados, ${unverifiedGroups} não confirmados.`);
     return true;
   } catch (err) {
     console.error(`⚠️ [Sessão: ${sessionId}] Erro ao sincronizar grupos:`, err.message);
