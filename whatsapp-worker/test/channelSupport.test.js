@@ -47,3 +47,36 @@ test('supports own LID identity without guessing other LIDs', () => {
   assert.equal(checkGroupMembership(group, me).member, false);
   assert.equal(checkGroupMembership(group, me, { creds: { me: { lid: '2222222222@lid' } } }).member, true);
 });
+
+const { getProductImageUrl, createDispatchPayload, normalizeImageUrl } = require('../channelMedia');
+
+test('canal opt-in monta imagem e legenda na mesma postagem', () => {
+  const msg = createDispatchPayload({
+    imageUrl: 'https://cdn.example.com/p.jpg',
+    copyText: 'Oferta com link',
+    isChannel: true, channelMediaEnabled: true,
+  });
+  assert.equal(msg.kind, 'image');
+  assert.deepEqual(msg.content.image, { url: 'https://cdn.example.com/p.jpg' });
+  assert.equal(msg.content.caption, 'Oferta com link');
+  assert.equal(msg.content.text, undefined);
+});
+
+test('canal com mídia ativa não substitui imagem ausente por texto', () => {
+  assert.throws(() => createDispatchPayload({
+    imageUrl: null, copyText: 'Oferta', isChannel: true, channelMediaEnabled: true,
+  }), /Imagem HTTPS válida/);
+  const textPayload = createDispatchPayload({
+    imageUrl: null, copyText: 'Oferta', isChannel: true, channelMediaEnabled: false,
+  });
+  assert.equal(textPayload.kind, 'text');
+});
+
+test('encontra URL de imagem em formatos antigos ou novos', () => {
+  assert.equal(getProductImageUrl({ images: [{ url: 'https://cdn.example.com/a.jpg' }] }),
+    'https://cdn.example.com/a.jpg');
+  assert.equal(getProductImageUrl({ image_url: 'https://cdn.example.com/b.jpg' }),
+    'https://cdn.example.com/b.jpg');
+  assert.equal(normalizeImageUrl('http://cdn.example.com/c.jpg'), null);
+  assert.equal(normalizeImageUrl('https://127.0.0.1/c.jpg'), null);
+});
