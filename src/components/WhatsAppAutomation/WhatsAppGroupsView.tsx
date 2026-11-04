@@ -25,6 +25,8 @@ import {
   UserPlus,
   Edit3,
   AlertCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { WhatsAppAlert } from './WhatsAppAlert';
@@ -45,6 +47,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [accountFilter, setAccountFilter] = useState<string>('connected');
+  const [showHiddenGroups, setShowHiddenGroups] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<WaGroup | null>(null);
 
@@ -203,7 +206,10 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const filteredGroups = groups.filter((g) => {
+  const visibleGroupRecords = groups.filter(g => g.isActive !== false);
+  const hiddenGroupCount = visibleGroupRecords.filter(g => g.hidden === true).length;
+  const filteredGroups = visibleGroupRecords.filter((g) => {
+    if (g.hidden === true && !showHiddenGroups) return false;
     const matchesSearch =
       (g.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (g.groupId || '').toLowerCase().includes(search.toLowerCase());
@@ -217,6 +223,17 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
     return matchesSearch && matchesAccount;
   });
+
+  const toggleGroupVisibility = async (group: WaGroup) => {
+    const docId = (group as any).docId || (group as any).id;
+    if (!uid || !docId) return;
+    try {
+      await setDoc(doc(db, 'users', uid, 'waGroups', docId),
+        { hidden: !group.hidden, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: 'Não foi possível atualizar a visibilidade do grupo: ' + (err?.message || 'erro') });
+    }
+  };
 
   const handleConfirmDeleteSingleGroup = async () => {
     if (!uid || !deleteConfirmGroup) return;
@@ -712,17 +729,26 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#a6b4c9]">
+        <span>Apagar a conversa no WhatsApp não significa sair do grupo. Use “Ocultar” para escondê-lo apenas no Afiliate.</span>
+        {hiddenGroupCount > 0 && (
+          <button type="button" onClick={() => setShowHiddenGroups(!showHiddenGroups)}
+            className="px-3 py-2 rounded-lg border border-[#293246] bg-[#151a26] text-blue-300">
+            {showHiddenGroups ? 'Esconder ocultos' : `Mostrar ocultos (${hiddenGroupCount})`}
+          </button>
+        )}
+      </div>
       {/* Empty State Warning if no groups */}
-      {!loading && groups.length === 0 && (
+      {!loading && filteredGroups.length === 0 && (
         <div className="bg-[#0e1119] border border-[#1e2636] p-8 rounded-2xl text-center space-y-4 shadow-xl">
           <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto">
             <Users className="w-7 h-7" />
           </div>
 
           <div className="space-y-1 max-w-md mx-auto">
-            <h4 className="text-base font-bold text-white">Nenhum grupo encontrado</h4>
+            <h4 className="text-base font-bold text-white">Nenhum grupo para mostrar</h4>
             <p className="text-xs text-[#93a0b5] leading-relaxed">
-              Você ainda não tem grupos cadastrados ou sincronizados. Conecte um WhatsApp e clique em <strong>"Criar Grupo / Comunidade"</strong> para criar o seu primeiro grupo de ofertas.
+              Atualize a lista ou mostre os grupos ocultos. Se você só apagou a conversa no WhatsApp, pode continuar participando do grupo.
             </p>
           </div>
 
@@ -832,6 +858,14 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
                 <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-[#93a0b5]">
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void toggleGroupVisibility(group); }}
+                      className="p-1 text-[#93a0b5] hover:text-blue-300 hover:bg-[#151a26] rounded-md transition-colors"
+                      title={group.hidden ? 'Mostrar grupo no Afiliate' : 'Ocultar grupo no Afiliate sem sair do WhatsApp'}
+                      aria-label={group.hidden ? 'Mostrar grupo' : 'Ocultar grupo'}
+                    >
+                      {group.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
