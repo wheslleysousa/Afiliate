@@ -19,4 +19,5 @@ test('does not treat follower or unknown as publisher', () => {
   assert.equal(canPublishToChannel({ viewer_metadata: { role: 'ADMIN' } }), true);
   assert.equal(canPublishToChannel({ viewer_metadata: { role: 'OWNER' } }), true);
   assert.equal(getChannelId({ id: '120363123456789012@newsletter' }), '120363123456789012@newsletter');
+  assert.equal(getChannelId({ id: '120363123456789012' }), '120363123456789012@newsletter');
 });
