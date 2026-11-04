@@ -222,7 +222,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const visibleGroupRecords = groups.filter(g => g.isActive === true && g.membershipVerified === true);
+  const excludedDocIds = new Set(excludedGroups.map(g => g.id));
+  const visibleGroupRecords = groups.filter(g => g.isActive === true && g.membershipVerified === true &&
+    !excludedDocIds.has((g.sessionId || '') + '_' + g.groupId));
   const hiddenGroupCount = visibleGroupRecords.filter(g => g.hidden === true).length;
   const filteredGroups = visibleGroupRecords.filter((g) => {
     if (g.hidden === true && !showHiddenGroups) return false;
