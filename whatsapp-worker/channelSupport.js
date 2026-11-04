@@ -33,7 +33,9 @@ function canPublishToChannel(metadata) {
 }
 
 function getChannelId(metadata) {
-  return normalizeChannelId(metadata?.id || metadata?.jid || metadata?.newsletterId);
+  const raw = String(metadata?.id || metadata?.jid || metadata?.newsletterId || '').trim();
+  if (/^[0-9]{6,80}$/.test(raw)) return raw + '@newsletter';
+  return normalizeChannelId(raw);
 }
 
 module.exports = { normalizeChannelId, parseChannelReference, channelRole, canPublishToChannel, getChannelId };
