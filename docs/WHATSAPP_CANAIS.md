@@ -16,6 +16,7 @@ O suporte a canais pertence à branch `feat/whatsapp-group-sync-mobile-ui` (PR #
 - `WA_GROUP_COMMANDS_ENABLED=false` continua bloqueando criação/saída; cadastrar um canal existente é permitido por ser uma verificação sem publicação.
 - `whatsapp-worker/manager.js` ainda força as duas flags para `false` em workers multiusuário. Não o use como prova de envio automático em produção.
 - **Baileys não é API oficial**. O envio para canais, especialmente mídia, pode falhar ou nem aparecer no WhatsApp; um `sendMessage` sem erro não comprova que o público recebeu.
+- Em canais, o worker envia **texto por padrão**, mesmo quando há foto no produto. `WA_CHANNEL_MEDIA_ENABLED=true` habilita imagem com legenda apenas após comprovação da estabilidade no canal próprio; grupos continuam enviando fotos normalmente.
 - Não repetir automaticamente uma publicação após falha incerta: isso pode duplicar posts.
 - O Firestore atual dá escrita ao cliente no próprio namespace de usuário. A segurança do envio **não deve depender só** de `canPost` armazenado lá; o worker revalida o papel administrativo ao vivo.
 - Faltam testes ponta a ponta com canal real, verificação da versão Baileys instalada no Termux, e conferência da conta/autorizações antes de afirmar que o recurso está pronto.
