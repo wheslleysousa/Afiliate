@@ -1510,7 +1510,7 @@ async function processCommands() {
           }
           if (type === 'channel') {
             // Canais criados não entram em waGroups. Somente habilitar após validar role admin.
-            await saveVerifiedChannel(sessionId, sock, String(gid));
+            await saveVerifiedChannel(sessionId, sock, { id: gid });
           }
           await ref.update({
             status: 'done', groupId: gid, inviteLink, warning: linkWarning,
