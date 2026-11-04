@@ -47,6 +47,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 }) => {
   const [groups, setGroups] = useState<WaGroup[]>([]);
   const [excludedGroups, setExcludedGroups] = useState<Array<{ id: string; groupId: string; sessionId: string; name: string }>>([]);
+  const [pendingLeaveGroupIds, setPendingLeaveGroupIds] = useState<Set<string>>(new Set());
   const [showExcluded, setShowExcluded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -129,6 +130,15 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         id: d.id, groupId: String(d.data().groupId || ''),
         sessionId: String(d.data().sessionId || ''), name: String(d.data().name || 'Grupo'),
       }))), err => console.warn('[Afiliate] Erro ao carregar excluídos:', err.message));
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waCommands'), snap => {
+      setPendingLeaveGroupIds(new Set(snap.docs.map(d => d.data()).filter(data =>
+        data.action === 'leaveGroup' && (data.status === 'pending' || data.status === 'processing')
+      ).map(data => String(data.sessionId || '') + '_' + String(data.groupId || ''))));
+    }, err => console.warn('[Afiliate] Não foi possível carregar saídas pendentes:', err.message));
   }, [uid]);
 
   const sessionMap = new Map(waSessions.map((s) => [s.sessionId || s.id || '', s.label || 'Conta WhatsApp']));
@@ -255,6 +265,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
   const handleConfirmLeaveGroup = async () => {
     if (!uid || !leaveConfirmGroup || isLeavingGroup) return;
+    if (pendingLeaveGroupIds.has((leaveConfirmGroup.sessionId || '') + '_' + leaveConfirmGroup.groupId)) return;
     setIsLeavingGroup(true);
     try {
       const groupId = leaveConfirmGroup.groupId || '';
@@ -284,6 +295,11 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
   const handleConfirmRemoveGroup = async () => {
     if (!uid || !removeConfirmGroup || isRemovingGroup) return;
+    if (pendingLeaveGroupIds.has((removeConfirmGroup.sessionId || '') + '_' + removeConfirmGroup.groupId)) {
+      setAlertMessage({ type: 'error', text: 'Aguarde o resultado da saída do WhatsApp antes de excluir o registro.' });
+      setRemoveConfirmGroup(null);
+      return;
+    }
     setIsRemovingGroup(true);
     try {
       const groupId = removeConfirmGroup.groupId || '';
@@ -894,6 +910,14 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       <h4 className="text-sm font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
                         {group.name || 'Grupo sem nome'}
                       </h4>
+                      {group.hidden && (
+                        <button type="button"
+                          onClick={(e) => { e.stopPropagation(); void toggleGroupVisibility(group); }}
+                          className="shrink-0 rounded-md border border-blue-500/30 px-2 py-1 text-[11px] text-blue-300 flex items-center gap-1"
+                          title="Restaurar grupo oculto no painel">
+                          <Eye size={13} /> Mostrar
+                        </button>
+                      )}
                       {group.isAdmin && (
                         <span
                           className="shrink-0 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1"
@@ -941,17 +965,19 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button"
                       onClick={(e) => { e.stopPropagation(); setLeaveConfirmGroup(group); }}
-                      disabled={!group.sessionId || !connectedSessionIds.has(group.sessionId) ||
+                      disabled={pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId) ||
+                        !group.sessionId || !connectedSessionIds.has(group.sessionId) ||
                         !waSessions.some(s => (s.sessionId || s.id) === group.sessionId &&
                           (s.groupCapabilities?.leaveGroup || s.groupCapabilities?.commandsEnabled))}
                       title="Sair do grupo no WhatsApp (requer conexão e confirmação)"
                       className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/20 disabled:opacity-40">
-                      <LogOut size={14} /> Sair do grupo
+                      <LogOut size={14} /> {pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId) ? 'Saída pendente' : 'Sair do grupo'}
                     </button>
                     <button type="button"
                       onClick={(e) => { e.stopPropagation(); setRemoveConfirmGroup(group); }}
                       title="Excluir somente do Afiliate, sem sair do grupo"
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 py-2.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/20">
+                      disabled={pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId)}
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 py-2.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/20 disabled:opacity-40">
                       <Trash2 size={14} /> Excluir do Afiliate
                     </button>
                   </div>
