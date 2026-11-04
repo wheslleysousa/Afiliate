@@ -284,6 +284,28 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
     });
 
     sessionObj.sock = sock;
+    // Descoberta oportunista: quando o WhatsApp entrega um chat de canal
+    // nesta sessão, validar metadados e registrá-lo sem segui-lo nem publicar.
+    sessionObj.discoveredChannels = sessionObj.discoveredChannels || new Set();
+    sessionObj.channelCandidates = sessionObj.channelCandidates || new Set();
+    sessionObj.channelDiscoveryRunning = false;
+    const enqueueChannelChats = (chats) => {
+      for (const chat of Array.isArray(chats) ? chats : []) {
+        const id = typeof chat === 'string' ? chat :
+          (chat?.id || chat?.jid || chat?.key?.remoteJid || '');
+        const normalized = normalizeChannelId(id);
+        if (normalized && !sessionObj.discoveredChannels.has(normalized)) {
+          sessionObj.channelCandidates.add(normalized);
+        }
+      }
+      if (sessionObj.status === 'connected') void flushChannelCandidates(sessionId, sessionObj);
+    };
+    sock.ev.on('messaging-history.set', payload => enqueueChannelChats(payload?.chats));
+    sock.ev.on('chats.upsert', enqueueChannelChats);
+    sock.ev.on('chats.update', enqueueChannelChats);
+    sock.ev.on('messages.upsert', packet => enqueueChannelChats(
+      (packet?.messages || []).map(message => ({ id: message?.key?.remoteJid }))
+    ));
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -430,6 +452,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
         // Sincronizar grupos e canais autorizados desta conta.
         await syncGroups(sessionId, sock);
         await syncChannels(sessionId, sock);
+        await flushChannelCandidates(sessionId, sessionObj);
       }
     });
   } catch (err) {
@@ -787,16 +810,50 @@ async function saveVerifiedChannel(sessionId, sock, input) {
   return channelId;
 }
 
+async function flushChannelCandidates(sessionId, sessionObj) {
+  if (!sessionObj || sessionObj.channelDiscoveryRunning ||
+      sessionObj.status !== 'connected' || !sessionObj.sock) return;
+  sessionObj.channelDiscoveryRunning = true;
+  try {
+    // Os chats disponíveis no Baileys não são uma lista completa de canais.
+    // Cada ID deve passar por consulta de metadata; sem confirmação, não
+    // registrar nem conceder permissões de publicação.
+    for (const id of Array.from(sessionObj.channelCandidates || []).slice(0, 40)) {
+      sessionObj.channelCandidates.delete(id);
+      if (sessionObj.discoveredChannels.has(id)) continue;
+      try {
+        await saveVerifiedChannel(sessionId, sessionObj.sock, { id });
+        sessionObj.discoveredChannels.add(id);
+        console.log(`📡 [Sessão: ${sessionId}] Canal recuperado de chat: ${id}`);
+      } catch (error) {
+        console.warn('[Canais] Chat de canal não confirmado:', error?.message || 'erro');
+      }
+    }
+  } finally {
+    sessionObj.channelDiscoveryRunning = false;
+    if (sessionObj.channelCandidates?.size && sessionObj.status === 'connected') {
+      setTimeout(() => void flushChannelCandidates(sessionId, sessionObj), 2000);
+    }
+  }
+}
+
 async function syncChannels(sessionId, sock) {
-  if (typeof sock.newsletterFetchAllParticipating !== 'function') {
+  // A API oficial da versão instalada pode não oferecer listagem completa;
+  // alguns builds expõem métodos alternativos. Nunca chamar métodos privados
+  // de WMex nem executar operações de follow/unfollow.
+  const listMethod = ['newsletterFetchAllParticipating', 'newsletterFetchAllSubscribe']
+    .find(name => typeof sock[name] === 'function');
+  if (!listMethod) {
     await updateSessionDoc(sessionId, {
       channelDiscoverySupported: false,
-      channelSyncError: 'Esta versão do Baileys não lista canais automaticamente. Cadastre os seus pelo link.',
+      channelDiscoverySource: 'chats_and_links',
+      channelSyncError: 'Esta versão do Baileys não lista todos os canais seguidos. O Afiliate tenta reconhecer canais dos chats; para garantir o cadastro, adicione pelo link compartilhado no WhatsApp.',
+      lastChannelSyncAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     return false;
   }
   try {
-    const response = await sock.newsletterFetchAllParticipating();
+    const response = await sock[listMethod]();
     const channels = listChannels(response);
     let saved = 0;
     for (const entry of channels) {
@@ -819,7 +876,8 @@ async function syncChannels(sessionId, sock) {
       }
     }
     await updateSessionDoc(sessionId, {
-      channelDiscoverySupported: true, channelSyncError: null, channelSyncCount: saved,
+      channelDiscoverySupported: true, channelDiscoverySource: listMethod,
+      channelSyncError: null, channelSyncCount: saved,
       lastChannelSyncAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     console.log(`📡 [Sessão: ${sessionId}] ${saved} canal(is) sincronizado(s) (incluindo somente leitura).`);
@@ -827,7 +885,9 @@ async function syncChannels(sessionId, sock) {
   } catch (err) {
     console.warn('[Canais] Descoberta indisponível:', err.message);
     await updateSessionDoc(sessionId, {
-      channelSyncError: 'Não foi possível listar canais automaticamente. Você pode cadastrar o link manualmente.',
+      channelDiscoverySupported: false,
+      channelDiscoverySource: 'chats_and_links',
+      channelSyncError: 'A listagem automática falhou. Tente cadastrar pelo link do canal; chats de canais recebidos também serão reconhecidos.',
     });
     return false;
   }

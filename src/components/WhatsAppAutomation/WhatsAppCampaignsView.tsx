@@ -82,6 +82,8 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   // Modal de Exclusão de Campanha
   const [deletingCampaign, setDeletingCampaign] = useState<WaCampaign | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState('');
 
   useEffect(() => {
     if (!uid) return;
@@ -131,13 +133,18 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
   };
 
   const handleToggleEnabled = async (camp: WaCampaign) => {
-    if (!camp.id || !uid) return;
+    if (!camp.id || !uid || togglingId) return;
+    setStatusError('');
+    setTogglingId(camp.id);
     try {
       await updateDoc(doc(db, 'users', uid, 'campaigns', camp.id), {
         enabled: !camp.enabled,
+        updatedAt: serverTimestamp(),
       });
-    } catch (err) {
-      console.error('Erro ao atualizar status da campanha:', err);
+    } catch (err: any) {
+      setStatusError('Não foi possível alterar o status: ' + (err?.message || 'tente novamente'));
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -185,6 +192,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
       // Create
       await addDoc(collection(db, 'users', uid, 'campaigns'), {
         ...sanitizedData,
+        enabled: false, // novas campanhas começam pausadas; só ativar depois de criadas
         createdAt: serverTimestamp(),
       });
     }
@@ -248,6 +256,10 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
         </div>
       )}
 
+      {statusError && <div role="alert"
+        className="mb-3 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200">
+        {statusError}
+      </div>}
       {/* Campaign List Grid */}
       {!loading && campaigns.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -293,16 +305,25 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleToggleEnabled(camp)}
-                    className={`p-2 rounded-xl border text-xs font-bold transition-all shrink-0 ${
+                  <button type="button" role="switch"
+                    aria-checked={!!camp.enabled}
+                    aria-label={camp.enabled ? 'Pausar campanha ' + camp.name : 'Ativar campanha ' + camp.name}
+                    disabled={!!togglingId}
+                    onClick={() => void handleToggleEnabled(camp)}
+                    className={`group flex shrink-0 items-center gap-2 rounded-full border px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${
                       camp.enabled
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
-                        : 'bg-[#151a26] text-[#eef2f9] border-[#1e2636] hover:bg-[#1e2636]'
+                        ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-200'
+                        : 'bg-[#182234] border-[#3c4d67] text-[#c5d4e8]'
                     }`}
-                    title={camp.enabled ? 'Pausar Campanha' : 'Ativar Campanha'}
-                  >
-                    {camp.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    title={camp.enabled ? 'Pausar campanha' : 'Ativar campanha'}>
+                    <span className="text-[11px] font-semibold">{togglingId === camp.id ? 'Salvando...' : camp.enabled ? 'Ligada' : 'Desligada'}</span>
+                    <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      camp.enabled ? 'bg-emerald-500' : 'bg-[#56657b]'
+                    }`}>
+                      <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                        camp.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </span>
                   </button>
                 </div>
 

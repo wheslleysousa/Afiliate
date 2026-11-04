@@ -128,10 +128,10 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
           {connected.find(s => s.groupSyncWarning)?.groupSyncWarning}
         </p>
       )}
-      {waGroups.length > 0 && visibleGroups.length === 0 && connected.length > 0 &&
-        !connected.some(s => s.groupSyncWarning) && (
-          <p className="rounded-xl border border-[#293246] bg-[#101723] px-3.5 py-3 text-xs text-[#a6b4c9]">
-            Os registros antigos não são contados até o worker confirmar a participação desta conta. Use “Sincronizar grupos”.
+      {visibleGroups.length === 0 && connected.length > 0 &&
+        connected.some(s => s.groupSyncCandidateCount === 0) && (
+          <p role="status" className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-3 text-xs text-emerald-200">
+            Nenhum grupo ativo encontrado na última sincronização. Você pode gerenciar os canais normalmente.
           </p>
         )}
       <div className="grid grid-cols-3 gap-2">
