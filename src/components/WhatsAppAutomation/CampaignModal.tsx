@@ -215,8 +215,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setError('Selecione obrigatoriamente a conta do WhatsApp que irá realizar os disparos.');
       return;
     }
-    if (targetGroupIds.length === 0) {
-      setError('Selecione ao menos um grupo do WhatsApp como alvo.');
+    // Criar ou editar uma campanha pausada sem destinos é permitido.
+    // Ela só pode ser ativada no cartão depois de escolher grupo/canal válido.
+    if (targetGroupIds.length === 0 && campaign?.enabled) {
+      setError('Pause a campanha na lista antes de remover todos os destinos.');
       return;
     }
 
@@ -320,7 +322,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               placeholder="Ex.: Ofertas da manhã · Eletrônicos"
               className="w-full bg-[#0b121e] border border-[#35455d] text-white placeholder-[#72829b] text-sm rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
               required />
-            <p className="text-[11px] text-[#a6b4c9]">Depois de salvar, você poderá ativar ou pausar a campanha na lista.</p>
+            <p className="text-[11px] text-[#a6b4c9]">Você pode salvar a campanha pausada agora e adicionar os canais ou grupos depois. A ativação fica na lista de campanhas.</p>
           </section>
 
           {/* Seleção de Conta de WhatsApp (MANDATÓRIO) */}
