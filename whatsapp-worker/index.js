@@ -1559,7 +1559,7 @@ async function processCommands() {
           // Saída real nunca pode usar o fallback de outra conta/sessão.
           if (!cmd.sessionId || sessionId !== cmd.sessionId) throw new Error('Sessão do grupo inválida.');
           const gid = String(cmd.groupId || '');
-          if (!/^\d{6,30}@g\.us$/.test(gid)) throw new Error('Identificador de grupo inválido.');
+          if (!/^\d[\d-]{5,50}@g\.us$/.test(gid)) throw new Error('Identificador de grupo inválido.');
           const groupDocRef = db.collection('users').doc(USER_UID).collection('waGroups').doc(`${sessionId}_${gid}`);
           const groupSnapshot = await groupDocRef.get();
           if (!groupSnapshot.exists || groupSnapshot.data()?.sessionId !== sessionId ||
