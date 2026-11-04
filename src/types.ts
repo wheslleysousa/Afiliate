@@ -377,6 +377,7 @@ export interface WaSession {
     createChannel?: boolean;
     linkGroupToCommunity?: boolean;
     commandsEnabled?: boolean;
+    leaveGroup?: boolean;
   };
   reloginRequired?: boolean;
   lastDisconnectCode?: number | null;

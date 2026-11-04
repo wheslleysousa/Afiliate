@@ -27,6 +27,8 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  LogOut,
+  RotateCcw,
 } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { WhatsAppAlert } from './WhatsAppAlert';
@@ -44,6 +46,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   onSelectGroupForCampaign,
 }) => {
   const [groups, setGroups] = useState<WaGroup[]>([]);
+  const [excludedGroups, setExcludedGroups] = useState<Array<{ id: string; groupId: string; sessionId: string; name: string }>>([]);
+  const [pendingLeaveGroupIds, setPendingLeaveGroupIds] = useState<Set<string>>(new Set());
+  const [showExcluded, setShowExcluded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [accountFilter, setAccountFilter] = useState<string>('connected');
@@ -57,9 +62,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
   // Custom Deletion Confirmation Modals
-  const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<WaGroup | null>(null);
+  const [leaveConfirmGroup, setLeaveConfirmGroup] = useState<WaGroup | null>(null);
+  const [removeConfirmGroup, setRemoveConfirmGroup] = useState<WaGroup | null>(null);
   const [showDeleteDisconnectedModal, setShowDeleteDisconnectedModal] = useState<boolean>(false);
-  const [isDeletingGroup, setIsDeletingGroup] = useState<boolean>(false);
+  const [isLeavingGroup, setIsLeavingGroup] = useState<boolean>(false);
+  const [isRemovingGroup, setIsRemovingGroup] = useState(false);
+  const [restoringGroupId, setRestoringGroupId] = useState<string | null>(null);
 
   // Manage Real Participants Modal
   const [manageGroupModal, setManageGroupModal] = useState<WaGroup | null>(null);
@@ -113,6 +121,24 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     );
 
     return () => unsubscribe();
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waGroupExclusions'),
+      snap => setExcludedGroups(snap.docs.map(d => ({
+        id: d.id, groupId: String(d.data().groupId || ''),
+        sessionId: String(d.data().sessionId || ''), name: String(d.data().name || 'Grupo'),
+      }))), err => console.warn('[Afiliate] Erro ao carregar excluídos:', err.message));
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waCommands'), snap => {
+      setPendingLeaveGroupIds(new Set(snap.docs.map(d => d.data()).filter(data =>
+        data.action === 'leaveGroup' && (data.status === 'pending' || data.status === 'processing')
+      ).map(data => String(data.sessionId || '') + '_' + String(data.groupId || ''))));
+    }, err => console.warn('[Afiliate] Não foi possível carregar saídas pendentes:', err.message));
   }, [uid]);
 
   const sessionMap = new Map(waSessions.map((s) => [s.sessionId || s.id || '', s.label || 'Conta WhatsApp']));
@@ -206,7 +232,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const visibleGroupRecords = groups.filter(g => g.isActive !== false);
+  const excludedDocIds = new Set(excludedGroups.map(g => g.id));
+  const visibleGroupRecords = groups.filter(g => g.isActive === true && g.membershipVerified === true &&
+    !excludedDocIds.has((g.sessionId || '') + '_' + g.groupId));
   const hiddenGroupCount = visibleGroupRecords.filter(g => g.hidden === true).length;
   const filteredGroups = visibleGroupRecords.filter((g) => {
     if (g.hidden === true && !showHiddenGroups) return false;
@@ -235,46 +263,82 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const handleConfirmDeleteSingleGroup = async () => {
-    if (!uid || !deleteConfirmGroup) return;
-    setIsDeletingGroup(true);
-
+  const handleConfirmLeaveGroup = async () => {
+    if (!uid || !leaveConfirmGroup || isLeavingGroup) return;
+    if (pendingLeaveGroupIds.has((leaveConfirmGroup.sessionId || '') + '_' + leaveConfirmGroup.groupId)) return;
+    setIsLeavingGroup(true);
     try {
-      const targetDocId = (deleteConfirmGroup as any).docId || (deleteConfirmGroup as any).id || deleteConfirmGroup.groupId;
-      const realGroupId = (deleteConfirmGroup as any).groupId || '';
-      const sessionId = (deleteConfirmGroup as any).sessionId || '';
-      if (realGroupId.endsWith('@g.us')) {
-        if (!sessionId || !connectedSessionIds.has(sessionId)) {
-          throw new Error('Conecte a conta correspondente antes de sair do grupo.');
-        }
-        await addDoc(collection(db, 'users', uid, 'waCommands'), {
-          action: 'leaveGroup',
-          groupId: realGroupId,
-          sessionId,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-        });
-        // Só o worker apaga o registro quando o WhatsApp confirma a saída.
-        setAlertMessage({
-          type: 'success',
-          text: `Saída de "${deleteConfirmGroup.name}" solicitada. O grupo permanece na lista até o WhatsApp confirmar. Acompanhe o worker.`,
-        });
-      } else {
-        await deleteDoc(doc(db, 'users', uid, 'waGroups', targetDocId));
-        setAlertMessage({ type: 'success', text: 'Registro local removido do Afiliate.' });
+      const groupId = leaveConfirmGroup.groupId || '';
+      const sessionId = leaveConfirmGroup.sessionId || '';
+      if (!/^\d[\d-]{5,50}@g\.us$/.test(groupId)) {
+        throw new Error('Este registro não tem um ID de grupo válido do WhatsApp.');
       }
-      if (selectedGroup?.groupId === deleteConfirmGroup.groupId) {
-        setSelectedGroup(null);
+      const session = connectedSessions.find(s => (s.sessionId || s.id) === sessionId);
+      if (!session) throw new Error('Conecte a conta correspondente antes de sair.');
+      if (!session.groupCapabilities?.leaveGroup && !session.groupCapabilities?.commandsEnabled) {
+        throw new Error('O worker ainda não habilitou a saída individual. Atualize o worker no Termux.');
       }
-      setDeleteConfirmGroup(null);
-    } catch (err: any) {
-      console.error('Erro ao excluir grupo:', err);
-      setAlertMessage({
-        type: 'error',
-        text: err?.message || 'Não foi possível solicitar a saída do grupo. Tente novamente.',
+      await addDoc(collection(db, 'users', uid, 'waCommands'), {
+        action: 'leaveGroup', groupId, sessionId, name: leaveConfirmGroup.name || 'Grupo',
+        status: 'pending', createdAt: serverTimestamp(),
       });
+      setAlertMessage({ type: 'success',
+        text: 'Pedido de saída enviado. A saída será registrada quando o WhatsApp confirmar; veja Atividade recente.' });
+      setSelectedGroup(null);
+      setLeaveConfirmGroup(null);
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível solicitar a saída.' });
     } finally {
-      setIsDeletingGroup(false);
+      setIsLeavingGroup(false);
+    }
+  };
+
+  const handleConfirmRemoveGroup = async () => {
+    if (!uid || !removeConfirmGroup || isRemovingGroup) return;
+    if (pendingLeaveGroupIds.has((removeConfirmGroup.sessionId || '') + '_' + removeConfirmGroup.groupId)) {
+      setAlertMessage({ type: 'error', text: 'Aguarde o resultado da saída do WhatsApp antes de excluir o registro.' });
+      setRemoveConfirmGroup(null);
+      return;
+    }
+    setIsRemovingGroup(true);
+    try {
+      const groupId = removeConfirmGroup.groupId || '';
+      const sessionId = removeConfirmGroup.sessionId || '';
+      const groupDocId = (removeConfirmGroup as any).docId || (removeConfirmGroup as any).id;
+      if (!sessionId || !groupId || !groupDocId) throw new Error('Registro incompleto.');
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'users', uid, 'waGroupExclusions', sessionId + '_' + groupId), {
+        groupId, sessionId, name: removeConfirmGroup.name || 'Grupo',
+        excludedAt: serverTimestamp(),
+      }, { merge: true });
+      batch.delete(doc(db, 'users', uid, 'waGroups', groupDocId));
+      await batch.commit();
+      setAlertMessage({ type: 'success', text: 'Registro excluído do Afiliate. Você continua no grupo do WhatsApp; pode restaurá-lo em Excluídos.' });
+      setSelectedGroup(null);
+      setRemoveConfirmGroup(null);
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível excluir o registro do Afiliate.' });
+    } finally {
+      setIsRemovingGroup(false);
+    }
+  };
+
+  const restoreExcludedGroup = async (item: { id: string; groupId: string; sessionId: string }) => {
+    if (!uid || restoringGroupId) return;
+    setRestoringGroupId(item.id);
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', uid, 'waGroupExclusions', item.id));
+      if (connectedSessionIds.has(item.sessionId)) {
+        batch.set(doc(db, 'users', uid, 'waSessions', item.sessionId),
+          { requestedSyncGroups: true, requestedGroupSyncAt: serverTimestamp() }, { merge: true });
+      }
+      await batch.commit();
+      setAlertMessage({ type: 'success', text: 'Registro restaurado. Ele voltará a aparecer após sincronização, se a conta ainda participar do grupo.' });
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível restaurar o grupo.' });
+    } finally {
+      setRestoringGroupId(null);
     }
   };
 
@@ -681,24 +745,54 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             Sincronizar Grupos
           </button>
 
-          {/* Button: Create Group */}
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Criar
-          </button>
+          {/* Criação somente aparece quando explicitamente habilitada no worker. */}
+          {connectedSessions.some(s => s.groupCapabilities?.commandsEnabled) && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              Criar
+            </button>
+          )}
         </div>
       </div>
 
-      {connectedSessions.length > 0 && connectedSessions.some(s => s.groupCapabilities?.commandsEnabled === false) && (
-        <p role="status" className="px-4 py-3 text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs leading-relaxed">
-          A conta está conectada, mas os comandos de grupos estão desativados no worker. Você pode sincronizar a lista; criar grupos ou sair deles exigirá habilitar os comandos no Termux.
+      {connectedSessions.length > 0 && connectedSessions.some(s => !s.groupCapabilities?.commandsEnabled) && (
+        <p role="status" className="px-4 py-3 text-[#b9c7dc] bg-[#101723] border border-[#293246] rounded-xl text-xs leading-relaxed">
+          Criar grupos está desativado. A saída individual é uma permissão separada:
+          {connectedSessions.some(s => s.groupCapabilities?.leaveGroup) ? ' disponível para sua conta.' : ' atualize o worker no Termux para disponibilizá-la.'}
         </p>
       )}
 
       <GroupCommandStatus uid={uid} />
+      {excludedGroups.length > 0 && (
+        <section className="rounded-xl border border-[#293246] bg-[#101723] p-3.5 space-y-3">
+          <button type="button" onClick={() => setShowExcluded(!showExcluded)}
+            aria-expanded={showExcluded}
+            className="flex w-full items-center justify-between gap-3 text-xs font-semibold text-[#c8d4e8]">
+            <span className="flex items-center gap-2"><Trash2 size={15} /> Excluídos do Afiliate ({excludedGroups.length})</span>
+            <span className="text-blue-300">{showExcluded ? 'Recolher' : 'Ver e restaurar'}</span>
+          </button>
+          {showExcluded && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {excludedGroups.map(item => (
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#293246] p-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{item.name}</p>
+                    <p className="text-[11px] text-[#a6b4c9]">Apenas removido da lista</p>
+                  </div>
+                  <button type="button" disabled={!!restoringGroupId}
+                    onClick={() => void restoreExcludedGroup(item)}
+                    className="shrink-0 rounded-lg border border-blue-500/30 px-2.5 py-2 text-xs font-semibold text-blue-300 disabled:opacity-50 flex items-center gap-1">
+                    <RotateCcw size={13} /> Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Disconnected groups info banner */}
       {disconnectedGroups.length > 0 && accountFilter === 'connected' && (
@@ -818,6 +912,14 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                       <h4 className="text-sm font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
                         {group.name || 'Grupo sem nome'}
                       </h4>
+                      {group.hidden && (
+                        <button type="button"
+                          onClick={(e) => { e.stopPropagation(); void toggleGroupVisibility(group); }}
+                          className="shrink-0 rounded-md border border-blue-500/30 px-2 py-1 text-[11px] text-blue-300 flex items-center gap-1"
+                          title="Restaurar grupo oculto no painel">
+                          <Eye size={13} /> Mostrar
+                        </button>
+                      )}
                       {group.isAdmin && (
                         <span
                           className="shrink-0 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1"
@@ -856,32 +958,31 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-[#1e2636] flex items-center justify-between text-xs text-[#93a0b5]">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); void toggleGroupVisibility(group); }}
-                      className="p-1 text-[#93a0b5] hover:text-blue-300 hover:bg-[#151a26] rounded-md transition-colors"
-                      title={group.hidden ? 'Mostrar grupo no Afiliate' : 'Ocultar grupo no Afiliate sem sair do WhatsApp'}
-                      aria-label={group.hidden ? 'Mostrar grupo' : 'Ocultar grupo'}
-                    >
-                      {group.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                <div className="mt-4 pt-3 border-t border-[#1e2636] flex flex-col gap-3">
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); setSelectedGroup(group); setDetailTab('info'); }}
+                    className="flex items-center justify-between text-xs font-semibold text-emerald-300 hover:underline">
+                    Ver contatos e detalhes <ArrowRight size={15} />
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={(e) => { e.stopPropagation(); setLeaveConfirmGroup(group); }}
+                      disabled={pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId) ||
+                        !group.sessionId || !connectedSessionIds.has(group.sessionId) ||
+                        !waSessions.some(s => (s.sessionId || s.id) === group.sessionId &&
+                          (s.groupCapabilities?.leaveGroup || s.groupCapabilities?.commandsEnabled))}
+                      title="Sair do grupo no WhatsApp (requer conexão e confirmação)"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/20 disabled:opacity-40">
+                      <LogOut size={14} /> {pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId) ? 'Saída pendente' : 'Sair do grupo'}
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirmGroup(group);
-                      }}
-                      className="p-1 text-[#93a0b5] hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
-                      title="Sair do grupo no WhatsApp"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button type="button"
+                      onClick={(e) => { e.stopPropagation(); setRemoveConfirmGroup(group); }}
+                      title="Excluir somente do Afiliate, sem sair do grupo"
+                      disabled={pendingLeaveGroupIds.has((group.sessionId || '') + '_' + group.groupId)}
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 py-2.5 text-[11px] font-bold text-rose-200 hover:bg-rose-500/20 disabled:opacity-40">
+                      <Trash2 size={14} /> Excluir do Afiliate
                     </button>
                   </div>
-
-                  <span className="text-emerald-400 font-semibold group-hover:underline flex items-center gap-1 text-[11px]">
-                    Ver Contatos & Detalhes
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
                 </div>
               </div>
             );
@@ -1251,39 +1352,39 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         </div>
       )}
 
-      {/* Confirmation Modal - Single Group Deletion */}
-      {deleteConfirmGroup && (
+      {/* Confirmation Modal - Leave WhatsApp Group */}
+      {leaveConfirmGroup && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
             <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl shrink-0">
-                <Trash2 className="w-6 h-6" />
+                <LogOut className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Sair deste grupo?</h3>
+                <h3 className="text-base font-bold text-white">Sair de “{leaveConfirmGroup.name}”?</h3>
               </div>
             </div>
 
             <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
-                O Afiliate solicitará ao WhatsApp que esta conta saia do grupo. Isso não apaga o grupo dos outros participantes. A saída só termina após confirmação do worker.
+                Você sairá realmente do grupo no WhatsApp desta conta. Os demais participantes permanecem. O Afiliate só remove o grupo da lista após a confirmação do worker.
               </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
               <button
-                disabled={isDeletingGroup}
-                onClick={() => setDeleteConfirmGroup(null)}
+                disabled={isLeavingGroup}
+                onClick={() => setLeaveConfirmGroup(null)}
                 className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
               </button>
               <button
-                disabled={isDeletingGroup}
-                onClick={handleConfirmDeleteSingleGroup}
+                disabled={isLeavingGroup}
+                onClick={handleConfirmLeaveGroup}
                 className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-red-950/50 transition-all"
               >
-                {isDeletingGroup ? (
+                {isLeavingGroup ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     Solicitando...
@@ -1293,6 +1394,36 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                     Solicitar saída
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Delete ONLY from Afiliate */}
+      {removeConfirmGroup && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e1119] border border-rose-500/25 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl"><Trash2 size={23} /></div>
+              <div>
+                <h3 className="text-base font-bold text-white">Excluir “{removeConfirmGroup.name}” do Afiliate?</h3>
+                <p className="text-xs text-[#a6b4c9] mt-1">Esta ação não sai do grupo no WhatsApp.</p>
+              </div>
+            </div>
+            <p className="text-xs text-[#eef2f9] leading-relaxed">
+              O registro será removido do Afiliate e não reaparecerá após sincronizar.
+              Você poderá restaurá-lo na seção <strong>Excluídos do Afiliate</strong>,
+              desde que ainda participe do grupo.
+            </p>
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#1e2636]">
+              <button type="button" disabled={isRemovingGroup} onClick={() => setRemoveConfirmGroup(null)}
+                className="px-4 py-2 rounded-xl border border-[#293246] bg-[#151a26] text-xs font-semibold text-white">
+                Cancelar
+              </button>
+              <button type="button" disabled={isRemovingGroup} onClick={handleConfirmRemoveGroup}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-xs font-bold text-white disabled:opacity-50">
+                {isRemovingGroup ? 'Excluindo...' : 'Excluir do Afiliate'}
               </button>
             </div>
           </div>
