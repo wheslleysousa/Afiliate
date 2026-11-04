@@ -725,9 +725,12 @@ async function saveVerifiedChannel(sessionId, sock, input) {
   const channelId = getChannelId(initial) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
   if (!channelId) throw new Error('Identificador do canal não encontrado.');
   // Um convite público não comprova administração: sempre verificar pelo JID da conta.
-  const ownMetadata = await sock.newsletterMetadata('jid', channelId);
-  const canPost = canPublishToChannel(ownMetadata);
-  const nameValue = ownMetadata.name || initial.name;
+  // Se a consulta privada falhar, salvar SOMENTE leitura; nunca conceder canPost.
+  let ownMetadata = null;
+  try { ownMetadata = await sock.newsletterMetadata('jid', channelId); }
+  catch (error) { console.warn('[Canais] Sem acesso a role privada; canal mantido como leitura:', error.message); }
+  const canPost = !!ownMetadata && canPublishToChannel(ownMetadata);
+  const nameValue = ownMetadata?.name || initial.name;
   const name = typeof nameValue === 'string' ? nameValue : (nameValue?.text || 'Canal WhatsApp');
   await db.collection('users').doc(USER_UID).collection('waChannels')
     .doc(`${sessionId}_${channelId}`).set({
