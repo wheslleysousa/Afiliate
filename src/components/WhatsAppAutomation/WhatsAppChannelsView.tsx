@@ -110,11 +110,15 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
         </select>
       )}
       {currentSession?.channelSyncError && (
-        <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
-          {currentSession.channelSyncError}
-        </p>
+        <div role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-100 space-y-1">
+          <p>{currentSession.channelSyncError}</p>
+          <p className="text-amber-200/80">
+            No WhatsApp, abra o canal → menu do canal → Compartilhar → Copiar link.
+            Cole aqui. Esse cadastro não segue nem publica no canal.
+          </p>
+        </div>
       )}
-      {showAdd && (
+      {(showAdd || (listed.length === 0 && currentSession?.channelDiscoverySupported === false)) && (
         <form onSubmit={register} className="rounded-2xl border border-[#293246] bg-[#101723] p-4 space-y-3">
           <p className="text-xs text-[#a6b4c9]">Cole o link de um canal seu ou de um canal que segue. O worker confirma se sua conta pode publicar.</p>
           <input aria-label="Link do canal" value={channelReference} onChange={e => setChannelReference(e.target.value)}
@@ -153,7 +157,7 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
           <Radio className="mx-auto text-blue-400" size={24} />
           <p className="text-sm font-semibold text-white">Nenhum canal nesta lista</p>
           <p className="text-xs leading-relaxed text-[#a6b4c9]">
-            Se os canais que você segue não aparecerem, toque em Atualizar. Caso o Baileys não consiga listá-los, cadastre pelo link.
+            O Baileys pode não fornecer a lista completa. Toque em Atualizar para tentar detectar canais dos chats ou cadastre pelo link de compartilhamento acima.
           </p>
         </div>
       ) : (
