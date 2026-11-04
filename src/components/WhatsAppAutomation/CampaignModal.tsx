@@ -810,13 +810,13 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             {(() => {
               const liveStatus = calculateCampaignScheduleStatus(
                 { startHour, endHour, days, timezone },
-                enabled
+                campaign ? enabled : true
               );
               return (
                 <div className="mt-2 p-3 bg-[#0e1119] border border-[#1e2636] rounded-xl flex items-center justify-between text-xs gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-extrabold ${liveStatus.badgeColor}`}>
-                      {liveStatus.badgeText}
+                      {campaign ? liveStatus.badgeText : 'Prévia de horário'}
                     </span>
                     <span className="text-[#eef2f9] truncate">{liveStatus.subtext}</span>
                   </div>
