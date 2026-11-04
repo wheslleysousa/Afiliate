@@ -69,6 +69,26 @@ Depois do teste, opcionalmente instale o PM2: `npm install -g pm2 && pm2 start i
 
 Em Android/HyperOS, configure **Termux → Bateria → Sem restrições**, permita execução em segundo plano, mantenha internet e evite “Forçar parada”. `termux-wake-lock` e PM2 ajudam, mas **Android ainda pode encerrar processos**, portanto não garantem 24/7. Opcionalmente use Termux:Boot para reiniciar após boot.
 
+## Recuperar PM2 após o Android fechar o Termux
+
+Para reiniciar o worker existente **sem habilitar disparos automáticos**:
+
+```sh
+bash ~/Afiliate/whatsapp-worker/scripts/start-termux-safe.sh
+```
+
+O script recupera o processo salvo no PM2 (ou cria se necessário), aplica `WA_SEND_ENABLED=false` e `WA_GROUP_COMMANDS_ENABLED=false`, chama `termux-wake-lock`, salva a lista PM2 e mostra o status. Se aparecer `online`, **isso não confirma que o WhatsApp está conectado**. Não execute duas instâncias em paralelo.
+
+No Android/Xiaomi/POCO, defina **Termux > Bateria > Sem restrições**, libere execução/inicialização em segundo plano e, quando disponível, bloqueie o Termux na tela de recentes. Nenhum comando impede completamente que o Android mate o processo.
+
+**Reinicialização do celular (opcional):** instale o aplicativo separado **Termux:Boot** pela mesma origem do Termux (recomenda-se F-Droid), abra-o ao menos uma vez e execute:
+
+```sh
+mkdir -p ~/.termux/boot && cp ~/Afiliate/whatsapp-worker/scripts/start-termux-safe.sh ~/.termux/boot/start-afiliate && chmod +x ~/.termux/boot/start-afiliate
+```
+
+Depois de um reboot, o Termux:Boot tentará recuperar o worker. Isso não significa operação garantida 24/7. Após o primeiro retorno, confira `pm2 status` e o estado da sessão no aplicativo.
+
 ## Diagnóstico comum
 - **UID sem perfil:** use a mesma conta Firebase do site e da extensão; confirme o UID.
 - **PERMISSION_DENIED/NOT_FOUND:** revise service account, projeto e `FIRESTORE_DATABASE_ID`.
@@ -80,7 +100,7 @@ Em Android/HyperOS, configure **Termux → Bateria → Sem restrições**, permi
 - **Segurança:** o código legado também salva metadados de participantes na coleção `waGroups`. Revise acesso e retenção antes de expandir para terceiros.
 
 ## Limites
-Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp real. O envio de **canais** do WhatsApp não está demonstrado; o código usa somente identificadores de grupos `@g.us`. API não oficial pode parar de funcionar após mudanças no WhatsApp.
+Worker ainda não foi testado diretamente neste Android nem com seu WhatsApp real. O worker agora admite canais `@newsletter` verificados administrativamente, mas **a entrega de posts em canal real ainda depende de teste na conta do usuário**. Em canais, mídia fica desativada por padrão; confira `docs/WHATSAPP_CANAIS.md`. API não oficial pode parar de funcionar após mudanças no WhatsApp.
 
 
 ## Melhorias de novembro/2026 — painel e campanhas
