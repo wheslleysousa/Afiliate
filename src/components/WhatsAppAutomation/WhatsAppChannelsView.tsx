@@ -10,7 +10,7 @@ interface Props {
   onSelectChannel: (channelId: string) => void;
 }
 
-const CHANNEL_LINK = /^https:\/\/(?:www\.)?whatsapp\.com\/channel\/[A-Za-z0-9_-]{6,100}\/?$/i;
+const CHANNEL_LINK = /^https:\/\/(?:www\.)?whatsapp\.com\/channel\/[A-Za-z0-9_-]{6,100}\/?(?:\?[^\s#]*)?$/i;
 const CHANNEL_JID = /^[A-Za-z0-9_-]{6,80}@newsletter$/;
 
 export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectChannel }) => {
