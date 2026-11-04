@@ -24,7 +24,7 @@ const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } =
 const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 const { getCurrentWaWebVersion } = require('./waVersion');
-const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId } = require('./channelSupport');
+const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId, listChannels } = require('./channelSupport');
 
 const {
   default: makeWASocket,
@@ -670,6 +670,7 @@ async function syncGroups(sessionId, sock) {
         size: totalSize,
         participantsCount: totalSize,
         participants: participants,
+        isActive: true,
         description: group.desc || null,
         isCommunity: !!group.isCommunity,
         linkedParent: group.linkedParent || null,
@@ -685,28 +686,26 @@ async function syncGroups(sessionId, sock) {
         .set(groupDocData, { merge: true });
     }
 
-    // ── Remove grupos que NÃO existem mais no WhatsApp (saiu/foi excluído) ──
-    // Assim o app mostra somente os grupos que realmente estão no WhatsApp.
+    // Reconciliar APENAS após resposta válida do WhatsApp. Não apagar histórico
+    // nem grupos de outras sessões; apenas ocultar os que não existem mais.
     try {
-      const liveDocIds = new Set(
-        groupList.filter((g) => g.id && g.id.endsWith('@g.us')).map((g) => `${sessionId}_${g.id}`)
-      );
-      const existingSnap = await db
-        .collection('users')
-        .doc(USER_UID)
-        .collection('waGroups')
-        .where('sessionId', '==', sessionId)
-        .get();
-      const stale = [];
-      existingSnap.forEach((docSnap) => {
-        if (!liveDocIds.has(docSnap.id)) stale.push(docSnap.ref);
+      const liveGroupIds = new Set(groupList
+        .filter((g) => typeof g.id === 'string' && g.id.endsWith('@g.us'))
+        .map((g) => g.id));
+      const existingSnap = await db.collection('users').doc(USER_UID)
+        .collection('waGroups').where('sessionId', '==', sessionId).get();
+      const stale = existingSnap.docs.filter((docSnap) => {
+        const storedId = docSnap.data()?.groupId;
+        return storedId && !liveGroupIds.has(storedId) && docSnap.data()?.isActive !== false;
       });
       if (stale.length) {
-        await Promise.all(stale.map((ref) => ref.delete()));
-        console.log(`🗑️ [Sessão: ${sessionId}] ${stale.length} grupo(s) removido(s) do app (não estão mais no WhatsApp).`);
+        for (const docSnap of stale) {
+          await docSnap.ref.set({ isActive: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        }
+        console.log(`📁 [Sessão: ${sessionId}] ${stale.length} grupo(s) antigos ocultados (histórico preservado).`);
       }
     } catch (cleanupErr) {
-      console.error(`⚠️ [Sessão: ${sessionId}] Erro ao limpar grupos antigos:`, cleanupErr.message);
+      console.error(`⚠️ [Sessão: ${sessionId}] Erro ao reconciliar grupos antigos:`, cleanupErr.message);
     }
 
     console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
@@ -717,38 +716,71 @@ async function syncGroups(sessionId, sock) {
   }
 }
 
-// Canais não aparecem em groupFetchAllParticipating: @newsletter != @g.us.
+// @newsletter != @g.us. Canais seguidos são somente leitura; só administradores enviam.
 async function saveVerifiedChannel(sessionId, sock, input) {
   if (typeof sock.newsletterMetadata !== 'function') throw new Error('Baileys não oferece consulta de canais nesta instalação.');
   const ref = typeof input === 'string' ? parseChannelReference(input) : { type: 'jid', value: getChannelId(input) };
   if (!ref?.value) throw new Error('Informe um link https://whatsapp.com/channel/... ou um ID @newsletter válido.');
-  const initialMetadata = await sock.newsletterMetadata(ref.type, ref.value);
-  const channelId = getChannelId(initialMetadata) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
-  if (!channelId) throw new Error('Identificador do canal não encontrado no WhatsApp.');
-  // Links de convite retornam metadados de visitante; revalidar role pela conta conectada.
-  const metadata = await sock.newsletterMetadata('jid', channelId);
-  if (!canPublishToChannel(metadata)) throw new Error('Esta conta não administra o canal; nenhum envio foi habilitado.');
-  const name = typeof metadata.name === 'string' ? metadata.name : (metadata.name?.text || 'Canal WhatsApp');
-  await db.collection('users').doc(USER_UID).collection('waChannels').doc(`${sessionId}_${channelId}`).set({
-    channelId, sessionId, name, canPost: true, verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const initial = await sock.newsletterMetadata(ref.type, ref.value);
+  const channelId = getChannelId(initial) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
+  if (!channelId) throw new Error('Identificador do canal não encontrado.');
+  // Um convite público não comprova administração: sempre verificar pelo JID da conta.
+  const ownMetadata = await sock.newsletterMetadata('jid', channelId);
+  const canPost = canPublishToChannel(ownMetadata);
+  const nameValue = ownMetadata.name || initial.name;
+  const name = typeof nameValue === 'string' ? nameValue : (nameValue?.text || 'Canal WhatsApp');
+  await db.collection('users').doc(USER_UID).collection('waChannels')
+    .doc(`${sessionId}_${channelId}`).set({
+      channelId, sessionId, name, canPost, access: canPost ? 'admin' : 'following',
+      verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
   return channelId;
 }
 
 async function syncChannels(sessionId, sock) {
-  // A versão instalada pode não implementar a descoberta automática.
-  if (typeof sock.newsletterFetchAllParticipating !== 'function') return;
+  if (typeof sock.newsletterFetchAllParticipating !== 'function') {
+    await updateSessionDoc(sessionId, {
+      channelDiscoverySupported: false,
+      channelSyncError: 'Esta versão do Baileys não lista canais automaticamente. Cadastre os seus pelo link.',
+    });
+    return false;
+  }
   try {
     const response = await sock.newsletterFetchAllParticipating();
-    const channels = Array.isArray(response) ? response : Object.values(response || {});
-    for (const metadata of channels) {
-      if (!getChannelId(metadata) || !canPublishToChannel(metadata)) continue;
-      try { await saveVerifiedChannel(sessionId, sock, metadata); }
-      catch (err) { console.warn('[Canais] Não foi possível validar canal:', err.message); }
+    const channels = listChannels(response);
+    let saved = 0;
+    for (const entry of channels) {
+      const channelId = getChannelId(entry);
+      if (!channelId) continue;
+      try {
+        await saveVerifiedChannel(sessionId, sock, entry);
+        saved++;
+      } catch (err) {
+        // Falha de acesso à metadata não concede poderes de administrador.
+        console.warn(`[Canais] Não foi possível validar ${channelId}:`, err.message);
+        const displayName = typeof entry.name === 'string' ? entry.name : (entry.name?.text || 'Canal WhatsApp');
+        await db.collection('users').doc(USER_UID).collection('waChannels')
+          .doc(`${sessionId}_${channelId}`).set({
+            channelId, sessionId, name: displayName,
+            canPost: false, access: 'following', verificationPending: true,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        saved++;
+      }
     }
+    await updateSessionDoc(sessionId, {
+      channelDiscoverySupported: true, channelSyncError: null, channelSyncCount: saved,
+      lastChannelSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`📡 [Sessão: ${sessionId}] ${saved} canal(is) sincronizado(s) (incluindo somente leitura).`);
+    return true;
   } catch (err) {
-    console.warn('[Canais] Descoberta indisponível; utilize o link de convite no app:', err.message);
+    console.warn('[Canais] Descoberta indisponível:', err.message);
+    await updateSessionDoc(sessionId, {
+      channelSyncError: 'Não foi possível listar canais automaticamente. Você pode cadastrar o link manualmente.',
+    });
+    return false;
   }
 }
 
