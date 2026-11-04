@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { WaGroup, WaSession, ApiKeysConfig } from '../types';
+import type { WaGroup, WaChannel, WaSession, ApiKeysConfig } from '../types';
 import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
+import { WhatsAppChannelsView } from './WhatsAppAutomation/WhatsAppChannelsView';
 import { WhatsAppCampaignsView } from './WhatsAppAutomation/WhatsAppCampaignsView';
 import { WhatsAppQueueLogsView } from './WhatsAppAutomation/WhatsAppQueueLogsView';
 import { WhatsAppSessionCard } from './WhatsAppAutomation/WhatsAppSessionCard';
@@ -34,8 +35,9 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
   customTemplates = [],
   defaultTemplateId,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'queue-logs'>('groups');
+  const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'channels' | 'queue-logs'>('groups');
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
+  const [waChannels, setWaChannels] = useState<WaChannel[]>([]);
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [preselectedGroupId, setPreselectedGroupId] = useState<string | null>(null);
@@ -102,8 +104,25 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
     return () => unsubscribe();
   }, [uid]);
 
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waChannels'),
+      snap => setWaChannels(snap.docs.map(d => ({ id: d.id, ...d.data() } as WaChannel))),
+      err => console.error('Erro ao carregar canais autorizados:', err));
+  }, [uid]);
+
   const connectedSessionIds = new Set(waSessions.filter(s => s.status === 'connected').map(s => s.sessionId || s.id));
   const connectedGroups = waGroups.filter(g => !!g.sessionId && connectedSessionIds.has(g.sessionId));
+  // Canais vivem em coleção separada: nunca misturar sua sincronização com waGroups.
+  // Para o formulário legado de campanhas, projetamos cada canal autorizado como destino compatível.
+  const connectedChannels = waChannels.filter(c => c.canPost && connectedSessionIds.has(c.sessionId));
+  const campaignDestinations: WaGroup[] = [
+    ...connectedGroups,
+    ...connectedChannels.map(c => ({
+      groupId: c.channelId, sessionId: c.sessionId, name: c.name,
+      kind: 'channel' as const, size: 0,
+    })),
+  ];
 
   const handleSelectGroupForCampaign = (groupId: string) => {
     setPreselectedGroupId(groupId);
@@ -117,7 +136,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
         <div>
           <h1 className="text-lg font-extrabold text-white">Automação WhatsApp</h1>
           <p className="text-xs text-[#93a0b5]">
-            Gerencie sua conta, grupos e campanhas em um só lugar.
+            Gerencie sua conta, grupos, canais e campanhas em um só lugar.
           </p>
         </div>
       </div>
@@ -166,6 +185,15 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
 
         <button
           role="tab"
+          aria-selected={activeSubTab === 'channels'}
+          onClick={() => setActiveSubTab('channels')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap shrink-0 ${
+            activeSubTab === 'channels' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#0e1119] text-[#93a0b5] border-[#1e2636]'
+          }`}
+        ><Radio className="w-3.5 h-3.5 inline mr-1" /> Canais ({connectedChannels.length})</button>
+
+        <button
+          role="tab"
           aria-selected={activeSubTab === 'queue-logs'}
           onClick={() => setActiveSubTab('queue-logs')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
@@ -183,7 +211,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
       {activeSubTab === 'campaigns' && (
         <WhatsAppCampaignsView
           uid={uid}
-          waGroups={connectedGroups}
+          waGroups={campaignDestinations}
           waSessions={waSessions}
           apiKeys={apiKeys}
           preselectedGroupId={preselectedGroupId}
@@ -198,6 +226,10 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
           waSessions={waSessions}
           onSelectGroupForCampaign={handleSelectGroupForCampaign}
         />
+      )}
+
+      {activeSubTab === 'channels' && (
+        <WhatsAppChannelsView uid={uid} sessions={waSessions} onSelectChannel={handleSelectGroupForCampaign} />
       )}
 
       {activeSubTab === 'queue-logs' && (
