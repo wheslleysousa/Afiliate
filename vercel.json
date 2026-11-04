@@ -1,7 +1,24 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://afiliate.onrender.com/api/$1" },
-    { "source": "/l/(.*)", "destination": "https://afiliate.onrender.com/l/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index?__afiliate_route=$1"
+    },
+    {
+      "source": "/r/(.*)",
+      "destination": "/api/index?__afiliate_route=__public_r/$1"
+    },
+    {
+      "source": "/rb/(.*)",
+      "destination": "/api/index?__afiliate_route=__public_rb/$1"
+    },
+    {
+      "source": "/l/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

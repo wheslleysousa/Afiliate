@@ -576,12 +576,8 @@ async function fetchShopeeGraphQLWithSignatureFallback(
   const factor = appId + timestamp + payloadStr + secret;
   const signature = crypto.createHash("sha256").update(factor).digest("hex");
 
-  const secretLen = secret ? secret.length : 0;
-  const secretLast4 = secretLen >= 4 ? secret.slice(-4) : (secret || "none");
-
-  console.log(`[SHOPEE DIAG] Executando GraphQL em ${endpoint} | AppID: ${appId} | secretLen: ${secretLen} | secretLast4: ${secretLast4} | Timestamp: ${timestamp}`);
-  console.log(`[SHOPEE DIAG] Base string da assinatura (len=${factor.length}): ${factor.length > 300 ? factor.substring(0, 300) + '...' : factor}`);
-  console.log(`[SHOPEE DIAG] Assinatura SHA256 puro gerada: ${signature}`);
+  // NÃO registrar segredo, preimagem ou hash da assinatura em logs de cloud.
+  console.log(`[SHOPEE DIAG] GraphQL endpoint=${new URL(endpoint).host} timestamp=${timestamp}`);
 
   const headerValue = `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`;
 
@@ -611,8 +607,7 @@ async function fetchShopeeGraphQLWithSignatureFallback(
         signal: AbortSignal.timeout(8000)
       });
 
-      const rawText = await response.clone().text();
-      console.log(`[SHOPEE DIAG] GraphQL ${ep} | Status HTTP: ${response.status} | Resposta crua: ${rawText.slice(0, 800)}`);
+      console.log(`[SHOPEE DIAG] GraphQL host=${new URL(ep).host} status=${response.status}`);
 
       lastResponse = response;
       // 404 = rota inexistente → tenta a próxima URL. Qualquer outro status é a rota certa.
@@ -5543,4 +5538,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// O serviço Express continua executável localmente (npm run dev/start), mas
+// exporta a mesma aplicação para a função serverless do Vercel.
+export default app;
+
+if (process.env.VERCEL !== '1') {
+  startServer();
+}

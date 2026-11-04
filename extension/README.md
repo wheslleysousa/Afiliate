@@ -2,7 +2,7 @@
 
 Minerador inteligente de produtos afiliados. Extrai produtos direto das lojas
 (Mercado Livre, Shopee, Amazon, AliExpress, Shein) e **sincroniza automaticamente
-com o app [Afiliate](https://afiliate.onrender.com)** via Firebase/Firestore.
+com o app [Afiliate](https://lkrm.site)** via Firebase/Firestore.
 
 ## Como funciona a sincronização
 

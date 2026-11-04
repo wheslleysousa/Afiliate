@@ -98,19 +98,19 @@ npm run dev
 
 ## 🌐 Deploy em Produção
 
-### Deploy do Backend no Render (Free Tier)
-1. Conecte o repositório no **Render** (`render.com`).
-2. Selecione **Web Service** com diretório raiz `backend`.
-3. Defina o comando de Build: `pip install -r requirements.txt`.
-4. Defina o comando de Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-5. *(Opcional)* Configure um monitor no **UptimeRobot** pingando `https://seu-backend.onrender.com/health` a cada 5 minutos para evitar cold start.
+### Web e backend na Vercel
 
-### Deploy do Frontend no Netlify (Free Tier)
-1. Importe o repositório no **Netlify** (`netlify.com`).
-2. Defina o Base Directory como `frontend`.
-3. Defina o Build command como `npm run build` e o Publish directory como `frontend/dist` (ou `dist`).
-4. Adicione a variável de ambiente:
-   - `VITE_API_URL` = `https://seu-backend.onrender.com`
+O mesmo projeto Vercel `afiliate` publica o frontend Vite e a API Express. A função `api/index.ts` reutiliza `server.ts`; as rotas `/api/*` são encaminhadas para essa função por `vercel.json`. O build oficial é `npm run build`.
+
+- Aplicativo web e links curtos: `https://lkrm.site`.
+- `https://www.lkrm.site` redireciona permanentemente (308) para `https://lkrm.site`.
+- API pública em produção: `https://api.lkrm.site/api/*` (após publicar a migração).
+- API privada de teste: `https://api-preview.lkrm.site/api/*` (exige autenticação no Vercel).
+- APK Android: URL padrão da API `https://api.lkrm.site`.
+- `VITE_SHORT_DOMAIN=https://lkrm.site` é opcional; esse domínio já é o fallback.
+- `VITE_API_URL` é opcional. A aplicação web usa chamadas relativas quando não há uma URL válida configurada; o APK usa `api.lkrm.site`. Builds novos ignoram qualquer valor legado do Render.
+
+**Antes da ativação em produção:** validar API, URLs públicas do encurtador, OAuth e configurações de ambiente; concluir a implantação da branch de migração. O redirecionamento de domínio e os smoke tests da função não significam, por si só, que a migração já foi publicada na `main`.
 
 ### Deploy das Regras e Índices do Firebase (Firestore)
 Para implantar as regras de segurança e os índices compostos no projeto Firebase CLI:

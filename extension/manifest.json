@@ -44,7 +44,6 @@
       "matches": [
         "*://*.lkrm.site/*",
         "*://lkrm.site/*",
-        "*://afiliate.onrender.com/*",
         "*://localhost/*",
         "*://127.0.0.1/*"
       ],

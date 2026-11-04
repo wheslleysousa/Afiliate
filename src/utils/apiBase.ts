@@ -5,7 +5,7 @@ import { reportError } from './errorReporter';
  * URL padrão pública do backend quando rodando como app nativo (Capacitor/APK)
  * e nenhuma VITE_API_URL foi injetada no build.
  */
-export const DEFAULT_API_URL = 'https://afiliate.onrender.com';
+export const DEFAULT_API_URL = 'https://api.lkrm.site';
 
 /**
  * Domínio padrão oficial do encurtador de links
@@ -52,14 +52,26 @@ export function isNativeApp(): boolean {
 
 /**
  * Resolve a URL base para chamadas ao backend Express (server.ts):
- * 1. VITE_API_URL definida no build (ex: https://afiliate.onrender.com)
- * 2. Em APK Nativo (Capacitor), fallback para DEFAULT_API_URL
- * 3. Na Web (Vercel / Render / Dev local com same-origin), retorna '' (string vazia para caminhos relativos)
+ * 1. VITE_API_URL válida, exceto o endereço legado do Render.
+ * 2. Em APK nativo, usa o backend público em api.lkrm.site.
+ * 3. Na Web, usa caminhos relativos (mesma origem) quando não houver uma API configurada.
+ *
+ * A variável VITE_API_URL foi configurada anteriormente apontando ao Render.
+ * Ignorá-la temporariamente evita que builds novos continuem dependentes desse serviço.
  */
 export function getApiBaseUrl(): string {
   const envApiUrl = import.meta.env.VITE_API_URL;
   if (envApiUrl && typeof envApiUrl === 'string' && envApiUrl.trim()) {
-    return envApiUrl.trim().replace(/\/+$/, '');
+    const configuredUrl = envApiUrl.trim().replace(/\/+$/, '');
+    try {
+      const hostname = new URL(configuredUrl).hostname.toLowerCase();
+      // Não voltar ao Render por causa de uma variável antiga do build.
+      if (hostname !== 'onrender.com' && !hostname.endsWith('.onrender.com')) {
+        return configuredUrl;
+      }
+    } catch {
+      // Configuração inválida: usa o padrão seguro abaixo.
+    }
   }
 
   if (isNativeApp()) {
