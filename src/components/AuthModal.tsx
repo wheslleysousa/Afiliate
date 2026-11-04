@@ -153,8 +153,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
         
         {/* Header Branding */}
         <div className="text-center space-y-2 mb-6">
-          <img src={afiliateMark} alt="Logo do afiliate" className="w-16 h-16 rounded-2xl mb-1 mx-auto" />
-          <h1 className="text-2xl font-black tracking-tight text-white">afiliate</h1>
+          <img src={afiliateMark} alt="Logo do Afiliate" className="w-16 h-16 rounded-2xl mb-1 mx-auto" />
+          <h1 className="text-2xl font-black tracking-tight text-white">Afiliate</h1>
           <p className="text-xs text-[#93a0b5]">
             {mode === 'register' ? 'Crie sua conta para gerenciar e extrair copies' : 'Acesse seu painel de afiliado'}
           </p>
