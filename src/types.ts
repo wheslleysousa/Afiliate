@@ -240,6 +240,8 @@ export interface WaGroupParticipant {
 export interface WaGroup {
   groupId: string;
   kind?: 'group' | 'channel';
+  isActive?: boolean; // false = grupo ausente do WhatsApp em sincronização concluída
+  hidden?: boolean; // ocultado pelo usuário apenas no Afiliate
   isCommunity?: boolean;
   linkedParent?: string | null;
   sessionId?: string;
@@ -259,6 +261,8 @@ export interface WaChannel {
   sessionId: string;
   name: string;
   canPost: boolean;
+  access?: 'admin' | 'following';
+  verificationPending?: boolean;
   verifiedAt?: any;
   updatedAt?: any;
 }
@@ -357,6 +361,10 @@ export interface WaSession {
   requestedSyncGroups?: boolean;
   lastGroupSyncAt?: any;
   groupSyncError?: string | null;
+  channelDiscoverySupported?: boolean;
+  channelSyncError?: string | null;
+  channelSyncCount?: number;
+  lastChannelSyncAt?: any;
   groupCapabilities?: {
     createGroup?: boolean;
     createCommunity?: boolean;
