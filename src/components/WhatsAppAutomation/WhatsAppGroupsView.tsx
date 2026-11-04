@@ -947,15 +947,14 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-center gap-3">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Criar Primeiro Grupo
-            </button>
-          </div>
+          {connectedSessions.some(sess => sess.groupCapabilities?.commandsEnabled) && (
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button type="button" onClick={() => setIsCreateModalOpen(true)}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg inline-flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Criar Primeiro Grupo
+              </button>
+            </div>
+          )}
         </div>
       )}
 
