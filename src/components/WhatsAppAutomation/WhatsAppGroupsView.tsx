@@ -27,6 +27,8 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  LogOut,
+  RotateCcw,
 } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { WhatsAppAlert } from './WhatsAppAlert';
@@ -44,6 +46,8 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   onSelectGroupForCampaign,
 }) => {
   const [groups, setGroups] = useState<WaGroup[]>([]);
+  const [excludedGroups, setExcludedGroups] = useState<Array<{ id: string; groupId: string; sessionId: string; name: string }>>([]);
+  const [showExcluded, setShowExcluded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [accountFilter, setAccountFilter] = useState<string>('connected');
@@ -57,9 +61,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
   // Custom Deletion Confirmation Modals
-  const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<WaGroup | null>(null);
+  const [leaveConfirmGroup, setLeaveConfirmGroup] = useState<WaGroup | null>(null);
+  const [removeConfirmGroup, setRemoveConfirmGroup] = useState<WaGroup | null>(null);
   const [showDeleteDisconnectedModal, setShowDeleteDisconnectedModal] = useState<boolean>(false);
-  const [isDeletingGroup, setIsDeletingGroup] = useState<boolean>(false);
+  const [isLeavingGroup, setIsLeavingGroup] = useState<boolean>(false);
+  const [isRemovingGroup, setIsRemovingGroup] = useState(false);
+  const [restoringGroupId, setRestoringGroupId] = useState<string | null>(null);
 
   // Manage Real Participants Modal
   const [manageGroupModal, setManageGroupModal] = useState<WaGroup | null>(null);
@@ -113,6 +120,15 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     );
 
     return () => unsubscribe();
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waGroupExclusions'),
+      snap => setExcludedGroups(snap.docs.map(d => ({
+        id: d.id, groupId: String(d.data().groupId || ''),
+        sessionId: String(d.data().sessionId || ''), name: String(d.data().name || 'Grupo'),
+      }))), err => console.warn('[Afiliate] Erro ao carregar excluídos:', err.message));
   }, [uid]);
 
   const sessionMap = new Map(waSessions.map((s) => [s.sessionId || s.id || '', s.label || 'Conta WhatsApp']));
@@ -235,46 +251,76 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
     }
   };
 
-  const handleConfirmDeleteSingleGroup = async () => {
-    if (!uid || !deleteConfirmGroup) return;
-    setIsDeletingGroup(true);
-
+  const handleConfirmLeaveGroup = async () => {
+    if (!uid || !leaveConfirmGroup || isLeavingGroup) return;
+    setIsLeavingGroup(true);
     try {
-      const targetDocId = (deleteConfirmGroup as any).docId || (deleteConfirmGroup as any).id || deleteConfirmGroup.groupId;
-      const realGroupId = (deleteConfirmGroup as any).groupId || '';
-      const sessionId = (deleteConfirmGroup as any).sessionId || '';
-      if (realGroupId.endsWith('@g.us')) {
-        if (!sessionId || !connectedSessionIds.has(sessionId)) {
-          throw new Error('Conecte a conta correspondente antes de sair do grupo.');
-        }
-        await addDoc(collection(db, 'users', uid, 'waCommands'), {
-          action: 'leaveGroup',
-          groupId: realGroupId,
-          sessionId,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-        });
-        // Só o worker apaga o registro quando o WhatsApp confirma a saída.
-        setAlertMessage({
-          type: 'success',
-          text: `Saída de "${deleteConfirmGroup.name}" solicitada. O grupo permanece na lista até o WhatsApp confirmar. Acompanhe o worker.`,
-        });
-      } else {
-        await deleteDoc(doc(db, 'users', uid, 'waGroups', targetDocId));
-        setAlertMessage({ type: 'success', text: 'Registro local removido do Afiliate.' });
+      const groupId = leaveConfirmGroup.groupId || '';
+      const sessionId = leaveConfirmGroup.sessionId || '';
+      if (!/^\\d[\\d-]{5,50}@g\\.us$/.test(groupId)) {
+        throw new Error('Este registro não tem um ID de grupo válido do WhatsApp.');
       }
-      if (selectedGroup?.groupId === deleteConfirmGroup.groupId) {
-        setSelectedGroup(null);
+      const session = connectedSessions.find(s => (s.sessionId || s.id) === sessionId);
+      if (!session) throw new Error('Conecte a conta correspondente antes de sair.');
+      if (!session.groupCapabilities?.leaveGroup && !session.groupCapabilities?.commandsEnabled) {
+        throw new Error('O worker ainda não habilitou a saída individual. Atualize o worker no Termux.');
       }
-      setDeleteConfirmGroup(null);
-    } catch (err: any) {
-      console.error('Erro ao excluir grupo:', err);
-      setAlertMessage({
-        type: 'error',
-        text: err?.message || 'Não foi possível solicitar a saída do grupo. Tente novamente.',
+      await addDoc(collection(db, 'users', uid, 'waCommands'), {
+        action: 'leaveGroup', groupId, sessionId, name: leaveConfirmGroup.name || 'Grupo',
+        status: 'pending', createdAt: serverTimestamp(),
       });
+      setAlertMessage({ type: 'success',
+        text: 'Pedido de saída enviado. A saída será registrada quando o WhatsApp confirmar; veja Atividade recente.' });
+      setSelectedGroup(null);
+      setLeaveConfirmGroup(null);
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível solicitar a saída.' });
     } finally {
-      setIsDeletingGroup(false);
+      setIsLeavingGroup(false);
+    }
+  };
+
+  const handleConfirmRemoveGroup = async () => {
+    if (!uid || !removeConfirmGroup || isRemovingGroup) return;
+    setIsRemovingGroup(true);
+    try {
+      const groupId = removeConfirmGroup.groupId || '';
+      const sessionId = removeConfirmGroup.sessionId || '';
+      const groupDocId = (removeConfirmGroup as any).docId || (removeConfirmGroup as any).id;
+      if (!sessionId || !groupId || !groupDocId) throw new Error('Registro incompleto.');
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'users', uid, 'waGroupExclusions', sessionId + '_' + groupId), {
+        groupId, sessionId, name: removeConfirmGroup.name || 'Grupo',
+        excludedAt: serverTimestamp(),
+      }, { merge: true });
+      batch.delete(doc(db, 'users', uid, 'waGroups', groupDocId));
+      await batch.commit();
+      setAlertMessage({ type: 'success', text: 'Registro excluído do Afiliate. Você continua no grupo do WhatsApp; pode restaurá-lo em Excluídos.' });
+      setSelectedGroup(null);
+      setRemoveConfirmGroup(null);
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível excluir o registro do Afiliate.' });
+    } finally {
+      setIsRemovingGroup(false);
+    }
+  };
+
+  const restoreExcludedGroup = async (item: { id: string; groupId: string; sessionId: string }) => {
+    if (!uid || restoringGroupId) return;
+    setRestoringGroupId(item.id);
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', uid, 'waGroupExclusions', item.id));
+      if (connectedSessionIds.has(item.sessionId)) {
+        batch.set(doc(db, 'users', uid, 'waSessions', item.sessionId),
+          { requestedSyncGroups: true, requestedGroupSyncAt: serverTimestamp() }, { merge: true });
+      }
+      await batch.commit();
+      setAlertMessage({ type: 'success', text: 'Registro restaurado. Ele voltará a aparecer após sincronização, se a conta ainda participar do grupo.' });
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: err?.message || 'Não foi possível restaurar o grupo.' });
+    } finally {
+      setRestoringGroupId(null);
     }
   };
 
