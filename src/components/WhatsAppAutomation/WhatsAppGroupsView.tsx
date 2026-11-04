@@ -1322,29 +1322,29 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         </div>
       )}
 
-      {/* Confirmation Modal - Single Group Deletion */}
+      {/* Confirmation Modal - Leave WhatsApp Group */}
       {leaveConfirmGroup && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0e1119] border border-[#1e2636] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl relative animate-fadeIn">
             <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl shrink-0">
-                <Trash2 className="w-6 h-6" />
+                <LogOut className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Sair deste grupo?</h3>
+                <h3 className="text-base font-bold text-white">Sair de “{leaveConfirmGroup.name}”?</h3>
               </div>
             </div>
 
             <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
-                O Afiliate solicitará ao WhatsApp que esta conta saia do grupo. Isso não apaga o grupo dos outros participantes. A saída só termina após confirmação do worker.
+                Você sairá realmente do grupo no WhatsApp desta conta. Os demais participantes permanecem. O Afiliate só remove o grupo da lista após a confirmação do worker.
               </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1e2636]">
               <button
                 disabled={isLeavingGroup}
-                onClick={() => setDeleteConfirmGroup(null)}
+                onClick={() => setLeaveConfirmGroup(null)}
                 className="px-4 py-2 bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] text-xs font-semibold rounded-xl border border-[#1e2636] transition-colors"
               >
                 Cancelar
@@ -1364,6 +1364,36 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                     Solicitar saída
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Delete ONLY from Afiliate */}
+      {removeConfirmGroup && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e1119] border border-rose-500/25 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3 pb-4 border-b border-[#1e2636]">
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl"><Trash2 size={23} /></div>
+              <div>
+                <h3 className="text-base font-bold text-white">Excluir “{removeConfirmGroup.name}” do Afiliate?</h3>
+                <p className="text-xs text-[#a6b4c9] mt-1">Esta ação não sai do grupo no WhatsApp.</p>
+              </div>
+            </div>
+            <p className="text-xs text-[#eef2f9] leading-relaxed">
+              O registro será removido do Afiliate e não reaparecerá após sincronizar.
+              Você poderá restaurá-lo na seção <strong>Excluídos do Afiliate</strong>,
+              desde que ainda participe do grupo.
+            </p>
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#1e2636]">
+              <button type="button" disabled={isRemovingGroup} onClick={() => setRemoveConfirmGroup(null)}
+                className="px-4 py-2 rounded-xl border border-[#293246] bg-[#151a26] text-xs font-semibold text-white">
+                Cancelar
+              </button>
+              <button type="button" disabled={isRemovingGroup} onClick={handleConfirmRemoveGroup}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-xs font-bold text-white disabled:opacity-50">
+                {isRemovingGroup ? 'Excluindo...' : 'Excluir do Afiliate'}
               </button>
             </div>
           </div>
