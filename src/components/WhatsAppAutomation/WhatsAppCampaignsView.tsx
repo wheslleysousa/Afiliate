@@ -409,6 +409,7 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
         onSave={handleSaveCampaignData}
         customTemplates={customTemplates}
         defaultTemplateId={defaultTemplateId}
+        preselectedDestinationId={preselectedGroupId}
       />
 
       {/* Modal Prévia Próximos Envios */}
