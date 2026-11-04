@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { WaGroup, WaChannel, WaSession, ApiKeysConfig } from '../types';
 import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
@@ -27,6 +27,8 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
   const [waChannels, setWaChannels] = useState<WaChannel[]>([]);
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
   const [preselectedGroupId, setPreselectedGroupId] = useState<string | null>(null);
+  const [hidingGroups, setHidingGroups] = useState(false);
+  const [groupActionMessage, setGroupActionMessage] = useState('');
 
   useEffect(() => {
     if (!uid) return;
@@ -69,6 +71,29 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
       kind: 'channel' as const, size: 0,
     })),
   ];
+
+  const hideAllVerifiedGroups = async () => {
+    if (!visibleGroups.length || hidingGroups) return;
+    if (!window.confirm('Ocultar todos os grupos somente no Afiliate? Isso não sai dos grupos nem apaga as sessões.')) return;
+    setHidingGroups(true);
+    setGroupActionMessage('');
+    try {
+      for (let index = 0; index < visibleGroups.length; index += 400) {
+        const batch = writeBatch(db);
+        for (const g of visibleGroups.slice(index, index + 400)) {
+          const id = (g as any).id;
+          if (id) batch.set(doc(db, 'users', uid, 'waGroups', id),
+            { hidden: true, updatedAt: serverTimestamp() }, { merge: true });
+        }
+        await batch.commit();
+      }
+      setGroupActionMessage('Grupos ocultados apenas no Afiliate. Nenhuma conta foi desconectada.');
+    } catch (err: any) {
+      setGroupActionMessage('Falha ao ocultar grupos: ' + (err?.message || 'tente novamente'));
+    } finally {
+      setHidingGroups(false);
+    }
+  };
 
   const openCampaign = (destinationId: string) => {
     setPreselectedGroupId(destinationId);
@@ -126,7 +151,19 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
 
       <section aria-label="Área selecionada">
         {activeSubTab === 'groups' && (
-          <WhatsAppGroupsView uid={uid} waSessions={waSessions} onSelectGroupForCampaign={openCampaign} />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#101723] border border-[#293246] px-3.5 py-3">
+              <p className="text-xs text-[#a6b4c9]">Só aparecem como ativos grupos cuja participação foi confirmada.</p>
+              {visibleGroups.length > 0 && (
+                <button type="button" onClick={hideAllVerifiedGroups} disabled={hidingGroups}
+                  className="shrink-0 rounded-lg border border-[#38465d] px-3 py-2 text-xs font-semibold text-[#c8d4e8] disabled:opacity-50">
+                  {hidingGroups ? 'Ocultando...' : 'Ocultar todos'}
+                </button>
+              )}
+            </div>
+            {groupActionMessage && <p role="status" className="text-xs text-[#b6c7e3]">{groupActionMessage}</p>}
+            <WhatsAppGroupsView uid={uid} waSessions={waSessions} onSelectGroupForCampaign={openCampaign} />
+          </div>
         )}
         {activeSubTab === 'channels' && (
           <WhatsAppChannelsView uid={uid} sessions={waSessions} onSelectChannel={openCampaign} />
