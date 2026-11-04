@@ -58,7 +58,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
 
   const connected = waSessions.filter(s => s.status === 'connected');
   const connectedIds = new Set(connected.map(s => s.sessionId || s.id || ''));
-  const visibleGroups = waGroups.filter(g => g.isActive !== false && !g.hidden &&
+  const visibleGroups = waGroups.filter(g => g.isActive === true && g.membershipVerified === true && !g.hidden &&
     !!g.sessionId && connectedIds.has(g.sessionId));
   const visibleChannels = waChannels.filter(c => connectedIds.has(c.sessionId));
   const myChannels = visibleChannels.filter(c => c.canPost);
@@ -89,6 +89,17 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
         <p className="text-sm text-[#a6b4c9]">Canais, grupos e campanhas em um só lugar.</p>
       </div>
       <WorkerHealthCard uid={uid} compact />
+      {connected.some(s => !!s.groupSyncWarning) && (
+        <p role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3.5 py-3 text-xs leading-relaxed text-amber-200">
+          {connected.find(s => s.groupSyncWarning)?.groupSyncWarning}
+        </p>
+      )}
+      {waGroups.length > 0 && visibleGroups.length === 0 && connected.length > 0 &&
+        !connected.some(s => s.groupSyncWarning) && (
+          <p className="rounded-xl border border-[#293246] bg-[#101723] px-3.5 py-3 text-xs text-[#a6b4c9]">
+            Os registros antigos não são contados até o worker confirmar a participação desta conta. Use “Sincronizar grupos”.
+          </p>
+        )}
       <div className="grid grid-cols-3 gap-2">
         {([
           ['Contas', connected.length],
