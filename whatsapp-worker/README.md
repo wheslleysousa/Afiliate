@@ -135,3 +135,15 @@ O projeto já possui APK Android Capacitor (workflow **Build and Release Android
 **Atenção:** o APK não inclui motor Baileys nem credenciais Firebase Admin. O serviço continua rodando fora do aplicativo, mantendo sessões em armazenamento persistente. Para usuários diferentes, o worker Termux com USER_UID fixo NÃO basta. Existe protótipo de supervisor para servidor confiável: `npm run start:manager` (arquivo `manager.js`, diretórios isolados `auth-users/<uid>`). Não executar supervisor e worker Termux simultaneamente para a mesma conta. **Supervisor ainda não hospedado e sem teste ponta a ponta multiusuário.** Quando não há serviço, a interface informa indisponibilidade. Não fingir pareamento concluído.
 
 O supervisor mantém `WA_SEND_ENABLED=false` e `WA_GROUP_COMMANDS_ENABLED=false` para todas as contas; neste estágio ele é somente para conectar e sincronizar. Para produção pública, revisar vulnerabilidades npm, persistência, regras Firestore (hoje clientes conseguem gravar status), proteção do código temporário, limite de usuários e privacidade. Sem aprovação e implantação dessa infraestrutura, não anunciar serviço público. Instruções e checklist completos: `docs/ANDROID_APP_WHATSAPP_PAIRING_2026-11-01.md`.
+
+## Sair de um grupo vs excluir do Afiliate (permissões isoladas)
+
+Na aba **WhatsApp → Grupos**, há duas ações distintas em cada grupo, sempre com confirmação:
+
+- **Sair do grupo:** envia `leaveGroup` por `waCommands`, na sessão WhatsApp correspondente. O worker verifica a identidade da conta e participação pelo metadata do grupo, chama `groupLeave`, e só depois marca o grupo como inativo. O resultado aparece em **Atividade recente**. Se falhar, o grupo continua intacto.
+- **Excluir do Afiliate:** apaga somente o documento de `waGroups`, sem sair do WhatsApp. Persiste um registro de exclusão em `waGroupExclusions` para que sincronizações futuras não recriem o grupo na lista. Abra **Excluídos do Afiliate** para restaurar e sincronizar novamente.
+
+**Termux:** `scripts/start-termux-safe.sh` define `WA_SEND_ENABLED=false`,
+`WA_GROUP_COMMANDS_ENABLED=false` e `WA_GROUP_LEAVE_ENABLED=true`: o usuário pode sair de um grupo individualmente, mas não criar grupos nem disparar mensagens. Em outras instalações, `WA_GROUP_LEAVE_ENABLED=false` é o padrão; habilitar a flag de saída sem liberar o envio.
+
+A lista de campanhas/contadores ignora os grupos excluídos. As exclusões são locais ao UID e ao sessionId; credenciais `auth/`, `.env` e os dados de outras sessões não são apagados. Para usar a nova UI no Android, compile o APK **no Termux** após atualizar `main`, nunca via GitHub Actions. Valide uma saída real de grupo selecionado antes de concluir QA.
