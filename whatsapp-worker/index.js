@@ -1329,7 +1329,10 @@ async function processSendQueue() {
           await new Promise((resolve) => setTimeout(resolve, typingDelay));
         }
 
-        if (item.imageUrl) {
+        // Upload de mídia em @newsletter é instável no Baileys: começar com texto.
+        // Só habilitar fotos em canais após comprovação em um canal próprio.
+        const sendMedia = !!item.imageUrl && (!isChannel || process.env.WA_CHANNEL_MEDIA_ENABLED === 'true');
+        if (sendMedia) {
           await sock.sendMessage(item.groupId, {
             image: { url: item.imageUrl },
             caption: item.copyText,
