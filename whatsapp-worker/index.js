@@ -24,6 +24,7 @@ const { BUILTIN_TEMPLATES, formattedPrice, renderTemplate, parseProductPrice } =
 const { archiveRejectedAuth } = require('./authRecovery');
 const { normalizeBRWhatsAppPhone } = require('./phoneBR');
 const { getCurrentWaWebVersion } = require('./waVersion');
+const { parseChannelReference, normalizeChannelId, canPublishToChannel, getChannelId } = require('./channelSupport');
 
 const {
   default: makeWASocket,
@@ -408,11 +409,19 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
           requestedConnect: false,
           reloginRequired: false,
           lastDisconnectCode: null,
+          groupCapabilities: {
+            createGroup: typeof sock.groupCreate === 'function',
+            createCommunity: typeof sock.communityCreate === 'function',
+            createChannel: typeof sock.newsletterCreate === 'function',
+            linkGroupToCommunity: typeof sock.communityLinkGroup === 'function',
+            commandsEnabled: WA_GROUP_COMMANDS_ENABLED,
+          },
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Sincronizar grupos desta conta específica
+        // Sincronizar grupos e canais autorizados desta conta.
         await syncGroups(sessionId, sock);
+        await syncChannels(sessionId, sock);
       }
     });
   } catch (err) {
@@ -470,6 +479,8 @@ function startSessionsManager() {
   // 2. Escutar Firestore em tempo real
   const sessionsColRef = db.collection('users').doc(USER_UID).collection('waSessions');
 
+  // Impede duas sincronizações concorrentes quando o listener vê alterações do próprio worker.
+  const groupSyncInFlight = new Set();
   sessionsListenerUnsub = sessionsColRef.onSnapshot(
     (snapshot) => {
       snapshot.docChanges().forEach((change) => {
@@ -517,6 +528,38 @@ function startSessionsManager() {
             requestedConnect: false,
           });
           return;
+        }
+
+        // O botão "Sincronizar" no aplicativo solicita atualização imediata.
+        // Antes, requestedSyncGroups era escrito no Firestore mas nunca consumido.
+        if (data.requestedSyncGroups && !groupSyncInFlight.has(sessionId)) {
+          groupSyncInFlight.add(sessionId);
+          const connected = sessionsMap.get(sessionId);
+          (async () => {
+            try {
+              if (!connected || connected.status !== 'connected' || !connected.sock) {
+                await updateSessionDoc(sessionId, {
+                  requestedSyncGroups: false,
+                  groupSyncError: 'Conecte esta conta WhatsApp antes de sincronizar os grupos.',
+                });
+              } else {
+                const ok = await syncGroups(sessionId, connected.sock);
+                await syncChannels(sessionId, connected.sock);
+                await updateSessionDoc(sessionId, {
+                  requestedSyncGroups: false,
+                  lastGroupSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+                  groupSyncError: ok ? null : 'O WhatsApp não conseguiu atualizar os grupos. Tente novamente.',
+                });
+              }
+            } catch (err) {
+              console.error('[WhatsApp] Falha na sincronização solicitada:', err.message);
+              await updateSessionDoc(sessionId, {
+                requestedSyncGroups: false, groupSyncError: 'Falha na atualização dos grupos.',
+              }).catch(() => {});
+            } finally {
+              groupSyncInFlight.delete(sessionId);
+            }
+          })();
         }
 
         // Se pediu conexão
@@ -628,6 +671,8 @@ async function syncGroups(sessionId, sock) {
         participantsCount: totalSize,
         participants: participants,
         description: group.desc || null,
+        isCommunity: !!group.isCommunity,
+        linkedParent: group.linkedParent || null,
         isAdmin: isBotAdmin,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -665,16 +710,54 @@ async function syncGroups(sessionId, sock) {
     }
 
     console.log(`✅ [Sessão: ${sessionId}] Sincronização de grupos concluída!`);
+    return true;
   } catch (err) {
     console.error(`⚠️ [Sessão: ${sessionId}] Erro ao sincronizar grupos:`, err.message);
+    return false;
   }
 }
 
-// Sincronizar grupos de todas as sessões conectadas periodicamente
+// Canais não aparecem em groupFetchAllParticipating: @newsletter != @g.us.
+async function saveVerifiedChannel(sessionId, sock, input) {
+  if (typeof sock.newsletterMetadata !== 'function') throw new Error('Baileys não oferece consulta de canais nesta instalação.');
+  const ref = typeof input === 'string' ? parseChannelReference(input) : { type: 'jid', value: getChannelId(input) };
+  if (!ref?.value) throw new Error('Informe um link https://whatsapp.com/channel/... ou um ID @newsletter válido.');
+  const initialMetadata = await sock.newsletterMetadata(ref.type, ref.value);
+  const channelId = getChannelId(initialMetadata) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
+  if (!channelId) throw new Error('Identificador do canal não encontrado no WhatsApp.');
+  // Links de convite retornam metadados de visitante; revalidar role pela conta conectada.
+  const metadata = await sock.newsletterMetadata('jid', channelId);
+  if (!canPublishToChannel(metadata)) throw new Error('Esta conta não administra o canal; nenhum envio foi habilitado.');
+  const name = typeof metadata.name === 'string' ? metadata.name : (metadata.name?.text || 'Canal WhatsApp');
+  await db.collection('users').doc(USER_UID).collection('waChannels').doc(`${sessionId}_${channelId}`).set({
+    channelId, sessionId, name, canPost: true, verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return channelId;
+}
+
+async function syncChannels(sessionId, sock) {
+  // A versão instalada pode não implementar a descoberta automática.
+  if (typeof sock.newsletterFetchAllParticipating !== 'function') return;
+  try {
+    const response = await sock.newsletterFetchAllParticipating();
+    const channels = Array.isArray(response) ? response : Object.values(response || {});
+    for (const metadata of channels) {
+      if (!getChannelId(metadata) || !canPublishToChannel(metadata)) continue;
+      try { await saveVerifiedChannel(sessionId, sock, metadata); }
+      catch (err) { console.warn('[Canais] Não foi possível validar canal:', err.message); }
+    }
+  } catch (err) {
+    console.warn('[Canais] Descoberta indisponível; utilize o link de convite no app:', err.message);
+  }
+}
+
+// Sincronizar grupos e canais de todas as sessões conectadas periodicamente
 async function syncAllGroups() {
   for (const [sessionId, sessionObj] of sessionsMap.entries()) {
     if (sessionObj.status === 'connected' && sessionObj.sock) {
       await syncGroups(sessionId, sessionObj.sock);
+      await syncChannels(sessionId, sessionObj.sock);
     }
   }
 }
@@ -1056,8 +1139,8 @@ async function runCampaignCycle() {
           || formatProductCopy(product, affiliateLink);
 
         for (const targetGId of campaign.targetGroupIds) {
-          // Extrair groupId real se for no formato sessionId_groupId
-          const realGroupId = targetGId.includes('_') && targetGId.endsWith('@g.us')
+          // Extrair o JID real para grupos e canais com prefixo de sessão.
+          const realGroupId = targetGId.includes('_') && (targetGId.endsWith('@g.us') || targetGId.endsWith('@newsletter'))
             ? targetGId.split('_').slice(1).join('_')
             : targetGId;
 
@@ -1184,26 +1267,39 @@ async function processSendQueue() {
         }
       }
 
-      // Só grupos reais e previamente selecionados são permitidos.
-      if (!item.groupId || !String(item.groupId).endsWith('@g.us')) {
+      // Apenas grupos reais ou canais gerenciados pela conta, nunca conversas privadas.
+      const isChannel = !!normalizeChannelId(item.groupId);
+      if (!item.groupId || (!String(item.groupId).endsWith('@g.us') && !isChannel)) {
         await queueDoc.ref.update({
           status: 'failed',
-          error: 'Destino inválido: apenas grupos do WhatsApp são suportados.',
+          error: 'Destino inválido: apenas grupos ou canais do WhatsApp são suportados.',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         continue;
       }
 
-      // O bot também precisa continuar participando do grupo na conta correta.
-      const groupDoc = await db.collection('users').doc(USER_UID)
-        .collection('waGroups').doc(itemSessionId + '_' + item.groupId).get();
-      if (!groupDoc.exists) {
+      const targetDoc = await db.collection('users').doc(USER_UID)
+        .collection(isChannel ? 'waChannels' : 'waGroups').doc(itemSessionId + '_' + item.groupId).get();
+      if (!targetDoc.exists || (isChannel && targetDoc.data()?.canPost !== true)) {
         await queueDoc.ref.update({
-          status: 'failed',
-          error: 'Grupo não sincronizado ou conta não participa mais do destino.',
+          status: 'failed', error: 'Destino não sincronizado ou canal sem autorização de publicação.',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         continue;
+      }
+      // Revalidar permissão ao vivo antes do claim/envio; não confiar somente no Firestore.
+      if (isChannel) {
+        try {
+          const sock = sessionObj.sock;
+          if (typeof sock.newsletterMetadata !== 'function' ||
+              !canPublishToChannel(await sock.newsletterMetadata('jid', item.groupId))) {
+            throw new Error('Esta conta não é administradora do canal.');
+          }
+        } catch (err) {
+          await queueDoc.ref.update({ status: 'failed', error: 'Permissão do canal não confirmada: ' + err.message,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+          continue;
+        }
       }
 
       // Claim atômico: se duas instâncias iniciarem por engano, apenas uma
@@ -1226,12 +1322,17 @@ async function processSendQueue() {
       try {
         console.log(`📤 [Sessão: ${sessionObj.label}] Enviando "${item.productTitle}" para ${item.groupId}...`);
 
-        // Simulação de presença "composing"
-        try { await sock.sendPresenceUpdate('composing', item.groupId); } catch (_) { /* presença é opcional */ }
-        const typingDelay = Math.floor(Math.random() * 2000) + 1500;
-        await new Promise((resolve) => setTimeout(resolve, typingDelay));
+        // Canais não suportam indicadores de digitação como grupos.
+        if (!isChannel) {
+          try { await sock.sendPresenceUpdate('composing', item.groupId); } catch (_) { /* opcional */ }
+          const typingDelay = Math.floor(Math.random() * 2000) + 1500;
+          await new Promise((resolve) => setTimeout(resolve, typingDelay));
+        }
 
-        if (item.imageUrl) {
+        // Upload de mídia em @newsletter é instável no Baileys: começar com texto.
+        // Só habilitar fotos em canais após comprovação em um canal próprio.
+        const sendMedia = !!item.imageUrl && (!isChannel || process.env.WA_CHANNEL_MEDIA_ENABLED === 'true');
+        if (sendMedia) {
           await sock.sendMessage(item.groupId, {
             image: { url: item.imageUrl },
             caption: item.copyText,
@@ -1334,6 +1435,8 @@ function pickConnectedSock(preferredSessionId) {
   if (preferredSessionId) {
     const s = sessionsMap.get(preferredSessionId);
     if (s && s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: preferredSessionId };
+    // Nunca executar saída/criação de grupo em outra conta WhatsApp.
+    return { sock: null, sessionId: null };
   }
   for (const [sid, s] of sessionsMap.entries()) {
     if (s.status === 'connected' && s.sock) return { sock: s.sock, sessionId: sid };
@@ -1355,26 +1458,76 @@ async function processCommands() {
       const cmd = cmdDoc.data() || {};
       const ref = cmdDoc.ref;
       try {
+        // Nunca executar de surpresa comandos antigos quando a automação for ligada.
+        const requestTime = cmd.createdAt?.toMillis?.();
+        if (!requestTime || Date.now() - requestTime > 30 * 60 * 1000) {
+          await ref.update({ status: 'failed', error: 'Comando expirado ou sem data. Solicite novamente.', doneAt: admin.firestore.FieldValue.serverTimestamp() });
+          continue;
+        }
         await ref.update({ status: 'processing', startedAt: admin.firestore.FieldValue.serverTimestamp() });
         const { sock, sessionId } = pickConnectedSock(cmd.sessionId);
         if (!sock) throw new Error('Nenhuma sessão do WhatsApp conectada.');
 
-        if (cmd.action === 'createGroup') {
-          const name = (cmd.name || 'Novo Grupo').toString().trim().slice(0, 100);
+        if (cmd.action === 'registerChannel') {
+          const channelId = await saveVerifiedChannel(sessionId, sock, cmd.channelReference);
+          await ref.update({ status: 'done', channelId, doneAt: admin.firestore.FieldValue.serverTimestamp() });
+        } else if (!WA_GROUP_COMMANDS_ENABLED) {
+          throw new Error('Comandos de criação/saída desativados; apenas cadastro seguro de canais está disponível.');
+        } else if (cmd.action === 'createGroup') {
+          const name = (cmd.name || '').toString().trim().slice(0, 100);
+          if (!name) throw new Error('Informe o nome do grupo, comunidade ou canal.');
           const participants = Array.isArray(cmd.participants) ? cmd.participants.map(normalizeJid).filter(Boolean) : [];
-          const created = await sock.groupCreate(name, participants);
-          const gid = created && created.id;
-          if (gid && cmd.description) { try { await sock.groupUpdateDescription(gid, String(cmd.description)); } catch (e) {} }
+          const type = cmd.type || 'group';
+          let gid = null;
           let inviteLink = null;
-          if (gid) { try { const code = await sock.groupInviteCode(gid); inviteLink = code ? `https://chat.whatsapp.com/${code}` : null; } catch (e) {} }
-          await ref.update({ status: 'done', groupId: gid || null, inviteLink: inviteLink || null, doneAt: admin.firestore.FieldValue.serverTimestamp() });
-          await syncGroups(sessionId, sock);
-          console.log(`✅ [Comando] Grupo criado: "${name}" (${gid})`);
+          let linkWarning = null;
+          if (type === 'community') {
+            if (typeof sock.communityCreate !== 'function') throw new Error('A versão de Baileys instalada não suporta criar comunidades. Nenhuma ação foi realizada.');
+            const created = await sock.communityCreate(name, String(cmd.description || ''));
+            gid = created?.id || null;
+          } else if (type === 'channel') {
+            if (typeof sock.newsletterCreate !== 'function') throw new Error('A versão de Baileys instalada não suporta criar canais. Nenhuma ação foi realizada.');
+            const created = await sock.newsletterCreate(name, String(cmd.description || ''));
+            gid = created?.id || null;
+          } else if (type === 'group') {
+            const created = await sock.groupCreate(name, participants);
+            gid = created?.id || null;
+            if (gid && cmd.description) {
+              try { await sock.groupUpdateDescription(gid, String(cmd.description)); }
+              catch (e) { linkWarning = 'Grupo criado, mas não foi possível adicionar a descrição.'; }
+            }
+            if (gid && cmd.parentCommunityJid) {
+              if (typeof sock.communityLinkGroup !== 'function') {
+                linkWarning = 'Grupo criado, mas esta versão do WhatsApp Web não permite vinculá-lo à comunidade.';
+              } else {
+                try { await sock.communityLinkGroup(gid, String(cmd.parentCommunityJid)); }
+                catch (e) { linkWarning = 'Grupo criado, mas não foi possível vinculá-lo à comunidade.'; }
+              }
+            }
+          } else {
+            throw new Error('Tipo de criação desconhecido: ' + type);
+          }
+          if (!gid) throw new Error('WhatsApp não confirmou o identificador do item criado.');
+          if (type === 'group') {
+            try { const code = await sock.groupInviteCode(gid); inviteLink = code ? `https://chat.whatsapp.com/${code}` : null; } catch (e) {}
+          }
+          if (type === 'channel') {
+            // Canais criados não entram em waGroups. Somente habilitar após validar role admin.
+            await saveVerifiedChannel(sessionId, sock, { id: gid });
+          }
+          await ref.update({
+            status: 'done', groupId: gid, inviteLink, warning: linkWarning,
+            doneAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          if (type !== 'channel') await syncGroups(sessionId, sock);
+          console.log(`✅ [Comando] ${type} criado no WhatsApp: ${gid}`);
         } else if (cmd.action === 'leaveGroup') {
           const gid = cmd.groupId;
           if (!gid) throw new Error('groupId ausente');
-          try { await sock.groupLeave(gid); } catch (e) { /* pode já ter saído */ }
-          try { await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${cmd.sessionId || sessionId}_${gid}`).delete(); } catch (e) {}
+          if (!String(gid).endsWith('@g.us')) throw new Error('Identificador de grupo inválido.');
+          // Erros devem ficar visíveis no waCommands e não virar sucesso falso.
+          await sock.groupLeave(gid);
+          await db.collection('users').doc(USER_UID).collection('waGroups').doc(`${sessionId}_${gid}`).delete();
           await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
           console.log(`✅ [Comando] Saiu do grupo: ${gid}`);
         } else {
@@ -1412,7 +1565,7 @@ async function main() {
   setInterval(updateWorkerHealth, 60 * 1000);
 
   // 3. Sincronização periódica de grupos (a cada X minutos)
-  const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 15) * 60 * 1000;
+  const syncIntervalMs = (parseInt(process.env.SYNC_GROUPS_INTERVAL_MIN) || 5) * 60 * 1000;
   setInterval(syncAllGroups, syncIntervalMs);
 
   // 4. Geração e consumo de filas só após habilitação explícita.
@@ -1423,11 +1576,9 @@ async function main() {
     setInterval(processSendQueue, 15 * 1000);
   }
 
-  // 5. Comandos que criam/saem de grupos também exigem autorização explícita.
-  if (WA_GROUP_COMMANDS_ENABLED) {
-    setInterval(processCommands, 8 * 1000);
-    processCommands();
-  }
+  // 5. Registrar um canal é seguro; criar/sair de grupos exige autorização explícita.
+  setInterval(processCommands, 8 * 1000);
+  processCommands();
 }
 
 main().catch((err) => {

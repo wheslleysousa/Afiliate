@@ -117,3 +117,27 @@
   background-color: #ef4444;
 }
 
+
+/* Mobile-first Afiliate — simples, legível e com feedback sem excesso de efeitos. */
+:root {
+  --af-blue: #116cf5;
+  --af-fg: #eef2f9;
+  --af-muted: #a6b4c9;
+}
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { touch-action: manipulation; }
+:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+@media (max-width: 767px) {
+  input, textarea, select { font-size: 16px; } /* Evita zoom automático em WebView/iOS. */
+  button, [role="tab"] { min-height: 44px; }
+  .overflow-x-auto { scrollbar-width: none; }
+  .overflow-x-auto::-webkit-scrollbar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

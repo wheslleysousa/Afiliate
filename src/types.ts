@@ -239,6 +239,9 @@ export interface WaGroupParticipant {
 
 export interface WaGroup {
   groupId: string;
+  kind?: 'group' | 'channel';
+  isCommunity?: boolean;
+  linkedParent?: string | null;
   sessionId?: string;
   name: string;
   photoUrl?: string | null;
@@ -247,6 +250,16 @@ export interface WaGroup {
   isAdmin?: boolean;
   participantsCount?: number;
   participants?: WaGroupParticipant[];
+  updatedAt?: any;
+}
+
+export interface WaChannel {
+  id?: string;
+  channelId: string;
+  sessionId: string;
+  name: string;
+  canPost: boolean;
+  verifiedAt?: any;
   updatedAt?: any;
 }
 
@@ -341,6 +354,16 @@ export interface WaSession {
   pairingCode?: string | null;
   pairingCodeAt?: any;
   pairingError?: string | null;
+  requestedSyncGroups?: boolean;
+  lastGroupSyncAt?: any;
+  groupSyncError?: string | null;
+  groupCapabilities?: {
+    createGroup?: boolean;
+    createCommunity?: boolean;
+    createChannel?: boolean;
+    linkGroupToCommunity?: boolean;
+    commandsEnabled?: boolean;
+  };
   reloginRequired?: boolean;
   lastDisconnectCode?: number | null;
   updatedAt?: any;

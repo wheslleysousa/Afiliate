@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { WhatsAppAlert } from './WhatsAppAlert';
+import { GroupCommandStatus } from './GroupCommandStatus';
 
 interface WhatsAppGroupsViewProps {
   uid: string;
@@ -86,8 +87,9 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             ...data,
           } as unknown as WaGroup;
 
-          if (!uniqueMap.has(gid)) {
-            uniqueMap.set(gid, groupObj);
+          const key = `${data.sessionId || 'legacy'}_${gid}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, groupObj);
           }
         });
         const list = Array.from(uniqueMap.values());
@@ -208,11 +210,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
     let matchesAccount = true;
     if (accountFilter === 'connected') {
-      if (connectedSessionIds.size > 0) {
-        matchesAccount = !!g.sessionId && connectedSessionIds.has(g.sessionId);
-      } else {
-        matchesAccount = true;
-      }
+      matchesAccount = !!g.sessionId && connectedSessionIds.has(g.sessionId);
     } else if (accountFilter !== 'all') {
       matchesAccount = g.sessionId === accountFilter;
     }
@@ -228,8 +226,10 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       const targetDocId = (deleteConfirmGroup as any).docId || (deleteConfirmGroup as any).id || deleteConfirmGroup.groupId;
       const realGroupId = (deleteConfirmGroup as any).groupId || '';
       const sessionId = (deleteConfirmGroup as any).sessionId || '';
-      // Se é um grupo REAL do WhatsApp (@g.us), manda o worker SAIR do grupo lá também.
-      if (realGroupId && realGroupId.endsWith('@g.us')) {
+      if (realGroupId.endsWith('@g.us')) {
+        if (!sessionId || !connectedSessionIds.has(sessionId)) {
+          throw new Error('Conecte a conta correspondente antes de sair do grupo.');
+        }
         await addDoc(collection(db, 'users', uid, 'waCommands'), {
           action: 'leaveGroup',
           groupId: realGroupId,
@@ -237,14 +237,15 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
           status: 'pending',
           createdAt: serverTimestamp(),
         });
+        // Só o worker apaga o registro quando o WhatsApp confirma a saída.
+        setAlertMessage({
+          type: 'success',
+          text: `Saída de "${deleteConfirmGroup.name}" solicitada. O grupo permanece na lista até o WhatsApp confirmar. Acompanhe o worker.`,
+        });
+      } else {
+        await deleteDoc(doc(db, 'users', uid, 'waGroups', targetDocId));
+        setAlertMessage({ type: 'success', text: 'Registro local removido do Afiliate.' });
       }
-      await deleteDoc(doc(db, 'users', uid, 'waGroups', targetDocId));
-      setAlertMessage({
-        type: 'success',
-        text: (realGroupId && realGroupId.endsWith('@g.us'))
-          ? `Saindo do grupo "${deleteConfirmGroup.name}" no WhatsApp…`
-          : `Registro do grupo "${deleteConfirmGroup.name}" removido.`,
-      });
       if (selectedGroup?.groupId === deleteConfirmGroup.groupId) {
         setSelectedGroup(null);
       }
@@ -253,7 +254,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
       console.error('Erro ao excluir grupo:', err);
       setAlertMessage({
         type: 'error',
-        text: 'Não foi possível remover o registro do grupo. Tente novamente.',
+        text: err?.message || 'Não foi possível solicitar a saída do grupo. Tente novamente.',
       });
     } finally {
       setIsDeletingGroup(false);
@@ -669,10 +670,18 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
             className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 shrink-0"
           >
             <Plus className="w-4 h-4" />
-            Criar Grupo
+            Criar
           </button>
         </div>
       </div>
+
+      {connectedSessions.length > 0 && connectedSessions.some(s => s.groupCapabilities?.commandsEnabled === false) && (
+        <p role="status" className="px-4 py-3 text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs leading-relaxed">
+          A conta está conectada, mas os comandos de grupos estão desativados no worker. Você pode sincronizar a lista; criar grupos ou sair deles exigirá habilitar os comandos no Termux.
+        </p>
+      )}
+
+      <GroupCommandStatus uid={uid} />
 
       {/* Disconnected groups info banner */}
       {disconnectedGroups.length > 0 && accountFilter === 'connected' && (
@@ -829,7 +838,7 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                         setDeleteConfirmGroup(group);
                       }}
                       className="p-1 text-[#93a0b5] hover:text-red-400 hover:bg-[#151a26] rounded-md transition-colors"
-                      title="Excluir grupo da lista"
+                      title="Sair do grupo no WhatsApp"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -1121,11 +1130,12 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         <CreateGroupModal
           uid={uid}
           waSessions={waSessions}
+          groups={groups}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={() => {
             setAlertMessage({
               type: 'success',
-              text: 'Solicitação de criação de grupo registrada com sucesso! Seu WhatsApp criará o grupo em instantes.',
+              text: 'Solicitação registrada. A criação ainda depende do worker e da confirmação do WhatsApp. Confira o andamento dos comandos.',
             });
           }}
         />
@@ -1216,13 +1226,13 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 <Trash2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Excluir grupo?</h3>
+                <h3 className="text-base font-bold text-white">Sair deste grupo?</h3>
               </div>
             </div>
 
             <div className="space-y-3 text-xs text-[#eef2f9]">
               <p>
-                Essa ação é irreversível. Tem certeza de que deseja excluir este grupo?
+                O Afiliate solicitará ao WhatsApp que esta conta saia do grupo. Isso não apaga o grupo dos outros participantes. A saída só termina após confirmação do worker.
               </p>
             </div>
 
@@ -1242,11 +1252,11 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                 {isDeletingGroup ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Excluindo...
+                    Solicitando...
                   </>
                 ) : (
                   <>
-                    Excluir
+                    Solicitar saída
                   </>
                 )}
               </button>

@@ -1,4 +1,5 @@
 import React from 'react';
+import afiliateMark from '../assets/afiliate-mark.svg';
 import { AppTab, UserProfile } from '../types';
 import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle, Scissors, Film, Link2, Ticket } from 'lucide-react';
 
@@ -34,13 +35,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems: { id: AppTab; label: string; icon: (isActive: boolean) => React.ReactNode; badge?: number }[] = [
     {
       id: 'dashboard',
-      label: 'Dashboard',
+      label: 'Início',
       icon: (active) => <BarChart2 className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
     },
     {
       id: 'marketplace',
-      label: 'Marketplace Global',
+      label: 'Explorar ofertas',
       icon: (active) => <Globe className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
+    },
+    {
+      id: 'new-product',
+      label: 'Criar divulgação',
+      icon: (active) => <PlusCircle className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
     },
     {
       id: 'my-products',
@@ -55,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'whatsapp-auto',
-      label: 'Automação Zap',
+      label: 'WhatsApp',
       icon: (active) => <Bot className={`w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-[#93a0b5]'}`} />,
     },
     {
@@ -102,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 bg-[#0e1119] border-r border-[#1e2636] transition-all duration-300 flex flex-col justify-between ${
+        className={`fixed top-0 left-0 bottom-0 z-50 bg-[#0e1119] border-r border-[#1e2636] transition-all duration-300 flex flex-col ${
           /* Mobile Drawer Positioning */
           mobileOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
         } ${
@@ -111,12 +117,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Top Header & Logo */}
-        <div>
-          <div className="h-16 px-4 flex items-center justify-between border-b border-[#1e2636]">
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="h-16 shrink-0 px-4 flex items-center justify-between border-b border-[#1e2636]">
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="p-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
+              <img src={afiliateMark} alt="Logo do afiliate" className="w-10 h-10 rounded-xl shrink-0" />
               {(isExpanded || mobileOpen) && (
                 <div className="animate-fadeIn truncate">
                   <h1 className="font-extrabold text-base text-white tracking-tight leading-none">afiliate</h1>
@@ -144,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-3 space-y-1.5">
+          <nav aria-label="Menu completo" className="p-3 space-y-1.5 overflow-y-auto flex-1 min-h-0 overscroll-contain">
             {menuItems.map((item) => {
               const isActive = activeTab === item.id;
               return (

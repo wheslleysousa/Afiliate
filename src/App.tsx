@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { Sidebar } from './components/Sidebar';
+import { MobileNav } from './components/MobileNav';
+import afiliateMark from './assets/afiliate-mark.svg';
 import { NewProductTab } from './components/NewProductTab';
 import { DashboardTab } from './components/DashboardTab';
 import { SavedProductsTab } from './components/SavedProductsTab';
@@ -1051,6 +1053,12 @@ export default function App() {
         setMobileOpen={setMobileMenuOpen}
       />
 
+      <MobileNav
+        activeTab={activeTab}
+        onNavigate={(tab) => { setActiveTab(tab); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onMore={() => setMobileMenuOpen(true)}
+      />
+
       {/* Main Content Area */}
       <div
         className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
@@ -1058,22 +1066,16 @@ export default function App() {
         }`}
       >
         {/* Top Navbar Header */}
-        <header className="h-16 px-4 sm:px-6 border-b border-[#1e2636] bg-[#0e1119]/90 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Mobile Hamburger Menu Toggle */}
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-[#151a26] hover:bg-[#1e2636] text-[#eef2f9] border border-[#1e2636]"
-              aria-label="Abrir menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+        <header className="h-16 px-3 sm:px-6 border-b border-[#243146] bg-[#0e1119]/95 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Marca consistente com o ícone instalado no Android */}
+            <img src={afiliateMark} alt="afiliate" className="md:hidden w-9 h-9 rounded-[11px] shrink-0" />
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="text-xs font-bold text-[#93a0b5] uppercase tracking-wider hidden sm:inline">
                 Painel do Afiliado /
               </span>
-              <span className="text-xs sm:text-sm font-extrabold text-white">
+              <span className="text-sm font-extrabold text-white truncate max-w-[calc(100vw-115px)] sm:max-w-none">
                 {activeTab === 'dashboard' && 'Dashboard'}
                 {activeTab === 'new-product' && 'Gerar Copy'}
                 {activeTab === 'marketplace' && 'Marketplace Global'}
@@ -1096,7 +1098,7 @@ export default function App() {
             <button
               onClick={() => setShowTimezoneModal(true)}
               title="Clique para alterar o fuso horário"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#151a26] hover:bg-[#1f2738] border border-[#1e2636] hover:border-blue-500/40 text-[#eef2f9] transition-all cursor-pointer font-medium"
+              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#151a26] hover:bg-[#1f2738] border border-[#1e2636] hover:border-blue-500/40 text-[#eef2f9] transition-all cursor-pointer font-medium"
             >
               <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <span className="font-bold">{getTimezoneInfo(currentTimezone).flag} {getTimezoneInfo(currentTimezone).offset}</span>
@@ -1106,7 +1108,7 @@ export default function App() {
             </button>
 
             {/* Daily Mine Counter Badge */}
-            <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+            <div className={`hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
               dailyMineCount >= PLAN_LIMITS.free
                 ? 'bg-red-500/15 border-red-500/30 text-red-400 font-semibold'
                 : 'bg-[#151a26] border-[#1e2636] text-[#eef2f9] font-medium'
@@ -1123,7 +1125,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Page Views */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 px-3 pt-4 pb-28 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto motion-safe:animate-fadeIn">
           {oauthSuccess && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-2">
@@ -1331,10 +1333,10 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className="border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
+        <footer className="hidden md:block border-t border-[#1e2636] bg-[#07090f] py-5 text-center text-xs text-[#93a0b5] mt-auto">
           <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-white">Afiliate</span>
+              <span className="font-bold text-white">afiliate</span>
               <span>© {new Date().getFullYear()} — Todos os direitos reservados.</span>
             </div>
           </div>

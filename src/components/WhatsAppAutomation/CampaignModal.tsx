@@ -39,6 +39,7 @@ interface CampaignModalProps {
   onSave: (campaignData: Partial<WaCampaign>) => Promise<void>;
   customTemplates?: CopyTemplate[];
   defaultTemplateId?: string;
+  preselectedDestinationId?: string | null;
 }
 
 const ALL_PLATFORMS = [
@@ -68,6 +69,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   onSave,
   customTemplates = [],
   defaultTemplateId,
+  preselectedDestinationId,
 }) => {
   const [name, setName] = useState('');
   const [sessionId, setSessionId] = useState('');
@@ -140,18 +142,16 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     } else {
       // Default reset
       setName('');
-      const defaultSId = waSessions[0]?.sessionId || waSessions[0]?.id || '';
+      const matchingDestination = waGroups.find(g => g.groupId === preselectedDestinationId);
+      const defaultSId = matchingDestination?.sessionId || waSessions.find(s => s.status === 'connected')?.sessionId || waSessions[0]?.sessionId || waSessions[0]?.id || '';
       setSessionId(defaultSId);
       setEnabled(true);
       setTemplateId(defaultTemplateId || 'whatsapp-urgency');
       setShortStyle('default');
       setCustomShortSlug('');
       
-      const filteredDefaults = waGroups
-        .filter((g) => !defaultSId || !g.sessionId || g.sessionId === defaultSId)
-        .map((g) => g.groupId);
-
-      setTargetGroupIds(filteredDefaults);
+      // Só o destino explicitamente escolhido na aba Canais/Grupos é pré-selecionado.
+      setTargetGroupIds(matchingDestination ? [matchingDestination.groupId] : []);
       setObjective('mais_vendidos');
       setMinSales('');
       setMinDiscount('');
@@ -169,7 +169,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setTimezone(getUserLocalTimezone());
     }
     setError(null);
-  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId]);
+  }, [campaign, waGroups, waSessions, isOpen, defaultTemplateId, preselectedDestinationId]);
 
   if (!isOpen) return null;
 
@@ -482,7 +482,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#eef2f9] flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-400" />
-                Grupos do WhatsApp Alvo ({targetGroupIds.length} selecionados)
+                Grupos e canais ({targetGroupIds.length} selecionados)
               </label>
               {availableGroups.length > 0 && (
                 <button
@@ -497,7 +497,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
             {availableGroups.length === 0 ? (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs rounded-xl">
-                Nenhum grupo encontrado para a conta selecionada. Conecte o WhatsApp no worker para sincronizar os grupos.
+                Nenhum grupo ou canal autorizado encontrado. Conecte o worker e cadastre seu canal na aba Canais.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto p-2 bg-[#151a26]/30 rounded-xl border border-[#1e2636]">
@@ -518,7 +518,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                         <span className="font-semibold truncate">{g.name}</span>
                       </div>
                       <span className="text-[10px] text-[#93a0b5] shrink-0">
-                        {g.size || g.participantsCount || 0} membros
+                        {g.kind === 'channel' ? 'Canal' : `${g.size || g.participantsCount || 0} membros`}
                       </span>
                     </div>
                   );
