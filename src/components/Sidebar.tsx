@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import afiliateMark from '../assets/afiliate-mark.svg';
 import { AppTab, UserProfile } from '../types';
 import { PlusCircle, ShoppingBag, Globe, PackageCheck, Settings, Code2, LogOut, Sparkles, ChevronLeft, ChevronRight, Menu, X, BarChart2, Bot, LayoutTemplate, Puzzle, Scissors, Film, Link2, Ticket } from 'lucide-react';
@@ -96,6 +96,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileOpen, setMobileOpen]);
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
@@ -108,9 +122,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
+        id="afiliate-sidebar"
+        aria-label="Menu lateral do Afiliate"
         className={`fixed top-0 left-0 bottom-0 z-50 bg-[#0e1119] border-r border-[#1e2636] transition-all duration-300 flex flex-col ${
           /* Mobile Drawer Positioning */
-          mobileOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
+          mobileOpen ? 'translate-x-0 w-[min(18rem,90vw)]' : '-translate-x-full md:translate-x-0'
         } ${
           /* Desktop Responsive Widths */
           isExpanded ? 'md:w-64' : 'md:w-20'
@@ -120,10 +136,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="h-16 shrink-0 px-4 flex items-center justify-between border-b border-[#1e2636]">
             <div className="flex items-center gap-3 overflow-hidden">
-              <img src={afiliateMark} alt="Logo do afiliate" className="w-10 h-10 rounded-xl shrink-0" />
+              <img src={afiliateMark} alt="Logo do Afiliate" className="w-10 h-10 rounded-xl shrink-0" />
               {(isExpanded || mobileOpen) && (
                 <div className="animate-fadeIn truncate">
-                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">afiliate</h1>
+                  <h1 className="font-extrabold text-base text-white tracking-tight leading-none">Afiliate</h1>
                   <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Painel Afiliado</span>
                 </div>
               )}
@@ -140,6 +156,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Close button on Mobile */}
             <button
+              type="button"
+              aria-label="Fechar menu lateral"
               onClick={() => setMobileOpen(false)}
               className="md:hidden p-1.5 rounded-lg bg-[#151a26] text-[#93a0b5] hover:text-white border border-[#1e2636]"
             >
