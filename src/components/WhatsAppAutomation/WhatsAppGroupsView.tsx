@@ -48,6 +48,11 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
   const [groups, setGroups] = useState<WaGroup[]>([]);
   const [excludedGroups, setExcludedGroups] = useState<Array<{ id: string; groupId: string; sessionId: string; name: string }>>([]);
   const [pendingLeaveGroupIds, setPendingLeaveGroupIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState<Set<string>>(new Set());
+  const [showBulkLeaveConfirm, setShowBulkLeaveConfirm] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState('');
+  const [isBulkLeaving, setIsBulkLeaving] = useState(false);
   const [showExcluded, setShowExcluded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -251,6 +256,60 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
 
     return matchesSearch && matchesAccount;
   });
+
+  const groupKey = (g: WaGroup) => (g.sessionId || '') + '_' + g.groupId;
+  const canRequestLeave = (g: WaGroup) => !!g.sessionId &&
+    connectedSessionIds.has(g.sessionId) && g.membershipVerified === true &&
+    g.isActive === true &&
+    !pendingLeaveGroupIds.has(groupKey(g)) &&
+    waSessions.some(s => (s.sessionId || s.id) === g.sessionId &&
+      (s.groupCapabilities?.leaveGroup || s.groupCapabilities?.commandsEnabled));
+  const eligibleDisplayedGroups = filteredGroups.filter(canRequestLeave);
+  const selectedGroups = visibleGroupRecords.filter(g =>
+    selectedGroupKeys.has(groupKey(g)) && canRequestLeave(g));
+
+  const toggleSelectedGroup = (g: WaGroup) => {
+    if (!canRequestLeave(g)) return;
+    const key = groupKey(g);
+    setSelectedGroupKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const requestBulkLeave = async () => {
+    if (!uid || isBulkLeaving || !selectedGroups.length) return;
+    if (selectedGroups.length > 5 && bulkConfirmText !== 'SAIR') return;
+    setIsBulkLeaving(true);
+    const targets = [...selectedGroups];
+    try {
+      // Um comando por grupo, cada um com status individual no worker.
+      // Não chamar groupLeave no cliente; só o worker autorizado executa.
+      for (let offset = 0; offset < targets.length; offset += 400) {
+        const batch = writeBatch(db);
+        for (const g of targets.slice(offset, offset + 400)) {
+          const cmdRef = doc(collection(db, 'users', uid, 'waCommands'));
+          batch.set(cmdRef, {
+            action: 'leaveGroup', groupId: g.groupId, sessionId: g.sessionId,
+            name: g.name || 'Grupo', status: 'pending',
+            createdAt: serverTimestamp(), requestedFrom: 'bulk-selection',
+          });
+        }
+        await batch.commit();
+      }
+      setShowBulkLeaveConfirm(false);
+      setSelectionMode(false);
+      setSelectedGroupKeys(new Set());
+      setBulkConfirmText('');
+      setAlertMessage({ type: 'success',
+        text: `Saída solicitada para ${targets.length} grupos. Cada grupo será processado individualmente; acompanhe Atividade recente.` });
+    } catch (err: any) {
+      setAlertMessage({ type: 'error', text: 'Falha ao enviar solicitações: ' + (err?.message || 'erro desconhecido') });
+    } finally {
+      setIsBulkLeaving(false);
+    }
+  };
 
   const toggleGroupVisibility = async (group: WaGroup) => {
     const docId = (group as any).docId || (group as any).id;
@@ -765,6 +824,48 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
         </p>
       )}
 
+      {visibleGroupRecords.length > 0 && (
+        <section className="rounded-xl border border-[#293246] bg-[#101723] p-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-white">Gerenciar vários grupos</p>
+              <p className="text-[11px] text-[#a6b4c9]">Selecione apenas os grupos que deseja abandonar no WhatsApp.</p>
+            </div>
+            <button type="button"
+              onClick={() => {
+                setSelectionMode(!selectionMode);
+                setSelectedGroupKeys(new Set());
+              }}
+              className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200">
+              {selectionMode ? 'Cancelar seleção' : 'Selecionar grupos'}
+            </button>
+          </div>
+          {selectionMode && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button"
+                  disabled={!eligibleDisplayedGroups.length}
+                  onClick={() => setSelectedGroupKeys(prev => new Set([
+                    ...prev, ...eligibleDisplayedGroups.map(groupKey),
+                  ]))}
+                  className="rounded-lg border border-[#37465f] px-3 py-2 text-xs text-blue-200 disabled:opacity-40">
+                  Selecionar todos da lista ({eligibleDisplayedGroups.length})
+                </button>
+                <button type="button" onClick={() => setSelectedGroupKeys(new Set())}
+                  className="rounded-lg border border-[#37465f] px-3 py-2 text-xs text-[#b9c7dc]">
+                  Limpar seleção
+                </button>
+                <span className="text-xs text-[#a6b4c9]">{selectedGroups.length} selecionado(s)</span>
+              </div>
+              <button type="button" disabled={selectedGroups.length === 0}
+                onClick={() => { setBulkConfirmText(''); setShowBulkLeaveConfirm(true); }}
+                className="w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2">
+                <LogOut size={17} /> Sair dos {selectedGroups.length} selecionados
+              </button>
+            </div>
+          )}
+        </section>
+      )}
       <GroupCommandStatus uid={uid} />
       {excludedGroups.length > 0 && (
         <section className="rounded-xl border border-[#293246] bg-[#101723] p-3.5 space-y-3">
@@ -889,11 +990,22 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
               <div
                 key={(group as any).docId || (group as any).id || `${group.groupId}_${idx}`}
                 onClick={() => {
+                  if (selectionMode) { toggleSelectedGroup(group); return; }
                   setSelectedGroup(group);
                   setDetailTab('info');
                 }}
                 className="bg-[#0e1119] border border-[#1e2636] hover:border-emerald-500/50 p-4 rounded-2xl transition-all hover:shadow-lg hover:shadow-emerald-950/20 cursor-pointer flex flex-col justify-between group relative"
               >
+                {selectionMode && (
+                  <label className="mb-3 inline-flex items-center gap-2 text-xs text-[#c8d4e8]"
+                    onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedGroupKeys.has(groupKey(group))}
+                      disabled={!canRequestLeave(group)}
+                      onChange={() => toggleSelectedGroup(group)}
+                      className="h-4 w-4 accent-blue-500" />
+                    {canRequestLeave(group) ? 'Selecionar para sair' : 'Indisponível para saída'}
+                  </label>
+                )}
                 <div className="flex items-start gap-3">
                   {group.photoUrl ? (
                     <img
@@ -1346,6 +1458,46 @@ export const WhatsAppGroupsView: React.FC<WhatsAppGroupsViewProps> = ({
                     Salvar Números Reais
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saída em lote: confirmação antes de criar cada comando individual. */}
+      {showBulkLeaveConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" aria-label="Confirmar saída de vários grupos"
+            className="w-full max-w-md rounded-2xl border border-amber-500/30 bg-[#0e1119] p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <LogOut className="text-amber-300 shrink-0" size={26} />
+              <div>
+                <h3 className="text-white font-bold">Sair de {selectedGroups.length} grupos?</h3>
+                <p className="text-xs text-[#a6b4c9]">Saída real pelo WhatsApp. Isso não pode ser desfeito pelo Afiliate.</p>
+              </div>
+            </div>
+            <div className="max-h-44 overflow-y-auto rounded-xl border border-[#293246] p-3 space-y-1.5">
+              {selectedGroups.map(g => <p key={groupKey(g)}
+                className="text-xs text-[#dbe6f5] break-words">• {g.name || g.groupId}</p>)}
+            </div>
+            {selectedGroups.length > 5 && (
+              <label className="block text-xs text-amber-200 space-y-2">
+                <span>Para confirmar mais de cinco saídas, digite SAIR:</span>
+                <input value={bulkConfirmText} onChange={e => setBulkConfirmText(e.target.value)}
+                  placeholder="SAIR" autoComplete="off"
+                  className="w-full rounded-lg border border-amber-500/30 bg-[#151a26] p-3 text-white" />
+              </label>
+            )}
+            <div className="flex gap-2">
+              <button type="button" disabled={isBulkLeaving}
+                onClick={() => setShowBulkLeaveConfirm(false)}
+                className="flex-1 rounded-xl border border-[#293246] py-3 text-xs text-white">Cancelar</button>
+              <button type="button"
+                disabled={isBulkLeaving || selectedGroups.length === 0 ||
+                  (selectedGroups.length > 5 && bulkConfirmText !== 'SAIR')}
+                onClick={() => void requestBulkLeave()}
+                className="flex-1 rounded-xl bg-amber-600 py-3 text-xs font-bold text-white disabled:opacity-40">
+                {isBulkLeaving ? 'Enviando pedidos...' : 'Confirmar saída'}
               </button>
             </div>
           </div>
