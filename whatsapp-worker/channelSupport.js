@@ -23,6 +23,14 @@ function parseChannelReference(value) {
   }
 }
 
+// A lista do Baileys pode vir como array, mapa por JID ou objeto embrulhado.
+function listChannels(response) {
+  const source = Array.isArray(response) ? response :
+    (response?.newsletters || response?.channels || response?.data || response);
+  const entries = Array.isArray(source) ? source : Object.values(source || {});
+  return entries.filter(item => item && typeof item === 'object' && getChannelId(item));
+}
+
 function channelRole(metadata) {
   const viewer = metadata?.viewer_metadata || metadata?.viewerMetadata || {};
   return String(viewer.role || metadata?.role || '').trim().toUpperCase();
@@ -38,4 +46,4 @@ function getChannelId(metadata) {
   return normalizeChannelId(raw);
 }
 
-module.exports = { normalizeChannelId, parseChannelReference, channelRole, canPublishToChannel, getChannelId };
+module.exports = { normalizeChannelId, parseChannelReference, channelRole, canPublishToChannel, getChannelId, listChannels };

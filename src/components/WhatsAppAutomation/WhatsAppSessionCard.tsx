@@ -30,9 +30,10 @@ import { WhatsAppAlert } from './WhatsAppAlert';
 interface WhatsAppSessionCardProps {
   uid: string;
   waGroupsCount?: number;
+  compact?: boolean;
 }
 
-export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, waGroupsCount = 0 }) => {
+export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, waGroupsCount = 0, compact = false }) => {
   const [sessions, setSessions] = useState<WaSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -321,7 +322,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
     </div>
   );
   return (
-    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 sm:p-6 relative overflow-hidden shadow-xl space-y-6">
+    <div className="bg-[#0e1119] border border-[#1e2636] rounded-2xl p-4 sm:p-6 relative overflow-hidden space-y-4">
       {/* Alert message banner if present */}
       {alertMessage && (
         <WhatsAppAlert
@@ -331,8 +332,8 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
         />
       )}
 
-      {/* Header com Bloco Unificado de Métricas */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1e2636]">
+      {/* Resumo completo apenas no painel de gerenciamento avançado */}
+      {!compact && <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1e2636]">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-950/40">
             <Smartphone className="w-6 h-6" />
@@ -356,6 +357,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
         </div>
       </div>
 
+      }
       {/* Loading State */}
       {loading && (
         <div className="py-10 flex flex-col items-center justify-center text-[#93a0b5] space-y-3">
@@ -404,7 +406,7 @@ export const WhatsAppSessionCard: React.FC<WhatsAppSessionCardProps> = ({ uid, w
             return (
               <div
                 key={session.id || session.sessionId || `session-${idx}`}
-                className="bg-[#151a26] border border-[#1e2636] rounded-xl p-5 space-y-4 relative overflow-hidden transition-all hover:border-blue-500/40"
+                className="bg-[#151a26] border border-[#1e2636] rounded-xl p-3.5 sm:p-4 space-y-3 relative overflow-hidden transition-all hover:border-blue-500/40"
               >
                 {/* Top Card Info Bar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1e2636]">

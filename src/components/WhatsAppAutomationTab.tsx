@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { WaGroup, WaChannel, WaSession, ApiKeysConfig } from '../types';
 import { WhatsAppGroupsView } from './WhatsAppAutomation/WhatsAppGroupsView';
@@ -8,19 +8,7 @@ import { WhatsAppCampaignsView } from './WhatsAppAutomation/WhatsAppCampaignsVie
 import { WhatsAppQueueLogsView } from './WhatsAppAutomation/WhatsAppQueueLogsView';
 import { WhatsAppSessionCard } from './WhatsAppAutomation/WhatsAppSessionCard';
 import { WorkerHealthCard } from './WhatsAppAutomation/WorkerHealthCard';
-import {
-  MessageSquare,
-  Users,
-  Zap,
-  Clock,
-  Radio,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Bot,
-  RefreshCw,
-  Smartphone,
-} from 'lucide-react';
+import { Users, Zap, Radio, Clock, ChevronDown, Smartphone } from 'lucide-react';
 
 interface WhatsAppAutomationTabProps {
   uid: string;
@@ -29,212 +17,132 @@ interface WhatsAppAutomationTabProps {
   defaultTemplateId?: string;
 }
 
+type Section = 'groups' | 'channels' | 'campaigns' | 'queue-logs';
+
 export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
-  uid,
-  apiKeys,
-  customTemplates = [],
-  defaultTemplateId,
+  uid, apiKeys, customTemplates = [], defaultTemplateId,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'groups' | 'channels' | 'queue-logs'>('groups');
+  const [activeSubTab, setActiveSubTab] = useState<Section>('groups');
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
   const [waChannels, setWaChannels] = useState<WaChannel[]>([]);
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(true);
   const [preselectedGroupId, setPreselectedGroupId] = useState<string | null>(null);
 
-  // Subscribe to waSessions
   useEffect(() => {
     if (!uid) return;
-
-    const q = query(collection(db, 'users', uid, 'waSessions'));
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        const list: WaSession[] = snap.docs.map((d) => ({
-          id: d.id,
-          sessionId: d.id,
-          ...d.data(),
-        })) as WaSession[];
-        setWaSessions(list);
-      },
-      (err) => {
-        console.error('Erro ao carregar waSessions:', err);
-      }
-    );
-
-    return () => unsubscribe();
+    return onSnapshot(collection(db, 'users', uid, 'waSessions'),
+      snap => setWaSessions(snap.docs.map(d => ({ id: d.id, sessionId: d.id, ...d.data() } as WaSession))),
+      err => console.error('[Afiliate] Erro ao buscar sessões:', err.message));
   }, [uid]);
 
-  // Subscribe to waGroups
   useEffect(() => {
     if (!uid) return;
-    setLoadingGroups(true);
-
-    const q = query(collection(db, 'users', uid, 'waGroups'));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        const uniqueMap = new Map<string, WaGroup>();
-        snap.docs.forEach((d) => {
-          const data = d.data();
-          const gid = data.groupId || d.id;
-          const groupObj: WaGroup = {
-            id: d.id,
-            docId: d.id,
-            groupId: gid,
-            ...data,
-          } as unknown as WaGroup;
-
-          const key = `${data.sessionId || 'legacy'}_${gid}`;
-          if (!uniqueMap.has(key)) {
-            uniqueMap.set(key, groupObj);
-          }
-        });
-        const list = Array.from(uniqueMap.values());
-        setWaGroups(list);
-        setLoadingGroups(false);
-      },
-      (err) => {
-        console.error('Erro ao carregar waGroups no container:', err);
-        setLoadingGroups(false);
-      }
-    );
-
-    return () => unsubscribe();
+    return onSnapshot(collection(db, 'users', uid, 'waGroups'), snap => {
+      const unique = new Map<string, WaGroup>();
+      snap.docs.forEach(d => {
+        const data = d.data();
+        const g = { id: d.id, groupId: data.groupId || d.id, ...data } as WaGroup;
+        const key = String(g.sessionId || 'legacy') + ':' + g.groupId;
+        if (!unique.has(key)) unique.set(key, g);
+      });
+      setWaGroups([...unique.values()]);
+    }, err => console.error('[Afiliate] Erro ao carregar grupos:', err.message));
   }, [uid]);
 
   useEffect(() => {
     if (!uid) return;
     return onSnapshot(collection(db, 'users', uid, 'waChannels'),
       snap => setWaChannels(snap.docs.map(d => ({ id: d.id, ...d.data() } as WaChannel))),
-      err => console.error('Erro ao carregar canais autorizados:', err));
+      err => console.error('[Afiliate] Erro ao carregar canais:', err.message));
   }, [uid]);
 
-  const connectedSessionIds = new Set(waSessions.filter(s => s.status === 'connected').map(s => s.sessionId || s.id));
-  const connectedGroups = waGroups.filter(g => !!g.sessionId && connectedSessionIds.has(g.sessionId));
-  // Canais vivem em coleção separada: nunca misturar sua sincronização com waGroups.
-  // Para o formulário legado de campanhas, projetamos cada canal autorizado como destino compatível.
-  const connectedChannels = waChannels.filter(c => c.canPost && connectedSessionIds.has(c.sessionId));
+  const connected = waSessions.filter(s => s.status === 'connected');
+  const connectedIds = new Set(connected.map(s => s.sessionId || s.id || ''));
+  const visibleGroups = waGroups.filter(g => g.isActive !== false && !g.hidden &&
+    !!g.sessionId && connectedIds.has(g.sessionId));
+  const visibleChannels = waChannels.filter(c => connectedIds.has(c.sessionId));
+  const myChannels = visibleChannels.filter(c => c.canPost);
   const campaignDestinations: WaGroup[] = [
-    ...connectedGroups,
-    ...connectedChannels.map(c => ({
+    ...visibleGroups,
+    ...myChannels.map(c => ({
       groupId: c.channelId, sessionId: c.sessionId, name: c.name,
       kind: 'channel' as const, size: 0,
     })),
   ];
 
-  const handleSelectGroupForCampaign = (groupId: string) => {
-    setPreselectedGroupId(groupId);
+  const openCampaign = (destinationId: string) => {
+    setPreselectedGroupId(destinationId);
     setActiveSubTab('campaigns');
   };
 
+  const tabs: Array<{ id: Section; title: string; icon: typeof Users; total?: number }> = [
+    { id: 'groups', title: 'Grupos', icon: Users, total: visibleGroups.length },
+    { id: 'channels', title: 'Canais', icon: Radio, total: visibleChannels.length },
+    { id: 'campaigns', title: 'Campanhas', icon: Zap },
+    { id: 'queue-logs', title: 'Atividade', icon: Clock },
+  ];
+
   return (
-    <div className="space-y-5 animate-fadeIn">
-      {/* Header Padronizado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e2636] pb-3">
-        <div>
-          <h1 className="text-lg font-extrabold text-white">Automação WhatsApp</h1>
-          <p className="text-xs text-[#93a0b5]">
-            Gerencie sua conta, grupos, canais e campanhas em um só lugar.
-          </p>
-        </div>
+    <div className="mx-auto max-w-5xl space-y-5 motion-safe:animate-fadeIn pb-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">WhatsApp</h1>
+        <p className="text-sm text-[#a6b4c9]">Canais, grupos e campanhas em um só lugar.</p>
       </div>
-
-      {waSessions.some(sess => sess.groupSyncError) && (
-        <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
-          {waSessions.find(sess => sess.groupSyncError)?.groupSyncError}
-        </div>
-      )}
-
-      {/* Estado real do Termux: status atualizado por heartbeat */}
-      <WorkerHealthCard uid={uid} />
-
-      {/* WhatsApp Connection Cards */}
-      <WhatsAppSessionCard uid={uid} waGroupsCount={connectedGroups.length} />
-
-      {/* Subtab Selector */}
-      <div role="tablist" aria-label="Área do WhatsApp" className="flex items-center gap-1.5 overflow-x-auto pb-2 snap-x">
-        <button
-          role="tab"
-          aria-selected={activeSubTab === 'campaigns'}
-          onClick={() => setActiveSubTab('campaigns')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
-            activeSubTab === 'campaigns'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
-              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
-          }`}
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-400" />
-          Disparos & Campanhas
-        </button>
-
-        <button
-          role="tab"
-          aria-selected={activeSubTab === 'groups'}
-          onClick={() => setActiveSubTab('groups')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
-            activeSubTab === 'groups'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
-              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5 text-emerald-400" />
-          Grupos ({connectedGroups.length})
-        </button>
-
-        <button
-          role="tab"
-          aria-selected={activeSubTab === 'channels'}
-          onClick={() => setActiveSubTab('channels')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap shrink-0 ${
-            activeSubTab === 'channels' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#0e1119] text-[#93a0b5] border-[#1e2636]'
-          }`}
-        ><Radio className="w-3.5 h-3.5 inline mr-1" /> Canais ({connectedChannels.length})</button>
-
-        <button
-          role="tab"
-          aria-selected={activeSubTab === 'queue-logs'}
-          onClick={() => setActiveSubTab('queue-logs')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer shrink-0 ${
-            activeSubTab === 'queue-logs'
-              ? 'bg-blue-600 text-white border-blue-400 shadow-sm shadow-blue-600/20'
-              : 'bg-[#0e1119] text-[#93a0b5] hover:text-white border-[#1e2636]'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5 text-blue-400" />
-          Fila & Logs
-        </button>
+      <WorkerHealthCard uid={uid} compact />
+      <div className="grid grid-cols-3 gap-2">
+        {([
+          ['Contas', connected.length],
+          ['Grupos', visibleGroups.length],
+          ['Canais', visibleChannels.length],
+        ] as const).map(([label, count]) => (
+          <div key={label} className="rounded-xl border border-[#283246] bg-[#101723] px-3 py-3.5">
+            <div className="text-[11px] text-[#a6b4c9]">{label}</div>
+            <div className="text-xl font-bold text-white mt-0.5">{count}</div>
+          </div>
+        ))}
       </div>
+      <nav aria-label="Áreas do WhatsApp" className="grid grid-cols-4 gap-1.5 border-b border-[#273245] pb-3">
+        {tabs.map(({ id, title, icon: Icon, total }) => (
+          <button key={id} type="button" onClick={() => setActiveSubTab(id)}
+            aria-current={activeSubTab === id ? 'page' : undefined}
+            className={'flex flex-col sm:flex-row items-center justify-center gap-1.5 min-w-0 rounded-xl px-1.5 sm:px-3 py-3 text-[11px] sm:text-xs font-semibold transition-colors ' +
+              (activeSubTab === id ? 'bg-blue-600 text-white' : 'bg-[#121925] text-[#a6b4c9] hover:bg-[#1c2738]')}>
+            <Icon size={18} className="shrink-0" />
+            <span className="truncate">{title}{total !== undefined ? ' (' + total + ')' : ''}</span>
+          </button>
+        ))}
+      </nav>
 
-      {/* Active Subtab Content */}
-      {activeSubTab === 'campaigns' && (
-        <WhatsAppCampaignsView
-          uid={uid}
-          waGroups={campaignDestinations}
-          waSessions={waSessions}
-          apiKeys={apiKeys}
-          preselectedGroupId={preselectedGroupId}
-          customTemplates={customTemplates}
-          defaultTemplateId={defaultTemplateId}
-        />
-      )}
+      <section aria-label="Área selecionada">
+        {activeSubTab === 'groups' && (
+          <WhatsAppGroupsView uid={uid} waSessions={waSessions} onSelectGroupForCampaign={openCampaign} />
+        )}
+        {activeSubTab === 'channels' && (
+          <WhatsAppChannelsView uid={uid} sessions={waSessions} onSelectChannel={openCampaign} />
+        )}
+        {activeSubTab === 'campaigns' && (
+          <WhatsAppCampaignsView
+            uid={uid} waGroups={campaignDestinations} waSessions={waSessions}
+            apiKeys={apiKeys} preselectedGroupId={preselectedGroupId}
+            customTemplates={customTemplates} defaultTemplateId={defaultTemplateId}
+          />
+        )}
+        {activeSubTab === 'queue-logs' && (
+          <WhatsAppQueueLogsView uid={uid} waSessions={waSessions} />
+        )}
+      </section>
 
-      {activeSubTab === 'groups' && (
-        <WhatsAppGroupsView
-          uid={uid}
-          waSessions={waSessions}
-          onSelectGroupForCampaign={handleSelectGroupForCampaign}
-        />
-      )}
-
-      {activeSubTab === 'channels' && (
-        <WhatsAppChannelsView uid={uid} sessions={waSessions} onSelectChannel={handleSelectGroupForCampaign} />
-      )}
-
-      {activeSubTab === 'queue-logs' && (
-        <WhatsAppQueueLogsView uid={uid} waSessions={waSessions} />
-      )}
+      <details className="rounded-xl border border-[#293246] bg-[#0e1119] group">
+        <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-2 px-4 py-3.5 text-sm text-white font-semibold focus-visible:outline focus-visible:outline-blue-400">
+          <span className="flex items-center gap-2"><Smartphone size={17} className="text-blue-400" /> Gerenciar contas</span>
+          <span className="flex items-center gap-2 text-xs text-[#a6b4c9]">
+            {connected.length} conectada(s) <ChevronDown size={16} className="group-open:rotate-180 transition-transform" />
+          </span>
+        </summary>
+        <div className="p-3 border-t border-[#293246]">
+          <WhatsAppSessionCard uid={uid} compact waGroupsCount={visibleGroups.length} />
+        </div>
+      </details>
     </div>
   );
 };
