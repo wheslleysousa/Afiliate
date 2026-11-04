@@ -303,6 +303,9 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
     sock.ev.on('messaging-history.set', payload => enqueueChannelChats(payload?.chats));
     sock.ev.on('chats.upsert', enqueueChannelChats);
     sock.ev.on('chats.update', enqueueChannelChats);
+    sock.ev.on('messages.upsert', packet => enqueueChannelChats(
+      (packet?.messages || []).map(message => ({ id: message?.key?.remoteJid }))
+    ));
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -828,6 +831,9 @@ async function flushChannelCandidates(sessionId, sessionObj) {
     }
   } finally {
     sessionObj.channelDiscoveryRunning = false;
+    if (sessionObj.channelCandidates?.size && sessionObj.status === 'connected') {
+      setTimeout(() => void flushChannelCandidates(sessionId, sessionObj), 2000);
+    }
   }
 }
 
