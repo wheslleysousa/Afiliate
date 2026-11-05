@@ -61,6 +61,8 @@ const WA_SEND_TEST_MAX_ATTEMPTS = Math.max(0, Math.floor(Number(process.env.WA_S
 const WA_GROUP_COMMANDS_ENABLED = process.env.WA_GROUP_COMMANDS_ENABLED === 'true';
 // Concessão isolada: sair de grupos não libera criação nem disparos.
 const WA_GROUP_LEAVE_ENABLED = process.env.WA_GROUP_LEAVE_ENABLED === 'true';
+// Sair de canais seguidos é independente de comandos de grupos e envios.
+const WA_CHANNEL_LEAVE_ENABLED = process.env.WA_CHANNEL_LEAVE_ENABLED === 'true';
 const WA_PAIRING_PHONE = process.env.WA_PAIRING_PHONE || '';
 const WA_PRINT_QR_IN_TERMINAL = process.env.WA_PRINT_QR_IN_TERMINAL === 'true';
 const WA_MAX_QUEUE_AGE_MIN = Math.max(5, Number(process.env.WA_MAX_QUEUE_AGE_MIN || 180) || 180);
@@ -453,6 +455,7 @@ async function connectToWhatsAppSession(sessionId, label, requestedPairingPhone 
             linkGroupToCommunity: typeof sock.communityLinkGroup === 'function',
             commandsEnabled: WA_GROUP_COMMANDS_ENABLED,
             leaveGroup: WA_GROUP_LEAVE_ENABLED || WA_GROUP_COMMANDS_ENABLED,
+            leaveChannel: WA_CHANNEL_LEAVE_ENABLED && typeof sock.newsletterUnfollow === 'function',
           },
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -793,6 +796,9 @@ async function syncGroups(sessionId, sock) {
   }
 }
 
+const { channelPresentation, safePicture } = require('./channelMetadata');
+const { ensureCampaignShortLink, replaceProductUrl } = require('./campaignShortLinks');
+
 // @newsletter != @g.us. Canais seguidos são somente leitura; só administradores enviam.
 async function saveVerifiedChannel(sessionId, sock, input) {
   if (typeof sock.newsletterMetadata !== 'function') throw new Error('Baileys não oferece consulta de canais nesta instalação.');
@@ -801,17 +807,26 @@ async function saveVerifiedChannel(sessionId, sock, input) {
   const initial = await sock.newsletterMetadata(ref.type, ref.value);
   const channelId = getChannelId(initial) || (ref.type === 'jid' ? normalizeChannelId(ref.value) : null);
   if (!channelId) throw new Error('Identificador do canal não encontrado.');
+  // Exclusão solicitada pelo usuário deve sobreviver às próximas sincronizações.
+  const exclusionRef = db.collection('users').doc(USER_UID).collection('waChannelExclusions').doc(sessionId + '_' + channelId);
+  if ((await exclusionRef.get()).exists) return channelId;
   // Um convite público não comprova administração: sempre verificar pelo JID da conta.
   // Se a consulta privada falhar, salvar SOMENTE leitura; nunca conceder canPost.
   let ownMetadata = null;
   try { ownMetadata = await sock.newsletterMetadata('jid', channelId); }
   catch (error) { console.warn('[Canais] Sem acesso a role privada; canal mantido como leitura:', error.message); }
   const canPost = !!ownMetadata && canPublishToChannel(ownMetadata);
-  const nameValue = ownMetadata?.name || initial.name;
-  const name = typeof nameValue === 'string' ? nameValue : (nameValue?.text || 'Canal WhatsApp');
+  const presentation = channelPresentation(ownMetadata, initial);
+  // Foto de canal nem sempre é fornecida por newsletterMetadata.
+  if (!presentation.photoUrl && typeof sock.profilePictureUrl === 'function') {
+    try { presentation.photoUrl = safePicture(await sock.profilePictureUrl(channelId, 'image')); }
+    catch (_) { /* foto indisponível na versão atual: não inventar */ }
+  }
   await db.collection('users').doc(USER_UID).collection('waChannels')
     .doc(`${sessionId}_${channelId}`).set({
-      channelId, sessionId, name, canPost, access: canPost ? 'admin' : 'following',
+      channelId, sessionId, ...presentation, canPost,
+      access: canPost ? 'admin' : 'following',
+      isFollowing: true, excluded: false,
       verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -873,10 +888,12 @@ async function syncChannels(sessionId, sock) {
       } catch (err) {
         // Falha de acesso à metadata não concede poderes de administrador.
         console.warn(`[Canais] Não foi possível validar ${channelId}:`, err.message);
-        const displayName = typeof entry.name === 'string' ? entry.name : (entry.name?.text || 'Canal WhatsApp');
+        const exclusionRef = db.collection('users').doc(USER_UID).collection('waChannelExclusions').doc(sessionId + '_' + channelId);
+        if ((await exclusionRef.get()).exists) continue;
+        const display = channelPresentation(entry);
         await db.collection('users').doc(USER_UID).collection('waChannels')
           .doc(`${sessionId}_${channelId}`).set({
-            channelId, sessionId, name: displayName,
+            channelId, sessionId, ...display, isFollowing: true,
             canPost: false, access: 'following', verificationPending: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
@@ -1284,8 +1301,17 @@ async function runCampaignCycle() {
         const rawLink = product.original_link || product.affiliate_link || '';
         // Preserva o link de afiliado já salvo pela extensão quando existir.
         const affiliateLink = product.affiliate_link || buildAffiliateLink(rawLink, product.platform, apiKeys);
-        const copyText = (campaignTemplate && renderTemplate(campaignTemplate, product, affiliateLink))
-          || formatProductCopy(product, affiliateLink);
+        let short;
+        try {
+          short = await ensureCampaignShortLink({
+            db, uid: USER_UID, product, campaign, affiliateLink,
+          });
+        } catch (error) {
+          console.warn('[Links curtos] Produto ignorado por falha de encurtamento:', error.message);
+          continue; // Nunca disparar URL original como substituição silenciosa.
+        }
+        const copyText = (campaignTemplate && renderTemplate(campaignTemplate, product, short.shortUrl))
+          || formatProductCopy(product, short.shortUrl);
 
         for (const targetGId of campaign.targetGroupIds) {
           // Extrair o JID real para grupos e canais com prefixo de sessão.
@@ -1303,6 +1329,8 @@ async function runCampaignCycle() {
             copyText: copyText,
             imageUrl: getProductImageUrl(product),
             affiliateLink: affiliateLink,
+            shortLink: short.shortUrl,
+            shortLinkDocId: short.docId,
             scheduledAt: admin.firestore.Timestamp.fromMillis(currentTimeMs),
             status: 'pending',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1486,9 +1514,20 @@ async function processSendQueue() {
         // Opt-in de mídia em canais: foto com legenda numa única publicação.
         // Se a foto faltar ou falhar, NÃO publicar texto como alternativa:
         // isso pode duplicar ofertas ou repetir o bug de post sem imagem.
+        // Filas antigas ainda podem ter URL longa: converter também no momento do envio.
+        // Em caso de erro de Firestore, a mensagem falha em vez de enviar link original.
+        const short = await ensureCampaignShortLink({
+          db, uid: USER_UID,
+          product: { id: item.productId, title: item.productTitle || '', platform: '' },
+          campaign: campaignSnap?.exists ? campaignSnap.data() : {},
+          affiliateLink: item.affiliateLink,
+        });
+        const finalCopy = replaceProductUrl(item.copyText, item.affiliateLink, short.shortUrl);
+        await queueDoc.ref.update({ shortLink: short.shortUrl, shortLinkDocId: short.docId,
+          copyText: finalCopy, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         const payload = createDispatchPayload({
           imageUrl: item.imageUrl,
-          copyText: item.copyText,
+          copyText: finalCopy,
           isChannel,
           channelMediaEnabled: WA_CHANNEL_MEDIA_ENABLED,
         });
@@ -1632,6 +1671,33 @@ async function processCommands() {
         if (cmd.action === 'registerChannel') {
           const channelId = await saveVerifiedChannel(sessionId, sock, cmd.channelReference);
           await ref.update({ status: 'done', channelId, doneAt: admin.firestore.FieldValue.serverTimestamp() });
+        } else if (cmd.action === 'leaveChannel') {
+          if (!WA_CHANNEL_LEAVE_ENABLED || typeof sock.newsletterUnfollow !== 'function') {
+            throw new Error('Esta versão do worker não permite sair de canais. Acesse o WhatsApp para deixar de seguir.');
+          }
+          if (!cmd.sessionId || cmd.sessionId !== sessionId) throw new Error('Conta do canal inválida.');
+          const channelId = normalizeChannelId(cmd.channelId);
+          if (!channelId) throw new Error('Canal inválido.');
+          const channelRef = db.collection('users').doc(USER_UID).collection('waChannels').doc(sessionId + '_' + channelId);
+          const channelSnap = await channelRef.get();
+          if (!channelSnap.exists || channelSnap.data()?.sessionId !== sessionId) {
+            throw new Error('Canal não vinculado a esta conta.');
+          }
+          const meta = await sock.newsletterMetadata('jid', channelId);
+          if (canPublishToChannel(meta)) {
+            throw new Error('Canais que você administra devem ser gerenciados no WhatsApp.');
+          }
+          await sock.newsletterUnfollow(channelId);
+          await db.collection('users').doc(USER_UID).collection('waChannelExclusions')
+            .doc(sessionId + '_' + channelId).set({
+              channelId, sessionId, reason: 'left_whatsapp',
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          await channelRef.set({
+            isFollowing: false, excluded: true, canPost: false,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          await ref.update({ status: 'done', doneAt: admin.firestore.FieldValue.serverTimestamp() });
         } else if (cmd.action === 'leaveGroup') {
           if (!(WA_GROUP_LEAVE_ENABLED || WA_GROUP_COMMANDS_ENABLED)) {
             throw new Error('Saída de grupos desativada no worker. Habilite WA_GROUP_LEAVE_ENABLED sem liberar criação ou envios.');
