@@ -1054,7 +1054,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex-1 flex flex-col min-w-0 max-w-full min-h-screen transition-all duration-300 ${
           isSidebarExpanded ? 'md:ml-64' : 'md:ml-20'
         }`}
       >
@@ -1128,7 +1128,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Page Views */}
-        <main className="flex-1 px-3 pt-4 pb-8 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto motion-safe:animate-fadeIn">
+        <main className="flex-1 min-w-0 px-3 pt-4 pb-8 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto motion-safe:animate-fadeIn">
           {oauthSuccess && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-2">
