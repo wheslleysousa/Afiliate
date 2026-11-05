@@ -797,6 +797,7 @@ async function syncGroups(sessionId, sock) {
 }
 
 const { channelPresentation, safePicture } = require('./channelMetadata');
+const { readHourlyRate, buildHourlyOffsets } = require('./campaignHourlyRate');
 const { ensureCampaignShortLink, replaceProductUrl } = require('./campaignShortLinks');
 
 // @newsletter != @g.us. Canais seguidos são somente leitura; só administradores enviam.
@@ -1119,7 +1120,8 @@ async function runCampaignCycle() {
         continue;
       }
 
-      const windowMin = campaign.windowMinutes || 30;
+      const hourlyRate = readHourlyRate(campaign);
+      const windowMin = hourlyRate === null ? (campaign.windowMinutes || 30) : 60;
       if (campaign.lastRunAt) {
         let lastRunMs = 0;
         if (typeof campaign.lastRunAt.toMillis === 'function') {
@@ -1267,7 +1269,7 @@ async function runCampaignCycle() {
         }
       }
 
-      const qty = campaign.quantity || 30;
+      const qty = hourlyRate === null ? (campaign.quantity || 30) : hourlyRate;
       const selectedProducts = filtered.slice(0, qty);
 
       if (selectedProducts.length === 0) {
@@ -1277,13 +1279,19 @@ async function runCampaignCycle() {
 
       console.log(`📦 ${selectedProducts.length} produto(s) enfileirados para a campanha "${campaign.name}".`);
 
-      let currentTimeMs = Date.now();
+      const startedAtMs = Date.now();
+      let currentTimeMs = startedAtMs;
+      const hourlyOffsets = hourlyRate === null ? null : buildHourlyOffsets(hourlyRate, campaign.pacing);
 
       for (let i = 0; i < selectedProducts.length; i++) {
         const product = selectedProducts[i];
 
         let gapMs = 60 * 1000;
-        if (campaign.pacing === 'aleatorio') {
+        if (hourlyOffsets !== null) {
+          // No modo por hora, cada produto ocupa um slot dentro de 60 minutos;
+          // minGapSec e maxGapSec legados não podem ultrapassar essa janela.
+          currentTimeMs = startedAtMs + hourlyOffsets[i];
+        } else if (campaign.pacing === 'aleatorio') {
           const minG = campaign.minGapSec || 30;
           const maxG = campaign.maxGapSec || 120;
           const randomSec = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
@@ -1294,7 +1302,7 @@ async function runCampaignCycle() {
           gapMs = stepSec * 1000;
         }
 
-        if (i > 0) {
+        if (i > 0 && hourlyOffsets === null) {
           currentTimeMs += gapMs;
         }
 

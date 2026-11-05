@@ -195,3 +195,37 @@ Na aba **WhatsApp → Grupos**, há duas ações distintas em cada grupo, sempre
 `WA_GROUP_COMMANDS_ENABLED=false` e `WA_GROUP_LEAVE_ENABLED=true`: o usuário pode sair de um grupo individualmente, mas não criar grupos nem disparar mensagens. Em outras instalações, `WA_GROUP_LEAVE_ENABLED=false` é o padrão; habilitar a flag de saída sem liberar o envio.
 
 A lista de campanhas/contadores ignora os grupos excluídos. As exclusões são locais ao UID e ao sessionId; credenciais `auth/`, `.env` e os dados de outras sessões não são apagados. Para usar a nova UI no Android, compile o APK **no Termux** após atualizar `main`, nunca via GitHub Actions. Valide uma saída real de grupo selecionado antes de concluir QA.
+
+## Volume de produtos por hora (configurado no aplicativo)
+
+Abra **Automação Zap → Campanhas → Editar → Produtos por hora**. Defina de 1 a 500
+produtos por hora e escolha distribuição **uniforme** ou **aleatória**. O valor vale
+**para cada campanha**, e cada produto selecionado é publicado em cada destino
+configurado. Portanto, 30 produtos/hora para 2 canais geram até 60 publicações/hora.
+O horário configurado, os filtros de produtos, os destinos e a regra anti-duplicação
+continuam valendo. Só serão agendados produtos elegíveis; a taxa é um máximo,
+não uma garantia de alcançar a quantidade escolhida.
+
+Campanhas antigas sem `productsPerHour` preservam `quantity/windowMinutes`
+até serem editadas e salvas. A taxa antiga é apresentada no formulário como estimativa
+antes de salvar. Filas antigas já criadas **não são recalculadas** ao alterar a taxa:
+revise a aba **Fila & Logs** antes de reativar campanhas com pendências.
+
+Para autorizar campanhas automáticas em um worker **que já está conectado e foi
+verificado com `npm run doctor` e `npm run check`**, revise a campanha e os
+destinos autorizados. Verifique se não há itens `pending/processing` antigos.
+Depois, no Termux, execute conscientemente:
+
+```sh
+cd ~/Afiliate/whatsapp-worker
+WA_SEND_ENABLED=true WA_DISABLE_CAMPAIGN_GENERATION=false WA_SEND_TEST_MAX_ATTEMPTS=0 WA_CHANNEL_MEDIA_ENABLED=true WA_GROUP_COMMANDS_ENABLED=false pm2 restart afiliate-worker --update-env
+pm2 env 0 | grep -E 'WA_SEND_ENABLED|WA_DISABLE_CAMPAIGN_GENERATION|WA_SEND_TEST_MAX_ATTEMPTS|WA_CHANNEL_MEDIA_ENABLED'
+```
+
+**Atenção:** o script `scripts/start-termux-safe.sh` sempre desativa
+envios quando reinicia o processo; não o execute para manter campanhas ativas.
+As configurações do PM2 são locais ao aparelho e não são alteradas por instalar
+a extensão nem pelo deploy da interface. A biblioteca de WhatsApp não é oficial
+e publicações repetitivas podem gerar bloqueios; use apenas grupos autorizados
+e canais administrados. `WA_SEND_ENABLED=false` continua sendo o desligamento
+imediato de todas as campanhas.

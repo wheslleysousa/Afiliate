@@ -368,16 +368,20 @@ export const WhatsAppCampaignsView: React.FC<WhatsAppCampaignsViewProps> = ({
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Qtd / Janela</span>
-                    <span className="text-[#eef2f9] font-semibold">
-                      {camp.quantity} ofertas / {camp.windowMinutes} min
+                    <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">
+                      {camp.productsPerHour ? 'Produtos por hora' : 'Qtd / Janela (legado)'}
+                    </span>
+                    <span className="text-[#eef2f9] font-semibold break-words">
+                      {camp.productsPerHour
+                        ? `${camp.productsPerHour} produtos/hora`
+                        : `${camp.quantity} ofertas / ${camp.windowMinutes} min`}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-[#93a0b5] uppercase font-bold block">Ritmo (Pacing)</span>
                     <span className="text-amber-400 font-semibold capitalize">
-                      {camp.pacing} ({camp.minGapSec}s-{camp.maxGapSec}s)
+                      {camp.productsPerHour ? camp.pacing : `${camp.pacing} (${camp.minGapSec}s-${camp.maxGapSec}s)`}
                     </span>
                   </div>
 

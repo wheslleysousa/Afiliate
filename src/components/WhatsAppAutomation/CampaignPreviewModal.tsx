@@ -167,7 +167,8 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
       });
 
       // 6. Slice to campaign quantity
-      const finalProducts = sorted.slice(0, campaign.quantity || 30);
+      const hourlyRate = campaign.productsPerHour || null;
+      const finalProducts = sorted.slice(0, hourlyRate || campaign.quantity || 30);
 
       // Target groups names
       const targetGroupMap = new Map(waGroups.map((g) => [g.groupId, g.name]));
@@ -187,23 +188,25 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
         }
       }
 
+      const previewStartMs = currentEst.getTime();
       const previewList: PreviewItem[] = finalProducts.map((product, idx) => {
-        // Calculate gap based on pacing
-        let gapMs = 60 * 1000; // default 1 min
-        if (campaign.pacing === 'aleatorio') {
-          const minG = campaign.minGapSec || 30;
-          const maxG = campaign.maxGapSec || 120;
-          const randomSec = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
-          gapMs = randomSec * 1000;
+        // O modo por hora reserva um slot dentro de 60min para cada produto.
+        let gapMs = 60 * 1000; // comportamento legado
+        if (hourlyRate) {
+          const slot = 3600000 / hourlyRate;
+          const jitter = campaign.pacing === 'aleatorio' ? 0.1 + Math.random() * 0.8 : 0;
+          currentEst = new Date(previewStartMs + Math.floor((idx + jitter) * slot));
         } else {
-          // Uniform
-          const totalMin = campaign.windowMinutes || 30;
-          const stepSec = Math.max(10, Math.floor((totalMin * 60) / (campaign.quantity || 1)));
-          gapMs = stepSec * 1000;
-        }
-
-        if (idx > 0) {
-          currentEst = new Date(currentEst.getTime() + gapMs);
+          if (campaign.pacing === 'aleatorio') {
+            const minG = campaign.minGapSec || 30;
+            const maxG = campaign.maxGapSec || 120;
+            gapMs = Math.floor(Math.random() * (maxG - minG + 1) + minG) * 1000;
+          } else {
+            const totalMin = campaign.windowMinutes || 30;
+            const stepSec = Math.max(10, Math.floor((totalMin * 60) / (campaign.quantity || 1)));
+            gapMs = stepSec * 1000;
+          }
+          if (idx > 0) currentEst = new Date(currentEst.getTime() + gapMs);
         }
 
         let affLink = '';
@@ -310,7 +313,9 @@ export const CampaignPreviewModal: React.FC<CampaignPreviewModalProps> = ({
           <div>
             <span className="text-[10px] text-stone-400 block font-bold uppercase">Ritmo (Pacing)</span>
             <span className="text-amber-300 font-bold capitalize">
-              {campaign.pacing} ({campaign.minGapSec}s-{campaign.maxGapSec}s)
+              {campaign.productsPerHour
+                ? `${campaign.productsPerHour} produtos/hora · ${campaign.pacing}`
+                : `${campaign.pacing} (${campaign.minGapSec}s-${campaign.maxGapSec}s)`}
             </span>
           </div>
           <div>
