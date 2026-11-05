@@ -62,19 +62,24 @@ async function run() {
     let product = null;
     let image = null;
     let link = null;
+    let isPreviouslySent = false;
     for (const ref of minedSnap.docs) {
       const pId = ref.data().productId;
-      if (!pId || recentlySent.has(pId)) continue;
+      if (!pId) continue;
       const snapshot = await db.collection('products').doc(pId).get();
       if (!snapshot.exists) continue;
       const data = snapshot.data();
       const url = getProductImageUrl(data);
       const dest = String(data.affiliate_link || data.original_link || '').trim();
       if (!url || !/^https:\/\//i.test(dest)) continue;
+      // Prefer an unused product, otherwise allow exactly one clearly
+      // labelled repeat of an offer the channel may have already received.
+      if (product && recentlySent.has(pId)) continue;
       product = { id: snapshot.id, ...data };
       image = url;
       link = dest;
-      break;
+      isPreviouslySent = recentlySent.has(pId);
+      if (!isPreviouslySent) break;
     }
     if (!product) throw Error('Não encontrei produto novo com imagem e link entre 50 minerações. Nenhum envio realizado.');
 
@@ -89,6 +94,7 @@ async function run() {
     ].filter(Boolean).join('\n');
 
     console.log('Produto:', product.title || 'Produto');
+    console.log('Já consta no histórico de envio:', isPreviouslySent ? 'SIM (repostagem de teste)' : 'NÃO');
     console.log('Imagem:', new URL(image).hostname);
     console.log('Link:', new URL(link).hostname);
     console.log('Legenda:', caption.length, 'caracteres');
