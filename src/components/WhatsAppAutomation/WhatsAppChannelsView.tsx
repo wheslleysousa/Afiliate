@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
-import { Radio, Plus, AlertTriangle, CheckCircle2, RefreshCw, Eye, ShieldCheck } from 'lucide-react';
+import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
+import { Radio, Plus, AlertTriangle, CheckCircle2, RefreshCw, Eye, ShieldCheck, Users, LogOut, Trash2, Undo2 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import type { WaChannel, WaSession } from '../../types';
 
@@ -23,6 +23,8 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'admin' | 'following'>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  const [busyChannelId, setBusyChannelId] = useState('');
 
   const connected = sessions.filter(s => s.status === 'connected');
   const selectedSessionId = connected.some(s => (s.sessionId || s.id) === sessionId)
@@ -35,12 +37,15 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
       setChannels(snap.docs.map(d => ({ id: d.id, ...d.data() } as WaChannel))
         .sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     }, err => setError('Não foi possível carregar os canais: ' + err.message));
+    const stopExclusions = onSnapshot(collection(db, 'users', uid, 'waChannelExclusions'), snap => {
+      setExcludedIds(new Set(snap.docs.map(d => d.id)));
+    }, err => setError('Não foi possível carregar canais excluídos: ' + err.message));
     const stopCommands = onSnapshot(collection(db, 'users', uid, 'waCommands'), snap => {
-      setCommands(snap.docs.filter(d => d.data().action === 'registerChannel')
+      setCommands(snap.docs.filter(d => ['registerChannel', 'leaveChannel'].includes(d.data().action))
         .map(d => ({ id: d.id, status: d.data().status, error: d.data().error }))
         .slice(-8));
     });
-    return () => { stopChannels(); stopCommands(); };
+    return () => { stopChannels(); stopCommands(); stopExclusions(); };
   }, [uid]);
 
   const register = async (e: React.FormEvent) => {
@@ -80,7 +85,48 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
     }
   };
 
-  const listed = channels.filter(c => connected.some(s => (s.sessionId || s.id) === c.sessionId));
+  const channelKey = (c: WaChannel) => c.id || (c.sessionId + '_' + c.channelId);
+  const active = channels.filter(c => connected.some(s => (s.sessionId || s.id) === c.sessionId));
+  const listed = active.filter(c => c.excluded !== true && c.isFollowing !== false && !excludedIds.has(channelKey(c)));
+  const excluded = active.filter(c => c.excluded === true || c.isFollowing === false || excludedIds.has(channelKey(c)));
+
+  const removeFromAfiliate = async (c: WaChannel) => {
+    if (!window.confirm('Excluir "' + (c.name || 'este canal') + '" somente do Afiliate? Você continuará seguindo no WhatsApp.')) return;
+    setBusyChannelId(channelKey(c)); setError('');
+    try {
+      await setDoc(doc(db, 'users', uid, 'waChannelExclusions', channelKey(c)), {
+        channelId: c.channelId, sessionId: c.sessionId, reason: 'hidden_by_user',
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+      await setDoc(doc(db, 'users', uid, 'waChannels', channelKey(c)),
+        { excluded: true, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (e: any) { setError('Falha ao excluir canal: ' + (e?.message || 'erro')); }
+    finally { setBusyChannelId(''); }
+  };
+  const restoreToAfiliate = async (c: WaChannel) => {
+    setBusyChannelId(channelKey(c)); setError('');
+    try {
+      await setDoc(doc(db, 'users', uid, 'waChannels', channelKey(c)),
+        { excluded: false, isFollowing: true, updatedAt: serverTimestamp() }, { merge: true });
+      await deleteDoc(doc(db, 'users', uid, 'waChannelExclusions', channelKey(c)));
+    } catch (e: any) { setError('Falha ao restaurar canal: ' + (e?.message || 'erro')); }
+    finally { setBusyChannelId(''); }
+  };
+  const leaveChannel = async (c: WaChannel) => {
+    if (c.canPost) return setError('Para deixar um canal que você administra, use o WhatsApp.');
+    if (!currentSession?.groupCapabilities?.leaveChannel) {
+      return setError('A saída de canais não está disponível nesta sessão. Use o WhatsApp para deixar de seguir.');
+    }
+    if (!window.confirm('Deixar de seguir "' + (c.name || 'este canal') + '" no WhatsApp? Essa ação não é apenas ocultar no Afiliate.')) return;
+    setBusyChannelId(channelKey(c)); setError('');
+    try {
+      await addDoc(collection(db, 'users', uid, 'waCommands'), {
+        action: 'leaveChannel', channelId: c.channelId, sessionId: c.sessionId,
+        status: 'pending', createdAt: serverTimestamp(),
+      });
+    } catch (e: any) { setError('Não foi possível solicitar saída: ' + (e?.message || 'erro')); }
+    finally { setBusyChannelId(''); }
+  };
   const admins = listed.filter(c => c.canPost);
   const followed = listed.filter(c => !c.canPost);
   const displayed = listed.filter(c => filter === 'all' || (filter === 'admin' ? c.canPost : !c.canPost));
@@ -163,18 +209,58 @@ export const WhatsAppChannelsView: React.FC<Props> = ({ uid, sessions, onSelectC
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {displayed.map(c => (
-            <article key={c.id || c.channelId} className="rounded-xl border border-[#293246] bg-[#101723] p-4 flex gap-3 items-start">
-              <div className={'rounded-xl p-2.5 shrink-0 ' + (c.canPost ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400')}>
-                {c.canPost ? <ShieldCheck size={20} /> : <Eye size={20} />}
+            <article key={channelKey(c)} className="min-w-0 overflow-hidden rounded-xl border border-[#293246] bg-[#101723] p-3 sm:p-4 space-y-3">
+              <div className="flex min-w-0 gap-3 items-start">
+                <div className="w-12 h-12 overflow-hidden rounded-full bg-[#1d2b41] shrink-0 flex items-center justify-center" aria-hidden="true">
+                  {c.photoUrl
+                    ? <img src={c.photoUrl} alt="" className="w-full h-full object-cover"
+                        onError={e => { e.currentTarget.style.display = 'none'; }} />
+                    : <Radio size={22} className="text-blue-300" />}
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h3 className="text-white font-bold text-sm [overflow-wrap:anywhere]">{c.name || 'Canal WhatsApp'}</h3>
+                  <p className="flex items-center gap-1.5 text-xs text-[#a6b4c9] min-w-0">
+                    <Users size={13} className="shrink-0" />
+                    {typeof c.followersCount === 'number'
+                      ? c.followersCount.toLocaleString('pt-BR') + ' seguidores'
+                      : 'Seguidores não informados'}
+                  </p>
+                  <p className="text-xs text-[#a6b4c9] break-words">{c.canPost ? 'Você administra · pode publicar' : 'Seguindo · somente leitura'}</p>
+                </div>
+                {c.canPost ? <ShieldCheck className="text-emerald-400 shrink-0" size={18} aria-label="Administrador" /> : <Eye className="text-blue-400 shrink-0" size={18} />}
               </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <h3 className="text-white font-bold text-sm break-words">{c.name || 'Canal WhatsApp'}</h3>
-                <p className="text-xs text-[#a6b4c9]">{c.canPost ? 'Você administra · pode publicar' : 'Seguindo · somente leitura'}</p>
+              {c.description && <p className="text-xs text-[#a6b4c9] [overflow-wrap:anywhere] line-clamp-2">{c.description}</p>}
+              <div className="grid grid-cols-1 min-[375px]:grid-cols-2 gap-2 min-w-0">
                 {c.canPost && <button type="button" onClick={() => onSelectChannel(c.channelId)}
-                  className="text-blue-300 text-xs font-semibold pt-2">Criar campanha →</button>}
+                  className="rounded-lg bg-blue-600/15 px-2.5 py-2.5 text-xs font-semibold text-blue-200 text-center">
+                    Criar campanha
+                  </button>}
+                <button type="button" onClick={() => leaveChannel(c)}
+                  disabled={busyChannelId === channelKey(c) || c.canPost || !currentSession?.groupCapabilities?.leaveChannel}
+                  title={c.canPost ? 'Gerencie sua administração no WhatsApp' : !currentSession?.groupCapabilities?.leaveChannel ? 'Saída indisponível: use o WhatsApp' : 'Deixar de seguir no WhatsApp'}
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-2.5 text-xs font-semibold text-amber-100 disabled:opacity-40">
+                  <LogOut size={14} className="shrink-0" /> Sair do canal
+                </button>
+                <button type="button" onClick={() => removeFromAfiliate(c)}
+                  disabled={busyChannelId === channelKey(c)}
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 py-2.5 text-xs font-semibold text-rose-200 disabled:opacity-40">
+                  <Trash2 size={14} className="shrink-0" /> Excluir do Afiliate
+                </button>
               </div>
-              {c.canPost && <CheckCircle2 className="text-emerald-400 shrink-0" size={17} />}
             </article>
+          ))}
+        </div>
+      )}
+      {excluded.length > 0 && (
+        <div className="rounded-xl border border-[#293246] p-3 space-y-2 min-w-0">
+          <p className="text-xs font-semibold text-[#a6b4c9]">Excluídos do Afiliate ({excluded.length})</p>
+          {excluded.map(c => (
+            <div key={channelKey(c)} className="flex min-w-0 flex-wrap gap-2 items-center justify-between">
+              <span className="text-xs text-white min-w-0 [overflow-wrap:anywhere]">{c.name || 'Canal WhatsApp'}</span>
+              <button type="button" disabled={busyChannelId === channelKey(c) || c.isFollowing === false}
+                onClick={() => restoreToAfiliate(c)}
+                className="flex items-center gap-1.5 text-xs text-blue-300 disabled:opacity-40"><Undo2 size={14} /> Restaurar</button>
+            </div>
           ))}
         </div>
       )}
