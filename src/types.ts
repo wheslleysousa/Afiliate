@@ -302,6 +302,8 @@ export interface WaCampaign {
   filters: CampaignFilters;
   quantity: number;
   windowMinutes: number;
+  /** Opcional para preservar campanhas antigas até a próxima edição. */
+  productsPerHour?: number;
   pacing: CampaignPacing;
   minGapSec: number;
   maxGapSec: number;
