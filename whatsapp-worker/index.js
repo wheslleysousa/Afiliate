@@ -1412,6 +1412,7 @@ async function processSendQueue() {
 
       // Pausar uma campanha no Afiliate interrompe também os envios já
       // enfileirados. Mantemos o registro como falha, sem publicar no WhatsApp.
+      let campaignForSend = {};
       if (item.campaignId) {
         const campaignSnap = await db
           .collection('users').doc(USER_UID).collection('campaigns')
@@ -1424,7 +1425,8 @@ async function processSendQueue() {
           });
           continue;
         }
-        if (!isScheduleActive(campaignSnap.data()?.schedule)) continue;
+        campaignForSend = campaignSnap.data() || {};
+        if (!isScheduleActive(campaignForSend.schedule)) continue;
 
         // A fila pode ter sido criada antes de alguém editar os destinos.
         // Sempre respeitar a seleção atual do Afiliate, não a configuração antiga.
@@ -1458,11 +1460,18 @@ async function processSendQueue() {
 
       const targetDoc = await db.collection('users').doc(USER_UID)
         .collection(isChannel ? 'waChannels' : 'waGroups').doc(itemSessionId + '_' + item.groupId).get();
-      if (!targetDoc.exists || (isChannel && targetDoc.data()?.canPost !== true)) {
+      if (!targetDoc.exists || (isChannel && (targetDoc.data()?.canPost !== true || targetDoc.data()?.excluded === true || targetDoc.data()?.isFollowing === false))) {
         await queueDoc.ref.update({
           status: 'failed', error: 'Destino não sincronizado ou canal sem autorização de publicação.',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        continue;
+      }
+      // Exclusão persiste mesmo após reconciliação de metadados.
+      if (isChannel && (await db.collection('users').doc(USER_UID).collection('waChannelExclusions')
+        .doc(itemSessionId + '_' + item.groupId).get()).exists) {
+        await queueDoc.ref.update({ status: 'failed', error: 'Canal excluído do Afiliate.',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         continue;
       }
       // Revalidar permissão ao vivo antes do claim/envio; não confiar somente no Firestore.
@@ -1519,7 +1528,7 @@ async function processSendQueue() {
         const short = await ensureCampaignShortLink({
           db, uid: USER_UID,
           product: { id: item.productId, title: item.productTitle || '', platform: '' },
-          campaign: campaignSnap?.exists ? campaignSnap.data() : {},
+          campaign: campaignForSend,
           affiliateLink: item.affiliateLink,
         });
         const finalCopy = replaceProductUrl(item.copyText, item.affiliateLink, short.shortUrl);
