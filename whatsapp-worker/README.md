@@ -99,6 +99,39 @@ Depois de um reboot, o Termux:Boot tentará recuperar o worker. Isso não signif
 - **Caiu:** veja erros no terminal/PM2 e otimizador de bateria. Não apague `auth/` por reflexo.
 - **Segurança:** o código legado também salva metadados de participantes na coleção `waGroups`. Revise acesso e retenção antes de expandir para terceiros.
 
+## Prévia manual de uma única oferta no canal (sem ligar campanha)
+
+Depois de confirmar a conta conectada, **um único canal administrado**, campanha pausada e fila com zero pendentes/processando, execute no Termux com o worker ainda em modo seguro:
+
+```sh
+cd ~/Afiliate/whatsapp-worker
+node scripts/preview-channel-image-test.js
+```
+
+O comando mostra o canal, o produto escolhido, a presença de imagem HTTPS e a quantidade de caracteres da legenda **sem criar envios**. Prefere produto não enviado anteriormente; se não houver, avisa que seria um repost de teste. O comando não mede se a imagem remota carrega.
+
+Somente após revisar o preview e confirmar que deseja publicar no canal, prepare o item único:
+
+```sh
+node scripts/preview-channel-image-test.js --enqueue-one-post --confirm=ONE_IMAGE_TO_MY_CHANNEL
+```
+
+Esse comando exige campanha desligada, fila vazia e exatamente um canal com `canPost:true`; cria **uma** pendência `manualMediaTest:true` com ID determinístico por data, impedindo execução duplicada naquele dia. Não reativa campanha nem o worker. O envio manual não tem `campaignId`, portanto independe da janela horária; é decisão explícita de teste.
+
+Com exatamente esse item na fila e com campanha ainda desligada, habilite **somente uma tentativa**:
+
+```sh
+WA_SEND_ENABLED=true WA_CHANNEL_MEDIA_ENABLED=true WA_DISABLE_CAMPAIGN_GENERATION=true WA_SEND_TEST_MAX_ATTEMPTS=1 WA_GROUP_COMMANDS_ENABLED=false pm2 restart afiliate-worker --update-env
+```
+
+Depois do teste, volte imediatamente a modo seguro:
+
+```sh
+WA_SEND_ENABLED=false pm2 restart afiliate-worker --update-env
+```
+
+Confira `pm2 logs afiliate-worker --lines 45 --nostream` e verifique a foto **visível** no canal. O ACK do Baileys não prova entrega de mídia. Não reinicie o worker com envios ligados: o contador de tentativas reinicia com o processo. Nunca apague `auth/`, e não libere geração de campanhas nem envio de lotes enquanto a mídia não estiver validada. Se o script falhar por falta de produto ou permissão, revise os dados antes de qualquer publicação.
+
 ## Teste controlado de imagem em canal próprio
 
 **Atenção:** a versão do Baileys usada no worker pode aceitar upload de imagem e mesmo assim não exibir a foto no WhatsApp Channel. O sucesso no log significa resposta do SDK, **não** confirmação visual de entrega. Não altere automaticamente a dependência do Baileys ou as credenciais.
