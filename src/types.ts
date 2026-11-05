@@ -264,6 +264,11 @@ export interface WaChannel {
   name: string;
   canPost: boolean;
   access?: 'admin' | 'following';
+  photoUrl?: string | null;
+  followersCount?: number | null;
+  description?: string | null;
+  isFollowing?: boolean;
+  excluded?: boolean;
   verificationPending?: boolean;
   verifiedAt?: any;
   updatedAt?: any;
@@ -322,6 +327,8 @@ export interface WaSendQueueItem {
   copyText: string;
   imageUrl?: string | null;
   affiliateLink: string;
+  shortLink?: string;
+  shortLinkDocId?: string;
   scheduledAt: any;
   status: QueueStatus;
   sentAt?: any;
@@ -378,6 +385,7 @@ export interface WaSession {
     linkGroupToCommunity?: boolean;
     commandsEnabled?: boolean;
     leaveGroup?: boolean;
+    leaveChannel?: boolean;
   };
   reloginRequired?: boolean;
   lastDisconnectCode?: number | null;
