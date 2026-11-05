@@ -141,3 +141,18 @@ button, a { touch-action: manipulation; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Proteção de viewport estreita (320–430 px), zoom e fontes maiores. */
+html, body, #root { width: 100%; max-width: 100%; min-width: 0; }
+html, body { overflow-x: clip; }
+#root { isolation: isolate; }
+:where(main, section, article, aside, nav, header, footer) { min-width: 0; }
+:where(.grid > *, .flex > *) { min-width: 0; }
+:where(p, h1, h2, h3, h4, h5, h6, label, dd, dt, small) { overflow-wrap: anywhere; }
+:where(img, video, canvas, iframe, input, textarea, select) { max-width: 100%; }
+:where(pre, code) { max-width: 100%; overflow-x: auto; }
+@media (max-width: 767px) {
+  :where(main, section, article, .card-premium) { max-width: 100%; }
+  :where([role="dialog"], [aria-modal="true"]) { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+  :where(.grid) { min-width: 0; }
+}

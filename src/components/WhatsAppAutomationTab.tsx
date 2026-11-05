@@ -26,6 +26,7 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
   const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
   const [excludedGroupIds, setExcludedGroupIds] = useState<Set<string>>(new Set());
   const [waChannels, setWaChannels] = useState<WaChannel[]>([]);
+  const [excludedChannelIds, setExcludedChannelIds] = useState<Set<string>>(new Set());
   const [waSessions, setWaSessions] = useState<WaSession[]>([]);
   const [preselectedGroupId, setPreselectedGroupId] = useState<string | null>(null);
   const [hidingGroups, setHidingGroups] = useState(false);
@@ -66,12 +67,21 @@ export const WhatsAppAutomationTab: React.FC<WhatsAppAutomationTabProps> = ({
       err => console.warn('[Afiliate] Não foi possível consultar grupos excluídos:', err.message));
   }, [uid]);
 
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(collection(db, 'users', uid, 'waChannelExclusions'),
+      snap => setExcludedChannelIds(new Set(snap.docs.map(d => d.id))),
+      err => console.warn('[Afiliate] Não foi possível consultar canais excluídos:', err.message));
+  }, [uid]);
+
   const connected = waSessions.filter(s => s.status === 'connected');
   const connectedIds = new Set(connected.map(s => s.sessionId || s.id || ''));
   const visibleGroups = waGroups.filter(g => g.isActive === true && g.membershipVerified === true && !g.hidden &&
     !excludedGroupIds.has((g.sessionId || '') + '_' + g.groupId) &&
     !!g.sessionId && connectedIds.has(g.sessionId));
-  const visibleChannels = waChannels.filter(c => connectedIds.has(c.sessionId));
+  const visibleChannels = waChannels.filter(c => connectedIds.has(c.sessionId) &&
+    c.excluded !== true && c.isFollowing !== false &&
+    !excludedChannelIds.has(c.id || (c.sessionId + '_' + c.channelId)));
   const myChannels = visibleChannels.filter(c => c.canPost);
   const campaignDestinations: WaGroup[] = [
     ...visibleGroups,
