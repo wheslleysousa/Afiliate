@@ -88,14 +88,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [categoriesStr, setCategoriesStr] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
 
-  // Quantity & Window
-  const [quantity, setQuantity] = useState<number>(30);
-  const [windowMinutes, setWindowMinutes] = useState<number>(30);
-
-  // Pacing
-  const [pacing, setPacing] = useState<CampaignPacing>('aleatorio');
-  const [minGapSec, setMinGapSec] = useState<number>(30);
-  const [maxGapSec, setMaxGapSec] = useState<number>(120);
+  // O usuário decide quantos produtos serão publicados por hora.
+  const [productsPerHour, setProductsPerHour] = useState<number>(30);
+  const [pacing, setPacing] = useState<CampaignPacing>('uniforme');
 
   // Schedule
   const [startHour, setStartHour] = useState<string>('09:00');
@@ -129,12 +124,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setCategoriesStr((campaign.filters?.categories || []).join(', '));
       setMaxPrice(campaign.filters?.maxPrice ?? '');
 
-      setQuantity(campaign.quantity ?? 30);
-      setWindowMinutes(campaign.windowMinutes ?? 30);
-
-      setPacing(campaign.pacing || 'aleatorio');
-      setMinGapSec(campaign.minGapSec ?? 30);
-      setMaxGapSec(campaign.maxGapSec ?? 120);
+      setProductsPerHour(campaign.productsPerHour ??
+        Math.max(1, Math.round((campaign.quantity ?? 30) * 60 / (campaign.windowMinutes || 30))));
+      setPacing(campaign.pacing || 'uniforme');
 
       setStartHour(campaign.schedule?.startHour || '09:00');
       setEndHour(campaign.schedule?.endHour || '21:00');
@@ -158,11 +150,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setPlatforms(['mercadolivre', 'shopee', 'amazon', 'aliexpress', 'shein']);
       setCategoriesStr('');
       setMaxPrice('');
-      setQuantity(30);
-      setWindowMinutes(30);
-      setPacing('aleatorio');
-      setMinGapSec(30);
-      setMaxGapSec(120);
+      setProductsPerHour(30);
+      setPacing('uniforme');
       setStartHour('09:00');
       setEndHour('21:00');
       setDays([0, 1, 2, 3, 4, 5, 6]);
@@ -215,6 +204,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setError('Selecione obrigatoriamente a conta do WhatsApp que irá realizar os disparos.');
       return;
     }
+    if (!Number.isInteger(productsPerHour) || productsPerHour < 1 || productsPerHour > 500) {
+      setError('Defina de 1 a 500 produtos por hora.');
+      return;
+    }
     // Criar ou editar uma campanha pausada sem destinos é permitido.
     // Ela só pode ser ativada no cartão depois de escolher grupo/canal válido.
     if (targetGroupIds.length === 0 && campaign?.enabled) {
@@ -247,11 +240,12 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           categories: categories || [],
           maxPrice: maxPrice !== '' && !isNaN(Number(maxPrice)) ? Number(maxPrice) : null,
         },
-        quantity: Number(quantity) || 30,
-        windowMinutes: Number(windowMinutes) || 30,
+        productsPerHour,
+        quantity: productsPerHour, // compatibilidade com versões antigas do worker
+        windowMinutes: 60,
         pacing,
-        minGapSec: Number(minGapSec) || 30,
-        maxGapSec: Number(maxGapSec) || 120,
+        minGapSec: campaign?.minGapSec ?? 30,
+        maxGapSec: campaign?.maxGapSec ?? 120,
         schedule: {
           startHour,
           endHour,
@@ -624,104 +618,75 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             </div>
           </div>
 
-          {/* Quantidade, Janela e Ritmo (Pacing) */}
+          {/* Controle direto de volume por hora */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Quantidade & Janela */}
-            <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
+            <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636] min-w-0">
               <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-emerald-400" />
-                Volume de Disparos
+                Produtos por hora
               </h4>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-[#93a0b5]">Qtd. Produtos</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] text-[#93a0b5]">Janela (minutos)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="1440"
-                    value={windowMinutes}
-                    onChange={(e) => setWindowMinutes(Number(e.target.value))}
-                    className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-[#93a0b5]">
-                A campanha tentará distribuir <strong>{quantity} ofertas</strong> ao longo de <strong>{windowMinutes} minutos</strong>.
+              <label htmlFor="campaign-products-per-hour" className="text-[11px] text-[#93a0b5]">
+                Quantos produtos publicar a cada hora?
+              </label>
+              <input
+                id="campaign-products-per-hour"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="500"
+                step="1"
+                required
+                value={productsPerHour}
+                onChange={e => setProductsPerHour(Number(e.target.value))}
+                className="w-full max-w-full min-w-0 bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[11px] leading-relaxed text-[#93a0b5] break-words">
+                Até <strong className="text-white">{productsPerHour}</strong> produtos diferentes por hora,
+                distribuídos nos horários da campanha.
+                {targetGroupIds.length > 1
+                  ? ` Cada produto é publicado nos ${targetGroupIds.length} destinos selecionados.`
+                  : ' Para o destino selecionado.'}
               </p>
+              {campaign && campaign.productsPerHour == null && (
+                <p className="text-[10px] leading-relaxed text-amber-300">
+                  Campanha antiga: taxa estimada pela quantidade e janela anteriores.
+                  Confira o valor antes de salvar.
+                </p>
+              )}
             </div>
 
-            {/* Pacing (Ritmo) */}
-            <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636]">
+            <div className="space-y-3 bg-[#151a26]/50 p-4 rounded-2xl border border-[#1e2636] min-w-0">
               <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-400" />
-                Ritmo (Pacing)
+                Distribuição dos horários
               </h4>
-
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setPacing('aleatorio')}
-                  className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${
-                    pacing === 'aleatorio'
-                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                      : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
-                  }`}
+                  className={`min-w-0 p-2 rounded-xl border text-center text-xs font-bold transition-all ${pacing === 'aleatorio'
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                    : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'}`}
                 >
-                  🎲 Aleatório (Recomendado)
+                  Aleatório
                 </button>
                 <button
                   type="button"
                   onClick={() => setPacing('uniforme')}
-                  className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${
-                    pacing === 'uniforme'
-                      ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                      : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'
-                  }`}
+                  className={`min-w-0 p-2 rounded-xl border text-center text-xs font-bold transition-all ${pacing === 'uniforme'
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                    : 'bg-[#0e1119] border-[#1e2636] text-[#93a0b5]'}`}
                 >
-                  ⏱️ Uniforme
+                  Uniforme
                 </button>
               </div>
-
-              {pacing === 'aleatorio' && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-[#93a0b5]">Gap Mín (seg)</label>
-                    <input
-                      type="number"
-                      value={minGapSec}
-                      onChange={(e) => setMinGapSec(Number(e.target.value))}
-                      className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-[#93a0b5]">Gap Máx (seg)</label>
-                    <input
-                      type="number"
-                      value={maxGapSec}
-                      onChange={(e) => setMaxGapSec(Number(e.target.value))}
-                      className="w-full bg-[#0e1119] border border-[#1e2636] text-[#eef2f9] text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <p className="text-[10px] text-[#93a0b5]">
+              <p className="text-[11px] leading-relaxed text-[#93a0b5] break-words">
                 {pacing === 'aleatorio'
-                  ? `Intervalos sorteados entre ${minGapSec}s e ${maxGapSec}s em lotes irregulares para proteger sua conta contra banimentos.`
-                  : 'Distribuição exatamente espaçada e uniforme.'}
+                  ? 'Horários levemente variados dentro de cada intervalo, preservando a quantidade por hora.'
+                  : 'Horários espaçados regularmente ao longo de 60 minutos.'}
+              </p>
+              <p className="text-[10px] leading-relaxed text-[#93a0b5]">
+                A publicação depende de produtos elegíveis, WhatsApp conectado e worker ativo.
               </p>
             </div>
           </div>
