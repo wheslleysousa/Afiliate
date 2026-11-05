@@ -22,3 +22,10 @@ Frontend/API hospedados no Vercel; worker no Termux. O APK só deve ser criado p
 
 ## Validação pendente
 Compilação em Vercel e testes de helpers provam apenas código, não descoberta de canais reais na versão Baileys instalada. Conferir em uma conta real que os canais seguidos aparecem (automaticamente ou por link) e que um único post no canal próprio é entregue, com disparos bloqueados até autorização deliberada.
+
+## 2026-11-04 — Identidade, seguidores, remoção e links curtos
+- Ao sincronizar, guardar `name`, `photoUrl`, `followersCount` e `description` somente quando retornados pelos metadados reais do Baileys. Seguidor desconhecido deve aparecer como **não informado**, nunca inventado.
+- **Excluir do Afiliate** cria tombstone em `waChannelExclusions`; não cancela a inscrição no WhatsApp. **Restaurar** remove o tombstone.
+- **Sair do canal** solicita `newsletterUnfollow` somente para canais seguidos, com confirmação e permissão isolada `WA_CHANNEL_LEAVE_ENABLED=true`. Canais administrados são gerenciados diretamente no WhatsApp. A opção não libera envio de ofertas, criação de grupos ou saídas automáticas.
+- Gerador de campanhas registra `shortLinks` no Firestore antes de colocar a copy na fila, com `targetUrl` apontando para o link de afiliado. Não é seguro usar somente URL encurtada sem gravar o registro. O consumidor da fila também migra copies antigas; se falhar, a publicação **não** acontece com o link bruto.
+- O endereço curto público usa `https://lkrm.site/prefixo/codigo`. A confirmação ponta a ponta (resolução HTTPS e WhatsApp real) ainda depende de testes em produção.
